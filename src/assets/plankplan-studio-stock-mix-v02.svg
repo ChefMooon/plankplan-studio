@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512" role="img" aria-labelledby="title desc">
+  <title id="title">PlankPlan Studio — Stock Mix</title>
+  <desc id="desc">A notched sheet panel pairs with two boards of different lengths, separated by clear cutting gaps to represent mixed stock planning.</desc>
+  <g id="stock-mix-mark">
+    <!-- The stepped panel suggests sheet nesting; two independent boards show mixed stock. -->
+    <path id="sheet-panel" fill="#276A91" d="M64 64H272V152H184V272H64Z"/>
+    <path id="long-board" fill="#173B56" d="M312 64H400L448 112V448H312Z"/>
+    <path id="short-board" fill="#276A91" d="M64 312H272V400H112L64 352Z"/>
+  </g>
+</svg>

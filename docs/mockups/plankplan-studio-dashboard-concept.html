@@ -1,0 +1,296 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Exploratory PlankPlan Studio dashboard and project workspace concept.">
+  <link rel="icon" type="image/svg+xml" href="../../public/favicon.svg">
+  <title>PlankPlan Studio — Dashboard Concept</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --ink: #1e3342;
+      --muted: #536b7a;
+      --paper: #eff4f7;
+      --surface: #fbfdfe;
+      --line: #d3e0e8;
+      --blue: #276a91;
+      --blue-dark: #174a6b;
+      --blue-soft: #e5f0f6;
+      --warm-accent: #b85c38;
+      --warm-accent-soft: #f5e9e2;
+      --shadow: 0 18px 45px rgb(26 39 30 / 7%);
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+
+    * { box-sizing: border-box; }
+    body { margin: 0; background: var(--paper); color: var(--ink); }
+    button, a { font: inherit; }
+    button { cursor: pointer; }
+    a { color: inherit; }
+    :focus-visible { outline: 3px solid #276a91; outline-offset: 3px; }
+    .skip-link { position: absolute; top: -4rem; left: 1rem; z-index: 10; padding: .7rem 1rem; background: white; }
+    .skip-link:focus { top: 1rem; }
+    .concept-banner { padding: .55rem 1rem; background: #173b56; color: #eef5f8; text-align: center; font-size: .75rem; letter-spacing: .04em; }
+    .app-header { height: 72px; display: flex; align-items: center; justify-content: space-between; gap: 1rem; padding: 0 clamp(1rem, 4vw, 4rem); background: var(--surface); border-bottom: 1px solid var(--line); }
+    .brand { display: inline-flex; align-items: center; gap: .7rem; border: 0; padding: 0; background: none; color: var(--ink); font-weight: 750; letter-spacing: -.035em; cursor: pointer; }
+    .brand-mark { display: block; width: 36px; height: 36px; object-fit: contain; }
+    .header-right { display: flex; align-items: center; gap: 1rem; color: var(--muted); font-size: .82rem; }
+    .avatar { width: 32px; height: 32px; display: grid; place-items: center; border-radius: 50%; background: var(--blue-soft); color: var(--blue-dark); font-weight: 700; }
+    main { width: min(1160px, calc(100% - 2rem)); margin: 0 auto; padding: clamp(2.2rem, 5vw, 4rem) 0 4rem; }
+    .eyebrow { margin: 0 0 .65rem; color: var(--blue); font-size: .72rem; font-weight: 750; letter-spacing: .12em; text-transform: uppercase; }
+    h1 { margin: 0; font-size: clamp(2rem, 4vw, 3rem); line-height: 1.05; letter-spacing: -.055em; }
+    .intro { max-width: 610px; margin: .9rem 0 0; color: var(--muted); line-height: 1.65; }
+    .page-head { position: relative; min-height: 248px; display: grid; grid-template-columns: 1fr .82fr; align-items: center; gap: 1.5rem; margin-bottom: 1.6rem; overflow: hidden; padding: clamp(1.5rem, 4vw, 3rem); border-radius: 14px; background: #173b56; color: #f8f6ee; }
+    .hero-copy { position: relative; z-index: 1; max-width: 540px; }
+    .page-head .eyebrow { color: #8ac3df; }
+    .page-head h1 { max-width: 520px; font-family: Georgia, "Times New Roman", serif; font-size: clamp(2.4rem, 5vw, 4.2rem); font-weight: 500; line-height: .98; letter-spacing: -.055em; }
+    .page-head h1 span { color: #8ac3df; font-style: italic; }
+    .page-head .intro { max-width: 440px; margin-top: .95rem; color: #cfdee7; font-size: .94rem; }
+    .hero-art { position: relative; min-height: 190px; display: grid; place-items: center; }
+    .hero-art::before { content: ""; position: absolute; inset: -40px -60px -40px 0; opacity: .24; background-image: linear-gradient(rgb(210 229 240 / 24%) 1px, transparent 1px), linear-gradient(90deg, rgb(210 229 240 / 24%) 1px, transparent 1px); background-size: 24px 24px; mask-image: linear-gradient(90deg, transparent, #000 25%); }
+    .hero-art svg { position: relative; z-index: 1; width: min(100%, 410px); overflow: visible; filter: drop-shadow(0 18px 18px rgb(8 18 12 / 18%)); }
+    .hero-caption { position: absolute; right: 2px; bottom: 4px; z-index: 1; display: flex; align-items: center; gap: .45rem; color: #c9dce7; font-size: .65rem; letter-spacing: .12em; text-transform: uppercase; }
+    .hero-caption::before { content: ""; width: 18px; height: 1px; background: #8ac3df; }
+    .hero-cta { margin-top: 1.2rem; }
+    .hero-cta .button.primary { border-color: #276a91; background: #276a91; color: white; }
+    .hero-cta .button.primary:hover { background: #174a6b; }
+    .button { min-height: 42px; display: inline-flex; align-items: center; justify-content: center; gap: .5rem; padding: .65rem 1rem; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); color: var(--ink); font-weight: 650; text-decoration: none; transition: background .15s ease, transform .15s ease; }
+    .button:hover { background: #edf4f8; transform: translateY(-1px); }
+    .button.primary { border-color: var(--blue); background: var(--blue); color: white; }
+    .button.primary:hover { background: var(--blue-dark); }
+    .button.small { min-height: 36px; padding: .45rem .75rem; font-size: .82rem; }
+    .actions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1rem; margin-bottom: 2.6rem; }
+    .action-card { position: relative; min-height: 175px; overflow: hidden; display: flex; flex-direction: column; justify-content: space-between; padding: 1.35rem 1.5rem; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); box-shadow: var(--shadow); }
+    .action-card.design { border-top: 3px solid var(--blue); }
+    .action-card.cutlist { border-top: 3px solid #83abc3; }
+    .action-top { display: flex; align-items: flex-start; justify-content: space-between; gap: 1rem; }
+    .action-card h2 { margin: .1rem 0 .45rem; font-size: 1.18rem; letter-spacing: -.025em; }
+    .action-card p { max-width: 390px; margin: 0; color: var(--muted); font-size: .9rem; line-height: 1.5; }
+    .icon-box { width: 43px; height: 43px; display: grid; place-items: center; flex: 0 0 auto; border-radius: 10px; background: var(--blue-soft); color: var(--blue); font-size: 1.3rem; }
+    .cutlist .icon-box { background: var(--blue-soft); color: var(--blue-dark); }
+    .phase-tag { display: inline-flex; align-items: center; gap: .35rem; padding: .3rem .55rem; border-radius: 99px; background: var(--blue-soft); color: var(--blue-dark); font-size: .68rem; font-weight: 700; }
+    .phase-tag.planned { background: #f0f0eb; color: #626c63; }
+    .section-head { display: flex; justify-content: space-between; align-items: baseline; gap: 1rem; margin: 0 0 .9rem; }
+    .section-head h2 { margin: 0; font-size: 1.08rem; letter-spacing: -.02em; }
+    .section-head span, .section-head a { color: var(--muted); font-size: .8rem; }
+    .project-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 1rem; }
+    .project-card { overflow: hidden; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); }
+    .project-thumb { height: 112px; position: relative; display: grid; place-items: center; overflow: hidden; background-color: #edf3f6; background-image: linear-gradient(90deg, rgb(255 255 255 / 35%) 1px, transparent 1px), linear-gradient(rgb(255 255 255 / 35%) 1px, transparent 1px); background-size: 22px 22px; }
+    .project-thumb::before { content: ""; width: 66%; height: 34px; border: 1px solid #8c6545; border-radius: 3px; background: repeating-linear-gradient(0deg, #c49362 0 7px, #bb8755 7px 9px); box-shadow: 0 8px 12px rgb(74 62 44 / 15%); transform: rotate(-5deg); }
+    .project-thumb.cabinet { background-color: #eef2f4; }
+    .project-thumb.cabinet::before { width: 54px; height: 70px; border: 2px solid #806044; border-radius: 2px; background: linear-gradient(90deg, transparent 48%, #997351 49% 51%, transparent 52%), linear-gradient(#d2b18b, #c29d70); box-shadow: 15px 4px 0 -2px #b88d61; transform: none; }
+    .project-thumb.empty::before { width: 56px; height: 56px; border: 1px dashed #8099a8; border-radius: 50%; background: transparent; box-shadow: none; transform: none; }
+    .project-thumb.empty::after { content: "+"; position: absolute; color: #49677a; font-size: 2rem; font-weight: 300; }
+    .project-body { padding: 1rem; }
+    .project-title-row { display: flex; align-items: start; justify-content: space-between; gap: .75rem; }
+    .project-body h3 { margin: 0; font-size: .94rem; }
+    .project-body p { margin: .42rem 0 1rem; color: var(--muted); font-size: .77rem; }
+    .status { padding: .26rem .45rem; border-radius: 5px; background: #edf1eb; color: #49634e; font-size: .65rem; white-space: nowrap; }
+    .project-card .button { width: 100%; }
+    .workspace { margin-top: 1.2rem; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); box-shadow: var(--shadow); }
+    .workspace-top { display: flex; align-items: center; justify-content: space-between; gap: 1rem; padding: 1.1rem 1.25rem; border-bottom: 1px solid var(--line); }
+    .crumbs { display: flex; align-items: center; gap: .55rem; color: var(--muted); font-size: .82rem; }
+    .crumbs button { border: 0; padding: 0; background: none; color: var(--blue); font-weight: 700; }
+    .workspace-title { margin: .25rem 0 0; font-size: 1.08rem; }
+    .tabs { display: flex; gap: .35rem; padding: 0 1.25rem; border-bottom: 1px solid var(--line); }
+    .tab { position: relative; border: 0; padding: .9rem .75rem; background: none; color: var(--muted); font-weight: 650; }
+    .tab[aria-selected="true"] { color: var(--blue-dark); }
+    .tab[aria-selected="true"]::after { content: ""; position: absolute; right: .7rem; bottom: -1px; left: .7rem; height: 2px; background: var(--blue); }
+    .workspace-content { min-height: 285px; padding: 1.4rem; }
+    .shell-panel { min-height: 245px; display: grid; grid-template-columns: 1.2fr .8fr; gap: 1.2rem; }
+    .canvas-placeholder { display: grid; place-items: center; min-height: 240px; border: 1px dashed #a5bac8; border-radius: 9px; background-color: #edf4f8; background-image: linear-gradient(90deg, rgb(39 106 145 / 9%) 1px, transparent 1px), linear-gradient(rgb(39 106 145 / 9%) 1px, transparent 1px); background-size: 24px 24px; text-align: center; }
+    .canvas-inner { max-width: 280px; padding: 1rem; }
+    .cube { width: 82px; height: 58px; margin: 0 auto 1rem; border: 2px solid #557e98; background: linear-gradient(135deg, #dceaf1 50%, #c5dbe7 50%); transform: skewY(-8deg); }
+    .canvas-placeholder strong { display: block; font-size: .9rem; }
+    .canvas-placeholder p { margin: .4rem 0 0; color: var(--muted); font-size: .8rem; line-height: 1.5; }
+    .side-panel { padding: 1rem; border: 1px solid var(--line); border-radius: 9px; }
+    .side-panel h3 { margin: 0 0 .8rem; font-size: .9rem; }
+    .notice { padding: .75rem; border-radius: 7px; background: #edf3f6; color: #526c7c; font-size: .78rem; line-height: 1.5; }
+    .measure-row { display: flex; justify-content: space-between; gap: .8rem; padding: .65rem 0; border-bottom: 1px solid #e6edf1; font-size: .8rem; }
+    .measure-row span { color: var(--muted); }
+    .cutlist-layout { display: grid; grid-template-columns: 1fr 250px; gap: 1.2rem; }
+    .table-wrap { overflow-x: auto; border: 1px solid var(--line); border-radius: 8px; }
+    table { width: 100%; border-collapse: collapse; font-size: .81rem; text-align: left; }
+    th, td { padding: .8rem .9rem; border-bottom: 1px solid #e6edf1; white-space: nowrap; }
+    th { background: #edf3f6; color: #536b7a; font-size: .7rem; letter-spacing: .04em; text-transform: uppercase; }
+    td:last-child, th:last-child { text-align: right; }
+    tr:last-child td { border-bottom: 0; }
+    .stock-card { align-self: start; padding: 1rem; border: 1px solid var(--line); border-radius: 8px; }
+    .stock-card h3 { margin: 0 0 .7rem; font-size: .88rem; }
+    .total { margin-top: .8rem; padding-top: .8rem; border-top: 1px solid var(--line); font-size: .85rem; font-weight: 750; }
+    .prototype-note { display: flex; align-items: flex-start; gap: .65rem; margin: 1rem 0 0; padding: .8rem 1rem; border: 1px solid #cbdce6; border-radius: 8px; background: #f2f7fa; color: #405d70; font-size: .78rem; line-height: 1.5; }
+    .prototype-note strong { white-space: nowrap; }
+    .footer-note { margin-top: 2.5rem; color: var(--muted); font-size: .75rem; text-align: center; }
+    [hidden] { display: none !important; }
+
+    @media (max-width: 760px) {
+      .page-head { grid-template-columns: 1fr .7fr; gap: .5rem; }
+      .hero-art { min-height: 155px; }
+      .actions, .project-grid { grid-template-columns: 1fr; }
+      .action-card { min-height: 160px; }
+      .project-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .shell-panel, .cutlist-layout { grid-template-columns: 1fr; }
+      .workspace-top { align-items: flex-start; }
+      .header-right .account-label { display: none; }
+    }
+    @media (max-width: 480px) {
+      main { width: min(100% - 1.25rem, 1160px); padding-top: 1.8rem; }
+      .page-head { grid-template-columns: 1fr; gap: .5rem; padding: 1.55rem; }
+      .page-head h1 { max-width: 360px; font-size: clamp(2.5rem, 12vw, 3.4rem); }
+      .hero-art { min-height: 150px; margin: -.1rem -1rem -.6rem 0; }
+      .hero-art svg { width: min(86%, 310px); }
+      .hero-caption { right: .2rem; bottom: 0; }
+      .project-grid { grid-template-columns: 1fr; }
+      .workspace-top { flex-direction: column; }
+      .workspace-content { padding: .8rem; }
+      .tabs { padding: 0 .5rem; }
+      .tab { padding-inline: .55rem; font-size: .85rem; }
+      .prototype-note { flex-direction: column; }
+    }
+    @media (prefers-reduced-motion: reduce) { *, *::before, *::after { scroll-behavior: auto !important; transition-duration: .01ms !important; } }
+  </style>
+</head>
+<body>
+  <a class="skip-link" href="#main">Skip to content</a>
+  <div class="concept-banner">EXPLORATORY CONCEPT · SAMPLE PROJECT DATA · CHANGES ARE NOT SAVED</div>
+  <header class="app-header">
+    <button class="brand" id="homeButton" aria-label="PlankPlan Studio home">
+      <img class="brand-mark" src="../../src/assets/plankplan-studio-stock-mix-v02.svg" alt="" aria-hidden="true"><span>PlankPlan Studio</span>
+    </button>
+    <div class="header-right"><span class="account-label">Workspace preview</span><span class="avatar" aria-hidden="true">J</span></div>
+  </header>
+
+  <main id="main">
+    <section id="dashboard" aria-labelledby="dashboardTitle">
+      <div class="page-head">
+        <div class="hero-copy">
+          <p class="eyebrow">Your workshop · Your next build</p>
+          <h1 id="dashboardTitle">Make a plan.<br><span>Make the cut.</span></h1>
+          <p class="intro">Bring the project from first dimensions to a smarter list of boards and cuts.</p>
+          <div class="hero-cta"><button class="button primary" id="newProjectButton"><span aria-hidden="true">＋</span> Start a project</button></div>
+        </div>
+        <div class="hero-art" role="img" aria-label="Line illustration of a workbench with measurement marks">
+          <svg viewBox="0 0 440 240" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+            <path d="M98 83 243 43l106 39-147 43L98 83Z" fill="#C18D5B" stroke="#E0BB8E" stroke-width="2"/>
+            <path d="m98 83 104 42v23L98 106V83Z" fill="#9D6C43" stroke="#D6A675" stroke-width="2"/>
+            <path d="m202 125 147-43v24l-147 42v-23Z" fill="#AC794C" stroke="#D6A675" stroke-width="2"/>
+            <path d="m119 111 19 7v80l-19-7v-80ZM321 111l19-6v80l-19 6v-80ZM185 142l19 7v80l-19-7v-80ZM257 130l19-6v80l-19 6v-80Z" fill="#694332" stroke="#83abc3" stroke-width="2"/>
+            <path d="M108 69 245 31M92 62l-8 2m168-39 9-2M78 62v43m8-47v44M362 78l-8 3m-1 41 9-3" stroke="#D7C8AA" stroke-width="1.5" stroke-linecap="round"/>
+            <path d="m74 62 4-5 4 3m-4 45-4 5-4-3m282-26 5-4-2-5m-1 46 5 3 3-5" stroke="#D7C8AA" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+            <path d="M105 55 240 18" stroke="#D7C8AA" stroke-width="1" stroke-dasharray="3 5"/>
+            <text x="145" y="34" fill="#e5f0f6" font-family="ui-monospace, monospace" font-size="10" letter-spacing="1">48 IN</text>
+            <text x="359" y="105" fill="#e5f0f6" font-family="ui-monospace, monospace" font-size="9" letter-spacing="1" transform="rotate(-16 359 105)">24 IN</text>
+            <circle cx="109" cy="83" r="3" fill="#E7C398"/><circle cx="349" cy="82" r="3" fill="#E7C398"/>
+          </svg>
+          <span class="hero-caption">Designed for the shop floor</span>
+        </div>
+      </div>
+
+      <section class="actions" aria-label="Start a workflow">
+        <article class="action-card design">
+          <div class="action-top"><div><h2>Design a project</h2><p>Start in the 3D workspace, shape the project, and work toward a cutlist.</p></div><span class="icon-box" aria-hidden="true">⌂</span></div>
+          <div><span class="phase-tag planned">Planned · Phase 2</span> <button class="button small" data-open="design">Open workspace preview <span aria-hidden="true">→</span></button></div>
+        </article>
+        <article class="action-card cutlist">
+          <div class="action-top"><div><h2>Build a cutlist</h2><p>Enter parts, choose stock, and review an optimized cutting plan.</p></div><span class="icon-box" aria-hidden="true">▤</span></div>
+          <div><span class="phase-tag">MVP workflow</span> <button class="button small primary" data-open="cutlist">Start a cutlist project <span aria-hidden="true">→</span></button></div>
+        </article>
+      </section>
+
+      <div class="section-head"><h2>Recent projects</h2><span>Updated locally · Sample data</span></div>
+      <section class="project-grid" aria-label="Recent projects">
+        <article class="project-card">
+          <div class="project-thumb" role="img" aria-label="Illustration of a timber workbench top"></div>
+          <div class="project-body"><div class="project-title-row"><h3>Workshop bench</h3><span class="status">Cutlist ready</span></div><p>Hard maple · Updated yesterday</p><button class="button small" data-open="cutlist">Open project <span aria-hidden="true">→</span></button></div>
+        </article>
+        <article class="project-card">
+          <div class="project-thumb cabinet" role="img" aria-label="Illustration of a small cabinet"></div>
+          <div class="project-body"><div class="project-title-row"><h3>Entry cabinet</h3><span class="status">In progress</span></div><p>White oak · Updated Oct 18</p><button class="button small" data-open="design">Open project <span aria-hidden="true">→</span></button></div>
+        </article>
+        <article class="project-card">
+          <div class="project-thumb empty" role="img" aria-label="A plus symbol suggesting a new project"></div>
+          <div class="project-body"><div class="project-title-row"><h3>Start something new</h3></div><p>Choose Design or Cutlist to begin.</p><button class="button small" data-open="cutlist">Create project <span aria-hidden="true">→</span></button></div>
+        </article>
+      </section>
+    </section>
+
+    <section id="workspace" class="workspace" aria-label="Project workspace" hidden>
+      <div class="workspace-top">
+        <div><div class="crumbs"><button id="backHome">Projects</button><span aria-hidden="true">/</span><span>Workshop bench</span></div><h2 class="workspace-title" tabindex="-1">Workshop bench</h2></div>
+        <button class="button small" id="backHomeSecondary">← All projects</button>
+      </div>
+      <div class="tabs" role="tablist" aria-label="Project sections">
+        <button class="tab" id="designTab" role="tab" aria-selected="true" aria-controls="designPanel" tabindex="0">Design</button>
+        <button class="tab" id="cutlistTab" role="tab" aria-selected="false" aria-controls="cutlistPanel" tabindex="-1">Cutlist</button>
+      </div>
+      <div class="workspace-content">
+        <section id="designPanel" role="tabpanel" aria-labelledby="designTab">
+          <div class="shell-panel">
+            <div class="canvas-placeholder"><div class="canvas-inner"><div class="cube" aria-hidden="true"></div><strong>3D Design workspace</strong><p>Project context and navigation are established here. Interactive Three.js modeling is planned for Phase 2.</p></div></div>
+            <aside class="side-panel"><h3>Project details</h3><div class="notice"><strong>Design shell only.</strong> This preview shows where the model canvas and project tools will live.</div><div class="measure-row"><span>Units</span><strong>Imperial</strong></div><div class="measure-row"><span>Target workflow</span><strong>Model → Cutlist</strong></div><div class="measure-row"><span>Model status</span><strong>Not created</strong></div></aside>
+          </div>
+        </section>
+        <section id="cutlistPanel" role="tabpanel" aria-labelledby="cutlistTab" hidden>
+          <div class="cutlist-layout">
+            <div class="table-wrap"><table><caption class="visually-hidden">Sample parts for the workshop bench</caption><thead><tr><th scope="col">Part</th><th scope="col">Qty</th><th scope="col">Length</th><th scope="col">Stock</th><th scope="col">Status</th></tr></thead><tbody>
+              <tr><td>Long apron</td><td>2</td><td>48 in</td><td>Maple 8/4</td><td>Placed</td></tr><tr><td>Short apron</td><td>2</td><td>18 in</td><td>Maple 8/4</td><td>Placed</td></tr><tr><td>Leg</td><td>4</td><td>30 in</td><td>Maple 8/4</td><td>Placed</td></tr><tr><td>Top slat</td><td>5</td><td>48 in</td><td>Maple 4/4</td><td>Placed</td></tr>
+            </tbody></table></div>
+            <aside class="stock-card"><h3>Cutlist summary</h3><div class="measure-row"><span>Parts</span><strong>13</strong></div><div class="measure-row"><span>Stock boards</span><strong>5</strong></div><div class="measure-row"><span>Kerf</span><strong>⅛ in</strong></div><div class="total">Estimated stock: 24.6 bd ft</div></aside>
+          </div>
+          <p class="prototype-note"><strong>Sample calculation</strong><span>Rough stock is priced from the entered board dimensions. This MVP concept does not apply a generic yield allowance; end trim is entered explicitly in project settings.</span></p>
+        </section>
+      </div>
+    </section>
+    <p class="footer-note">Concept prototype for product discussion · Interactions switch between illustrative states only.</p>
+  </main>
+  <style>.visually-hidden { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; clip-path: inset(50%); }</style>
+  <script>
+    const dashboard = document.querySelector('#dashboard');
+    const workspace = document.querySelector('#workspace');
+    const designTab = document.querySelector('#designTab');
+    const cutlistTab = document.querySelector('#cutlistTab');
+    const designPanel = document.querySelector('#designPanel');
+    const cutlistPanel = document.querySelector('#cutlistPanel');
+
+    function showWorkspace(tab = 'design') {
+      dashboard.hidden = true;
+      workspace.hidden = false;
+      selectTab(tab);
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+      workspace.querySelector('.workspace-title').focus?.();
+    }
+    function showDashboard() {
+      workspace.hidden = true;
+      dashboard.hidden = false;
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+      document.querySelector('#dashboardTitle').focus();
+    }
+    function selectTab(tab) {
+      const isCutlist = tab === 'cutlist';
+      designTab.setAttribute('aria-selected', String(!isCutlist));
+      cutlistTab.setAttribute('aria-selected', String(isCutlist));
+      designTab.tabIndex = isCutlist ? -1 : 0;
+      cutlistTab.tabIndex = isCutlist ? 0 : -1;
+      designPanel.hidden = isCutlist;
+      cutlistPanel.hidden = !isCutlist;
+    }
+
+    document.querySelectorAll('[data-open]').forEach((button) => button.addEventListener('click', () => showWorkspace(button.dataset.open)));
+    document.querySelector('#newProjectButton').addEventListener('click', () => showWorkspace('cutlist'));
+    document.querySelector('#homeButton').addEventListener('click', showDashboard);
+    document.querySelector('#backHome').addEventListener('click', showDashboard);
+    document.querySelector('#backHomeSecondary').addEventListener('click', showDashboard);
+    designTab.addEventListener('click', () => selectTab('design'));
+    cutlistTab.addEventListener('click', () => selectTab('cutlist'));
+    [designTab, cutlistTab].forEach((tab) => tab.addEventListener('keydown', (event) => {
+      if (event.key === 'ArrowLeft' || event.key === 'ArrowRight') {
+        event.preventDefault();
+        const next = tab === designTab ? cutlistTab : designTab;
+        next.focus();
+        selectTab(next === cutlistTab ? 'cutlist' : 'design');
+      }
+    }));
+  </script>
+</body>
+</html>

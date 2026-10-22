@@ -1,6 +1,10 @@
-# Web Static Template
+# PlankPlan Studio
 
-A fast, type-safe starter template for building production-ready Single Page Applications with a built-in design system.
+A woodworking planner in product planning. The current application is still the Vite/React starter scaffold; the product specification and MVP plan describe the intended product and must not be read as implemented behavior.
+
+## Documentation Status
+
+Product planning is in progress. Start with the [PlankPlan Studio MVP document](docs/plankplan-studio-mvp.md) for the canonical document register, MVP scope, and agreed dashboard and project-navigation direction. The initial brand and interface guidance is in [docs/DESIGN.md](docs/DESIGN.md), and the versioned Stock Mix mark is in `src/assets/`.
 
 ## Tech Stack
 
