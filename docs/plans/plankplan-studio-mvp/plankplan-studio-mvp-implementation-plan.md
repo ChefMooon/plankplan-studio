@@ -13,6 +13,8 @@ last_updated: 2026-10-22
 * **Total Phases Completed:** 3 / 3
 * **Summary of Outcome:** The MVP workflow now includes browser-local project editing, validated linear and sheet plans, mixed-material results, shop outputs, and the Design shell. Automated acceptance checks passed. Entry-time usability, actual browser print preview, cross-browser behavior, and deployed Cloudflare behavior remain explicitly unverified.
 
+> Documentation addendum (2026-10-22): The [data and persistence contract](../../plankplan-studio-data-persistence-contract.md) defines subsequent schema/recovery requirements. This completed MVP ledger remains historical evidence; it does not prove those safeguards are implemented. Local preparation belongs in the separate Phase 2 plan; cloud implementation remains Phase 3.
+
 # Specification & Overview
 
 ### 1. Scope & Objective

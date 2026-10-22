@@ -147,7 +147,7 @@ Implementation details to define: planar closure tolerance, rejected topology ca
 - Project stock presets/defaults use actual dimensions for geometry and fit; no quantity tracking is introduced.
 - Cutlist preview identifies changes and conflicts; applying it cannot silently overwrite manual changes.
 - Model-linked linear Parts contain optional width/thickness constraints; generated parts provide them and fit is validated against actual stock dimensions. Missing stock dimensions produce an unverified-fit warning.
-- Project schema-v1 data migrates to v2 without losing or changing cutlist fields; an absent design remains absent, while v2 export/import preserves the optional versioned design and its component-to-Part links and projection snapshots.
+- V1 data meeting the target contract migrates without changing valid cutlist values and leaves absent design absent. Previously accepted data outside tightened v2 constraints remains exactly exportable in recovery and requires explicit repair before migration; follow the contract's full compatibility table. V2 round-trip preserves design, active links, historical projection provenance, and pending-review states.
 - Unsupported geometry operations leave the last valid design intact and explain the unsupported operation.
 - A cutlist projection preview reports additions, updates, removals, aggregation changes, and field-level conflicts; applying a preview cannot overwrite unresolved manual edits.
 
@@ -155,3 +155,7 @@ Implementation details to define: planar closure tolerance, rejected topology ca
 
 - [3D Workspace Guide](plankplan-studio-3d-workspace-guide.md) records architectural constraints, owner decisions, and Phase 2 sequencing.
 - [Product Specification](plankplan-studio-product-spec.md) and [Roadmap](plankplan-studio-roadmap.md) define the Phase 2 product boundary.
+
+## Persistence contract dependency
+
+The [data and persistence contract](plankplan-studio-data-persistence-contract.md) is authoritative for target v2 serialization, identity operations, validation, migration/recovery, and per-project local repository concurrency. Phase 2 must define the exact design records and enforce link integrity, bounded projection snapshots, the document byte budget, and stale-preview checks before applying cutlist changes. Current code remains v1. Authentication, Cloudflare services, and cloud synchronization remain Phase 3 implementation work.

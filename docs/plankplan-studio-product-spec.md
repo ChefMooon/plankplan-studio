@@ -2,11 +2,14 @@
 
 *A woodworking planner that turns project parts into the cheapest way to buy and cut the wood.*
 
-**Status:** Draft v0.14
+**Status:** Draft v0.17
 **MVP architecture:** Vite + React + TanStack Router, shipped as a static SPA on Cloudflare. No backend is required for MVP; add server-side services only if later account/database features need them.
 **MVP visual source:** [PlankPlan Studio Design Guide](DESIGN.md)
 
 ### Changelog
+- **v0.17:** Closed final persistence gaps: legacy-tab cutover recovery, uncertain mutation reconciliation/cancellation, creation metadata retained through content purge, and bounded live snapshots/status reconciliation. Documentation only; cloud implementation stays Phase 3.
+- **v0.16:** Resolved the second persistence review: atomic local sync state, account namespaces, historical design-link states, remote change discovery, receipt lifecycle, legacy repair coverage, and deletion/restore retention. Cloud implementation remains Phase 3; application code is unchanged.
+- **v0.15:** Defined the target [project data and persistence contract](plankplan-studio-data-persistence-contract.md): canonical v2 fields, validation/recovery, identity operations, local repository boundaries, and Phase 3 revision-checked Cloudflare saves. Documentation only; implementation remains pending.
 - **v0.14:** Closed Phase 2 owner decisions: embed optional versioned design data in project schema v2, bound free-form modeling to planar profiles/simple extrusions without booleans or holes, add optional linear-part cross-section constraints for validated model-linked stock fit, and store component-to-Part links/projection snapshots in the design document.
 - **v0.13:** Restored Phase 2 3D workspace guidance and initial feature proposal; identified owner decisions for design storage/migration, free-form geometry scope, and model-linked cross-section fit validation.
 - **v0.12:** Confirmed all material and stock prices are entered and maintained manually; automatic lookup and store scraping are not planned.
@@ -96,9 +99,11 @@ There are no modes. A project is one list of parts, and each **material** has a 
 
 ## 4. Core Concepts (Data Model)
 
+The [data and persistence contract](plankplan-studio-data-persistence-contract.md) is authoritative for serialized fields, validation, identity, migrations, and recovery. Below are product concepts; alternative-material types are future proposals, not the wire format. Current code remains schema v1; the target v2 and persistence safeguards are not yet implemented.
+
 ### Project
 - `id`, `name`, `notes`, `unitSystem` (imperial | metric), `kerf`, `trim`, `minOffcutLinear`, `minOffcutSheet`, `currency`, `taxRate` (optional, percent), `createdAt`, `updatedAt`, `schemaVersion`
-- Has many Parts, and references Materials
+- Embeds Parts and project-scoped Material/price snapshots; account libraries never silently update saved projects
 
 ### Material
 - `id`, `name` (e.g., "2x4 SPF", "3/4" Birch Plywood")
@@ -148,7 +153,7 @@ type Part = {
 };
 ```
 
-For Phase 2, Project schema v2 adds an optional independently versioned `design` document. Schema-v1 projects migrate by preserving their current data and leaving `design` absent. Model-generated linear Part records include both cross-section dimensions; stable source IDs and last-applied projection snapshots are kept in the design document, keyed to generated Part IDs. The exact design/component record shape is defined by the separate Phase 2 implementation plan; do not serialize Three.js objects.
+For Phase 2, Project schema v2 adds an optional independently versioned `design` document. V1 projects meeting the target constraints migrate with valid cutlist values preserved and design absent; other previously accepted v1 payloads remain exactly exportable in recovery until explicitly repaired under the contract compatibility table. Model-generated linear Part records include both cross-section dimensions; stable source IDs and last-applied projection snapshots are kept in the design document, keyed to generated Part IDs. The exact design/component record shape is defined by the separate Phase 2 implementation plan; do not serialize Three.js objects.
 
 ### Global Settings
 - `kerf` (saw blade width), with default and per-project override
@@ -158,7 +163,7 @@ For Phase 2, Project schema v2 adds an optional independently versioned `design`
   - `minOffcutSheet`: shorter side **6" / 150 mm** and longer side **12" / 300 mm** (sheets)
 - `sheetLayout`: **Cheapest** (default; ties go to the simpler layout) or **Simplest cuts only**
 - `unitSystem`, display precision (e.g., nearest 1/16")
-- `currency` and optional `taxRate`
+- Target v2 currency: CAD, USD, EUR, or GBP; other v1 currencies remain recoverable pending explicit relabel/repair. Optional `taxRate` remains a percentage.
 
 ### Internal Units
 All optimizer math uses **integer micrometers (µm)** to avoid floating-point errors. Fractions and metric input are converted at the edges, and rounding is documented and tested. Money is stored as integer cents. **Tax is applied for display only** (it scales cost proportionally, so it doesn't change the optimal plan).
@@ -466,14 +471,15 @@ For small projects, the number of choice combinations is small enough to enumera
 ### Hosting & Backend (Cloudflare)
 - **MVP:** Deploy the client-side SPA as a static site on Cloudflare Pages. Project data and optimization remain in the browser; no backend is required.
 - **Later:** Add Cloudflare Workers and **D1** (SQLite) for users, projects, materials, and prices only if Phase 3 accounts/sync require them. No optimization runs server-side.
-- **KV** for sessions or cached presets, if needed
+- **KV** for non-authoritative cached presets if needed; project revisions and mutation receipts remain in D1. Auth session storage/revocation must be reviewed with the chosen auth integration.
 - **R2** for future file storage (exports, images)
 - Auth: **Better Auth** with D1 and Google/Microsoft OAuth (Phase 3)
 
 ### Data & Sync (Phase 3)
-- Projects stored as a validated JSON document per project, with a `schemaVersion` and migrations.
-- Last-write-wins sync to start. Conflict handling can be refined later.
-- Because the optimizer is client-side, the server only stores inputs and (optionally) the latest plan.
+- Follow the [data and persistence contract](plankplan-studio-data-persistence-contract.md). Phase 2 prepares local schema/repository/recovery boundaries; authentication, network sync, Workers/D1, and any R2 implementation remain Phase 3.
+- Store a validated JSON project aggregate with authenticated ownership, server revision/timestamps, and deletion tombstones. Separate portable content from server authority and local sync state.
+- Require atomic revision comparison, durable idempotent mutations, explicit account uploads, and recoverable conflicts. Silent last-write-wins is superseded.
+- Treat saved optimizer results as disposable caches tied to input revision/hash and optimizer version. Enforce document byte limits; larger R2-backed storage requires a versioned envelope.
 
 ---
 
@@ -491,8 +497,8 @@ For small projects, the number of choice combinations is small enough to enumera
 | Phase 2 | 3D project design and model creation | Three.js-based design surface and path from model components to cutlist; detailed scope to be planned |
 | Post-MVP (order TBD) | Alternative materials | `materialChoices`, hill-climb selector, comparison view |
 | Post-MVP (order TBD) | PDF download | Custom minimal PDF writer; free for everyone |
-| Phase 3 | Accounts and sync | Better Auth, Google/Microsoft sign-in, D1 storage, cross-device projects |
-| Phase 4 | Tiers | Plan limits (cloud project cap) and billing |
+| Phase 3 | Accounts and sync | Better Auth, Google/Microsoft sign-in, D1 storage, cross-device projects, fixed three-live-project cap |
+| Phase 4 | Tiers | Paid entitlements, configurable tier limits, and billing; fixed cap already enforced in Phase 3 |
 | Later | PWA / offline | Service worker, cached app shell, sync-on-reconnect |
 
 ---
@@ -539,6 +545,7 @@ For small projects, the number of choice combinations is small enough to enumera
 | 23 | Initial free-form geometry | Support planar edges/faces and simple Push/Pull solids. Exclude booleans, holes, and general self-intersection from the initial feature scope; invalid/unsupported operations preserve the last valid model. **Confirmed, 2026-10-22.** |
 | 24 | Model-linked cross-section fit | Add optional width/thickness constraints to linear parts; generated board parts require both and are checked against actual stock dimensions. Legacy manual parts remain length-only if those fields are absent. **Confirmed, 2026-10-22.** |
 | 25 | Component-to-cutlist link location | Store links and the last-applied projection snapshot in the embedded design document, keyed to generated Part IDs; keep manual Part records free of model metadata. **Confirmed, 2026-10-22.** |
+| 26 | Cloud-ready persistence | Canonical versioned project aggregate, recoverable local per-project repository, explicit copy/restore identities, and Phase 3 account-scoped revision-checked/idempotent saves. Supersedes last-write-wins; implementation remains pending. See the data and persistence contract. |
 
 ---
 

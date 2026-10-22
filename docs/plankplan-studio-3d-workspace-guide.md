@@ -66,6 +66,8 @@ Model data must be serializable and renderer-independent. Three.js meshes/materi
 
 The existing model is `Project` schema version 1. A `Part` stores length and optional width, but no required thickness, local grain axis, or design-link identity. `StockOption` can hold width/thickness for pricing, but the optimizer does not use them to validate that a board cross-section can produce a part. Any Phase 2 design schema or cutlist extension must state compatibility and migration behavior.
 
+The [data and persistence contract](plankplan-studio-data-persistence-contract.md) defines the authoritative target v2 cutlist fields, validation, identity, migration/recovery, and repository boundary. It is a target, not current behavior. Phase 2 implements local safeguards; cloud implementation remains Phase 3.
+
 ### Candidate responsibility boundaries
 
 - **Design domain:** versioned design data, component/instance identities, dimensions, transforms, constraints, validation, commands, and projection into parts.
@@ -74,7 +76,7 @@ The existing model is `Project` schema version 1. A `Part` stores length and opt
 - **Persistence/import/export:** validates and migrates project/design data and preserves it through backup/restore.
 - **Cutlist bridge:** records source-to-part relationships, previews changes, protects manual edits, and applies reviewed updates.
 
-**Decision:** Embed an optional, independently versioned design document in each project JSON. Bump the project schema from v1 to v2. Migrate v1 projects by preserving all existing fields and adding no design document; export v2 projects atomically with their design data. Import must migrate supported v1 payloads, validate both project and design data, and leave current data untouched on failure.
+**Decision:** Embed an optional, independently versioned design document in each project JSON. Bump the project schema from v1 to v2. Migrate v1 projects that meet the target contract with valid fields preserved and no design document; retain other legacy payloads in exact-byte recovery for explicit repair under the contract compatibility table; export v2 projects atomically with their design data. Import must migrate supported v1 payloads, validate both project and design data, and leave current data untouched on failure.
 
 ## Coordinates and part dimensions
 
@@ -139,7 +141,7 @@ Store stable source references and the last-applied projection snapshot in the e
 
 ## Phase 2 planning sequence
 
-1. Define and migrate Project schema v2 with an optional versioned design document; keep v1 import support and add round-trip/recovery tests.
+1. Define exact independently versioned design records and invariants, including stable local frames, topology/size limits, component references, projection links, and snapshots. Implement the data/persistence contract locally: per-project asynchronous repository with concurrency tokens, recoverable legacy storage conversion, and v1-to-v2 migration. Preserve valid cutlist fields; retain legacy data outside target constraints for explicit repair. Add round-trip/recovery tests; no cloud services.
 2. Define local component frames, cross-section constraints, stable design/instance/part links, and conflict-resolution rules. Preserve length-only behavior for legacy manual parts.
 3. Implement validated domain commands and model-to-parts projection independently of the renderer.
 4. Build a read-only scene from domain fixtures; prove camera, resize, component selection, and performance behavior.
@@ -155,6 +157,8 @@ Store stable source references and the last-applied projection snapshot in the e
 | d18-cross-section-contract | Add optional width/thickness constraints to linear parts; require both for generated boards and validate them against actual stock. | Warning-only and blocking-sync alternatives were considered. Additive constraints preserve existing manual parts while enabling verified fit for model-linked parts. | Owner answer, 2026-10-22; current `Part` is length-only while `StockOption` already stores actual width/thickness for board-foot stock; high confidence. |
 | d19-cutlist-link-location | Store component-to-Part links and last-applied projection snapshots in the embedded design document, keyed to generated Part IDs. | Storing metadata on Parts was considered but would mix model provenance into manual records; deferring would leave sync and migration shape unresolved. | Owner answer, 2026-10-22; the schema already embeds design data; high confidence. |
 | d20-phase2-material-identity | Use the existing single selected `materialId` as the material part of the aggregation key; do not include alternative material-choice sets in the initial model projection. | A multi-choice set could support substitution but changes optimizer/material semantics and is already deferred beyond MVP; the current `Part` model has one `materialId`. | Automatically resolved; current `src/lib/planner/model.ts` contract and product-spec deferral of alternatives; high confidence. |
+
+Active projection links resolve within the same project and reject duplicate live-instance membership and dangling current references. Historical last-applied provenance may reference deleted/replaced sources under the [contract's design-link lifecycle](plankplan-studio-data-persistence-contract.md#design-projection-integrity-phase-2). Source deletion, Make Unique, and manual Part deletion create saveable pending-review states, not invalid active dangling links. Detach preserves a manual Part; reviewed apply updates Parts and links atomically. Snapshots contain only last-applied projected fields, not entire duplicate designs. Applying a projection checks both the current committed local generation and editor edit sequence; stale previews must be regenerated. The full UTF-8 project fits the contract byte budget.
 
 ## Deferred implementation details
 

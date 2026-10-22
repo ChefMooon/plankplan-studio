@@ -45,7 +45,8 @@ The current icon source is [`src/assets/plankplan-studio-stock-mix-v02.svg`](../
 | Document | Purpose / source of truth | Status |
 |---|---|---|
 | [Design guide](DESIGN.md) | Initial Stock Mix identity, candidate blueprint palette, visual principles, responsive layout, and accessibility expectations for MVP screens. | Candidate; palette under review |
-| [Product specification](plankplan-studio-product-spec.md) | Product vision, user/use cases, MVP requirements, domain model, optimizer behavior, technical direction, success criteria, decisions, and open questions. | Draft v0.14 |
+| [Product specification](plankplan-studio-product-spec.md) | Product vision, user/use cases, MVP requirements, domain model, optimizer behavior, technical direction, success criteria, decisions, and open questions. | Draft v0.17 |
+| [Data and persistence contract](plankplan-studio-data-persistence-contract.md) | Canonical target schema, identity, validation/migration, local recovery, and Phase 3 cloud-save protocol. | Documentation approved; implementation pending |
 | [3D workspace guide](plankplan-studio-3d-workspace-guide.md) | Adapts the CM Modding Tools Three.js workspace patterns and records architecture, cutlist, persistence, and accessibility constraints for Phase 2. | Owner decisions recorded; Phase 2 implementation plan remains |
 | [3D workspace initial features](plankplan-studio-3d-workspace-initial-features.md) | Initial tools, drawers, shortcuts, mouse controls, component instances, stock defaults, and cutlist behaviors. | Feature decisions closed; Phase 2 implementation plan remains |
 | [MVP user stories](plankplan-studio-mvp-user-stories.md) | User goals and acceptance criteria for MVP workflows, traced to the product spec and plan. | Draft |
@@ -56,7 +57,7 @@ The current icon source is [`src/assets/plankplan-studio-stock-mix-v02.svg`](../
 
 ## Useful Supporting Documents to Add Later
 
-- **Phase 2 implementation plan:** Prepare after the component-to-cutlist link placement decision is resolved. Storage, geometry scope, and cross-section fit are settled. Use the [3D workspace guide](plankplan-studio-3d-workspace-guide.md) and [initial features proposal](plankplan-studio-3d-workspace-initial-features.md) as inputs. Three.js is selected; React Three Fiber/Drei remain candidates.
+- **Phase 2 implementation plan:** Owner decisions are closed. Include the data/persistence contract, exact design records, migration/recovery, local repository concurrency, geometry scope, and cross-section fit; keep cloud implementation in Phase 3. Use the [3D workspace guide](plankplan-studio-3d-workspace-guide.md) and [initial features proposal](plankplan-studio-3d-workspace-initial-features.md) as inputs. Three.js is selected; React Three Fiber/Drei remain candidates.
 - **Architecture decisions:** Record the current SPA/deployment/auth reconciliation when the MVP plan's architecture preflight reaches a concrete decision; avoid duplicating unsettled choices here.
 - **Release readiness checklist:** Create when the MVP is approaching release, with required checks and evidence for product, accessibility, browser support, data export/backup, and deployment.
 

@@ -6,7 +6,7 @@
 **MVP document register:** [`PlankPlan Studio MVP`](plankplan-studio-mvp.md)
 **MVP visual direction:** [`PlankPlan Studio Design Guide`](DESIGN.md)
 
-This roadmap records product horizons beyond the MVP. The MVP plan is limited to product-spec section 5.1 plus the explicitly agreed page foundation. Product phases align with product-spec v0.14: Phase 2 is 3D, Phase 3 is accounts/sync, and Phase 4 is tiers/billing. Release dates are not set. Roadmap entries are not implementation authorization. Revisit scope and dependencies before planning each horizon.
+This roadmap records product horizons beyond the MVP. The MVP plan is limited to product-spec section 5.1 plus the explicitly agreed page foundation. Product phases align with product-spec v0.17: Phase 2 is 3D, Phase 3 is accounts/sync, and Phase 4 is tiers/billing. Release dates are not set. Roadmap entries are not implementation authorization. Revisit scope and dependencies before planning each horizon.
 
 ## Now: MVP
 
@@ -28,6 +28,7 @@ After the cutlist workflow is solid, expand the core journey so users can create
 - **MVP foundation:** Home-page entry and project-level Design/Cutlist navigation plus a nonfunctional workspace shell are planned in the MVP. Three.js scene rendering and modeling interactions begin in this phase.
 - **Planning inputs:** [3D workspace guide](plankplan-studio-3d-workspace-guide.md) and [initial features proposal](plankplan-studio-3d-workspace-initial-features.md) capture the reviewed tool set, component behavior, stock options, interaction rules, and cutlist synchronization safeguards.
 - **Planning status:** The owner resolved design-data storage/migration, free-form geometry scope, model-linked cross-section fit validation, and component-to-cutlist link placement on 2026-10-22. Prepare a separate Phase 2 implementation plan from the linked guide and feature proposal; do not add these tasks to the MVP plan.
+- Follow the [data and persistence contract](plankplan-studio-data-persistence-contract.md) for target v2, explicit copy/restore identities, recoverable local storage, and an asynchronous per-project repository with local concurrency checks. Define exact design records before implementation. Include detection/recovery of old-tab localStorage writes during and after IndexedDB cutover. No accounts or cloud services in Phase 2.
 - Keep the cutlist planner useful on its own; 3D design should feed into the existing project/parts/optimizer workflow rather than replace it.
 
 ## After Phase 2: Product Maturity and Cloud Capabilities
@@ -52,11 +53,12 @@ The following MVP-adjacent improvements remain in product-spec sections 5.2 and 
 
 - Google and Microsoft sign-in, cloud projects, cross-device sync, local-to-account migration, and per-user materials/prices.
 - Compatibility and architecture review for the current app, Cloudflare Workers/D1, and the auth choice is a prerequisite; the feature spec explicitly leaves this to be confirmed.
-- Decide conflict handling, recovery, privacy boundaries, and deletion behavior before committing to rollout.
+- Implement the [data and persistence contract](plankplan-studio-data-persistence-contract.md): D1 JSON aggregates with authenticated ownership, revision comparison, durable idempotent mutations, explicit account uploads, isolated pending writes, tombstones, and conflict recovery. Last-write-wins is superseded.
+- Enforce the fixed three-live-cloud-project limit per account before billing exists. Verify transactional local save/sync markers, cross-tab leases, account namespaces, durable receipts, bounded live snapshots/status batches and change-cursor discovery, uncertain-mutation cancellation/reconciliation, deletion/restore expiry with retained creation metadata, and read consistency under the contract. Validate the documented retention/account-purge guarantees operationally before rollout; any R2 mode needs its own envelope. Full offline PWA and collaborative editing remain later scope.
 
 ### Phase 4: Plans and Billing
 
-- Free/paid cloud project limits and billing integration.
+- Paid entitlements, configurable free/paid project limits, and billing integration; the fixed three-project Phase 3 enforcement already exists before this phase.
 - Depends on accounts, cloud persistence, and a clear entitlement model. The optimizer remains available without a paid tier per the feature spec.
 - Manually maintained price profiles and multi-project batching are listed as paid ideas but have no detailed scope here; plan them separately before implementation. Price profiles compare user-entered prices and do not fetch or scrape store data.
 
