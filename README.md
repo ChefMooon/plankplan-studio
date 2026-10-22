@@ -41,6 +41,17 @@ npm run dev
 
 *Note: TanStack Router will continuously watch your src/routes/ directory and auto-generate type definitions inside src/routeTree.gen.ts as you create new route files.*
 
+### Tests
+
+Tests use Vitest, jsdom, and React Testing Library. Use Node.js 22.22.2 or newer in the 22.x line (or Node.js 24.15 or newer), then run:
+
+```sh
+npm run test       # Run once
+npm run test:watch # Run in watch mode
+```
+
+Name test files `*.test.ts` or `*.test.tsx` and keep them under `src/` outside `src/routes/`.
+
 ### 3. Injecting UI Primitives (shadcn)
 You own the components in your codebase. To add more accessible components, execute:
 npx shadcn@latest add [component-name]  
