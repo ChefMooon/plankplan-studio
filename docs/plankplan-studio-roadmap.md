@@ -6,7 +6,7 @@
 **MVP document register:** [`PlankPlan Studio MVP`](plankplan-studio-mvp.md)
 **MVP visual direction:** [`PlankPlan Studio Design Guide`](DESIGN.md)
 
-This roadmap records product horizons beyond the MVP. The MVP plan is limited to product-spec section 5.1 plus the explicitly agreed page foundation. Product phases align with product-spec v0.12: Phase 2 is 3D, Phase 3 is accounts/sync, and Phase 4 is tiers/billing. Release dates are not set. Roadmap entries are not implementation authorization. Revisit scope and dependencies before planning each horizon.
+This roadmap records product horizons beyond the MVP. The MVP plan is limited to product-spec section 5.1 plus the explicitly agreed page foundation. Product phases align with product-spec v0.14: Phase 2 is 3D, Phase 3 is accounts/sync, and Phase 4 is tiers/billing. Release dates are not set. Roadmap entries are not implementation authorization. Revisit scope and dependencies before planning each horizon.
 
 ## Now: MVP
 
@@ -26,7 +26,8 @@ After the cutlist workflow is solid, expand the core journey so users can create
 - **Rendering technology:** Three.js.
 - **Core outcome:** Create/edit a 3D project model whose dimensions and components can produce or update the project's cutlist inputs.
 - **MVP foundation:** Home-page entry and project-level Design/Cutlist navigation plus a nonfunctional workspace shell are planned in the MVP. Three.js scene rendering and modeling interactions begin in this phase.
-- **Planning status:** Direction and technology selected; detailed interaction, modeling constraints, component/material mapping, and model-to-parts behavior still need specification before implementation planning.
+- **Planning inputs:** [3D workspace guide](plankplan-studio-3d-workspace-guide.md) and [initial features proposal](plankplan-studio-3d-workspace-initial-features.md) capture the reviewed tool set, component behavior, stock options, interaction rules, and cutlist synchronization safeguards.
+- **Planning status:** The owner resolved design-data storage/migration, free-form geometry scope, model-linked cross-section fit validation, and component-to-cutlist link placement on 2026-10-22. Prepare a separate Phase 2 implementation plan from the linked guide and feature proposal; do not add these tasks to the MVP plan.
 - Keep the cutlist planner useful on its own; 3D design should feed into the existing project/parts/optimizer workflow rather than replace it.
 
 ## After Phase 2: Product Maturity and Cloud Capabilities

@@ -2,11 +2,13 @@
 
 *A woodworking planner that turns project parts into the cheapest way to buy and cut the wood.*
 
-**Status:** Draft v0.12
+**Status:** Draft v0.14
 **MVP architecture:** Vite + React + TanStack Router, shipped as a static SPA on Cloudflare. No backend is required for MVP; add server-side services only if later account/database features need them.
 **MVP visual source:** [PlankPlan Studio Design Guide](DESIGN.md)
 
 ### Changelog
+- **v0.14:** Closed Phase 2 owner decisions: embed optional versioned design data in project schema v2, bound free-form modeling to planar profiles/simple extrusions without booleans or holes, add optional linear-part cross-section constraints for validated model-linked stock fit, and store component-to-Part links/projection snapshots in the design document.
+- **v0.13:** Restored Phase 2 3D workspace guidance and initial feature proposal; identified owner decisions for design storage/migration, free-form geometry scope, and model-linked cross-section fit validation.
 - **v0.12:** Confirmed all material and stock prices are entered and maintained manually; automatic lookup and store scraping are not planned.
 - **v0.11:** Added a blue/navy v02 of the Stock Mix icon, preserved the warm-color v01, and updated the favicon and MVP references to the blue mark.
 - **v0.10:** Kept the Stock Mix SVG as the initial app icon and replaced the brown-led interface styling with a blueprint-blue candidate palette; visual direction remains under review in `docs/DESIGN.md`.
@@ -118,8 +120,9 @@ There are no modes. A project is one list of parts, and each **material** has a 
 - `id`, `label`, `quantity`, `group` (e.g., "Legs", "Shelves"), `notes`
 - **`materialChoices[]`**: an ordered list of acceptable materials (see below)
 - Dimensions: **linear** = `length`. **sheet** = `length`, `width`.
+- Phase 2 model-linked linear parts may add optional `crossSection: { width, thickness }`. Legacy/manual linear parts may omit it; model-generated board parts must provide both dimensions. The optimizer validates supplied cross-sections against actual stock width/thickness. This does not model rough-lumber defects, surfacing yield, or grain/runout.
 - `grainLocked` (boolean, sheets only): prevents rotation
-- Linear parts do not currently specify required width/thickness. For per-board-foot stock, width/thickness are used for price calculation, not to guarantee that a rough board can yield the part's cross-section.
+- Without linear `crossSection`, the optimizer retains length-only fit semantics and must not claim cross-section compatibility.
 
 ### MaterialChoice (alternative materials)
 A part lists one or more acceptable materials. The first is the default and the others are alternatives.
@@ -139,10 +142,13 @@ type Part = {
   label: string;
   quantity: number;
   materialChoices: MaterialChoice[]; // length >= 1
+  crossSection?: { width: number; thickness: number }; // canonical micrometers; model-linked linear parts require both
   pinned: boolean; // true = user locked the first choice; optimizer won't switch
   // ...dimensions, group, notes
 };
 ```
+
+For Phase 2, Project schema v2 adds an optional independently versioned `design` document. Schema-v1 projects migrate by preserving their current data and leaving `design` absent. Model-generated linear Part records include both cross-section dimensions; stable source IDs and last-applied projection snapshots are kept in the design document, keyed to generated Part IDs. The exact design/component record shape is defined by the separate Phase 2 implementation plan; do not serialize Three.js objects.
 
 ### Global Settings
 - `kerf` (saw blade width), with default and per-project override
@@ -221,7 +227,7 @@ All optimizer math uses **integer micrometers (µm)** to avoid floating-point er
 - [ ] Preserve a direct path from the model to the existing cutlist optimizer, results, and shop outputs.
 - [ ] Keep the MVP's manual parts/cutlist workflow usable independently of 3D design.
 
-Detailed modeling interactions, dimensional constraints, component/material mapping, and model-to-parts synchronization behavior remain open and must be specified before Phase 2 implementation planning.
+The [3D workspace guide](plankplan-studio-3d-workspace-guide.md) and [initial features proposal](plankplan-studio-3d-workspace-initial-features.md) capture the selected tool/interaction direction and closed Phase 2 storage, geometry-scope, cross-section, and component-link decisions, with migration acceptance details.
 
 ### 5.5 Phase 3: Accounts & Sync
 - [ ] Sign in with **Google and Microsoft (OAuth)** first. No passwords or reset emails at launch.
@@ -529,11 +535,15 @@ For small projects, the number of choice combinations is small enough to enumera
 | 19 | Initial app icon | Use the blue/navy v02 Stock Mix SVG as the initial app icon; preserve the original warm-color v01 as a prior version. |
 | 20 | Interface palette exploration | Try a blueprint-inspired blue interface palette while retaining the Stock Mix mark; this visual direction remains under review in `docs/DESIGN.md`. |
 | 21 | Price sourcing | Users manually enter and maintain all material and stock prices; automatic price lookup and store scraping are not planned. |
+| 22 | Design persistence | Store an optional versioned design document inside Project JSON; migrate schema v1 to v2 without changing existing project/cutlist data. Keep project backup/import atomic. **Confirmed, 2026-10-22.** |
+| 23 | Initial free-form geometry | Support planar edges/faces and simple Push/Pull solids. Exclude booleans, holes, and general self-intersection from the initial feature scope; invalid/unsupported operations preserve the last valid model. **Confirmed, 2026-10-22.** |
+| 24 | Model-linked cross-section fit | Add optional width/thickness constraints to linear parts; generated board parts require both and are checked against actual stock dimensions. Legacy manual parts remain length-only if those fields are absent. **Confirmed, 2026-10-22.** |
+| 25 | Component-to-cutlist link location | Store links and the last-applied projection snapshot in the embedded design document, keyed to generated Part IDs; keep manual Part records free of model metadata. **Confirmed, 2026-10-22.** |
 
 ---
 
 ## 12. Open Questions
 
 1. **Better Auth check:** confirm current Cloudflare Workers/D1 and TanStack support before Phase 3.
-2. **3D workflow details:** define editing interactions, modeling constraints, material mapping, and how model changes create/update parts before Phase 2 planning.
+2. **3D implementation plan:** create a separate Phase 2 plan from the [3D workspace guide](plankplan-studio-3d-workspace-guide.md) and [initial features proposal](plankplan-studio-3d-workspace-initial-features.md). Owner gates are closed; detail schema migration, topology validation, sync conflicts, and verification.
 3. **Rough-lumber yield modeling (deferred):** if added after MVP, define board/part width and thickness requirements, surfacing assumptions, defect handling, and how usable dimensions affect cost and cut planning. Do not model this as a length-only percentage by default.
