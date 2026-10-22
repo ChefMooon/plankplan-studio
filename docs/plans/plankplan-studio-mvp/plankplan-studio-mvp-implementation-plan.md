@@ -1,17 +1,17 @@
 ---
 title: "PlankPlan Studio MVP - Implementation Plan"
 plan_profile: FULL
-status: DRAFT
-verification_status: NOT_RUN
-current_phase: 1 / 3
+status: COMPLETE
+verification_status: COMPLETE_WITH_GAPS
+current_phase: 3 / 3
 created: 2026-10-22
 last_updated: 2026-10-22
 ---
 
 # Overall Plan Completion Status
 
-* **Total Phases Completed:** 0 / 3
-* **Summary of Outcome:** Draft execution sequence for MVP section 5.1 plus the agreed app/page foundation in the PlankPlan Studio product specification. No implementation or validation has been performed under this plan.
+* **Total Phases Completed:** 3 / 3
+* **Summary of Outcome:** The MVP workflow now includes browser-local project editing, validated linear and sheet plans, mixed-material results, shop outputs, and the Design shell. Automated acceptance checks passed. Entry-time usability, actual browser print preview, cross-browser behavior, and deployed Cloudflare behavior remain explicitly unverified.
 
 # Specification & Overview
 
@@ -65,7 +65,7 @@ The items below do not block starting MVP implementation; resolve each before pl
 # Execution Plan & Handoffs
 
 ## Phase 1: Data, Optimizer Foundations, and Linear Workflow
-- **Status:** NOT_STARTED
+- **Status:** COMPLETE
 - **Objective:** Establish project/material/part foundations, unit handling, a deterministic validated 1D optimizer, and a usable local linear-project workflow.
 - **Exit Deliverable:** Validated linear planning and local persistence/results that provide the stable contracts needed by sheet optimization.
 
@@ -84,14 +84,14 @@ The items below do not block starting MVP implementation; resolve each before pl
 
 | Outcome / acceptance criterion | Check | Verification method | Result / evidence |
 | --- | --- | --- | --- |
-| Project inputs use documented units and money representation and serialize with a schema version. | Mandatory | Unit and serialization tests for imperial/metric conversion, fractions, rounding boundaries, cents, import/export, and versioned project data. | PENDING |
-| Every emitted linear plan accounts for each part once and respects stock, kerf, trim, quantities, owned stock, and price. | Mandatory | Independent validator tests plus adversarial and property-based fixtures. | PENDING |
-| Linear plans are no more expensive than the specified naive baseline on representative fixtures. | Mandatory | Deterministic benchmark fixtures; record heuristic gap against exact mode on small cases. | PENDING |
-| A user can create, edit, duplicate, delete, save, reopen, and inspect a local linear project. | Mandatory | UI and persistence tests for required project and results flows. | PENDING |
-| A user can reach both product functions from the home page and navigate between a project's Design and Cutlist areas. | Mandatory | UI tests for both entry actions, project navigation, keyboard operation, visible availability state, and return paths. | PENDING |
-| MVP screens follow the Stock Mix visual direction and remain legible at target widths. | Mandatory | Review the implemented dashboard and project shell against [`docs/DESIGN.md`](../../DESIGN.md) at wide and narrow viewport sizes; verify focus and status cues. | PENDING |
-| Users can manually enter and update prices, and the product performs no automatic price lookup or store scraping. | Mandatory | Review the material/stock editing flow and repository integrations for manual price entry only. | PENDING |
-| The MVP 3D workspace is a stable, understandable scaffold that does not claim unavailable modeling behavior. | Mandatory | UI review of empty, narrow, and wide viewport states; verify the placeholder and future-control regions remain clear without visual clipping or dead controls. | PENDING |
+| Project inputs use documented units and money representation and serialize with a schema version. | Mandatory | Unit and serialization tests for imperial/metric conversion, fractions, rounding boundaries, cents, import/export, and versioned project data. | PASS — integer µm/cents model, schema-v1 validation/import/export, fractional-inch and metric conversion tests; `npm run test` (8 files, 28 tests). |
+| Every emitted linear plan accounts for each part once and respects stock, kerf, trim, quantities, owned stock, and price. | Mandatory | Independent validator tests plus adversarial and property-based fixtures. | PASS — independent validator covers material assignment, part quantities, stock capacity, kerf/trim, owned quantities, purchase limits, and cost; adversarial boundary tests pass. Sheet materials are excluded from the linear engine with an explicit Phase 2 warning. |
+| Linear plans are no more expensive than the specified naive baseline on representative fixtures. | Mandatory | Deterministic benchmark fixtures; record heuristic gap against exact mode on small cases. | PASS, LIMITED FIXTURE SET — exact small-case oracle and naive one-board-per-part comparison pass on the included deterministic fixture. Broader real-project quality comparison remains for Phase 3. |
+| A user can create, edit, duplicate, delete, save, reopen, and inspect a local linear project. | Mandatory | UI and persistence tests for required project and results flows. | PASS — workflow tests cover create/edit/save/reopen/duplicate/delete/import and plan outputs; localStorage remains browser-only. |
+| A user can reach both product functions from the home page and navigate between a project's Design and Cutlist areas. | Mandatory | UI tests for both entry actions, project navigation, keyboard operation, visible availability state, and return paths. | PASS — dashboard entry, project Design/Cutlist route, return navigation, and standalone preview persistence boundary covered by workflow tests. Keyboard/screen-reader audit remains for Phase 3. |
+| MVP screens follow the Stock Mix visual direction and remain legible at target widths. | Mandatory | Review the implemented dashboard and project shell against [`docs/DESIGN.md`](../../DESIGN.md) at wide and narrow viewport sizes; verify focus and status cues. | PASS, BROWSER REVIEW — dashboard and workspace reviewed at desktop and 390×844; no horizontal clipping observed. Formal contrast, screen-reader, and 400% zoom checks remain for Phase 3. |
+| Users can manually enter and update prices, and the product performs no automatic price lookup or store scraping. | Mandatory | Review the material/stock editing flow and repository integrations for manual price entry only. | PASS — manual stock price fields; unpriced stock cannot be purchased by the optimizer and has an explicit warning. No price-fetching integration added. |
+| The MVP 3D workspace is a stable, understandable scaffold that does not claim unavailable modeling behavior. | Mandatory | UI review of empty, narrow, and wide viewport states; verify the placeholder and future-control regions remain clear without visual clipping or dead controls. | PASS, BROWSER REVIEW — standalone and project Design placeholders label Phase 2 availability and link to Cutlist; no inactive modeling controls are presented. |
 
 ### UI Validation
 - **Viewport(s):** Desktop/tablet editing; phone results.
@@ -100,12 +100,13 @@ The items below do not block starting MVP implementation; resolve each before pl
 - **Preview limitations/fallbacks:** Browser preview verifies renderer behavior; it does not establish deployed hosting behavior.
 
 ### Phase Record
-- **Artifacts created/modified:** Pending.
-- **Decisions/deviations:** Record static Cloudflare deployment setup and verify board-foot pricing applies no hidden yield adjustment.
-- **Next-phase context:** Preserve the project/optimizer contract and independent validator for sheet layouts.
+- **Artifacts created/modified:** `src/lib/planner/` integer-unit project model, schema-v1 import/export, board-foot pricing, independent validator, linear optimizer, benchmark tests, and local storage; dashboard, cutlist editor/results, project Design shell, and standalone preview routes; Stock Mix favicon and blueprint styles; Cloudflare Pages SPA fallback at `public/_redirects`.
+- **Decisions/deviations:** Phase 1 supports linear optimization only. Sheet models can be stored and edited, but are explicitly excluded from the linear optimizer until Phase 2. Browser build plus `_redirects` configuration is the available static-host evidence; no deployment was performed. Board-foot calculation uses entered dimensions and rate without a yield adjustment.
+- **Validation:** `npm run test` passed (8 files, 28 tests); `npm run build` passed; targeted ESLint passed on changed implementation files; full `npm run lint` remains blocked by the existing unrelated `src/components/ui/button.tsx:67` rule violation; `git diff --check` passed. The deterministic 100-part benchmark measured 10.3 ms in the recorded agent run. Cloudflare deployment, full keyboard/screen-reader/400% zoom, and broad benchmark/property-based coverage remain unverified and carry into Phase 3.
+- **Next-phase context:** Preserve the project/optimizer contract and independent validator for sheet layouts. Keep local storage and manual prices; do not add backend services or 3D modeling.
 
 ## Phase 2: Sheet Optimization and Mixed-Material Projects
-- **Status:** NOT_STARTED
+- **Status:** COMPLETE
 - **Objective:** Add guillotine sheet optimization and combine independent material plans into a coherent mixed-project result.
 - **Dependencies:** Phase 1 project model, optimizer interface, local persistence, and independent validation approach.
 - **Exit Deliverable:** Valid mixed linear/sheet plans with complete shop outputs, ready for MVP release validation.
@@ -121,10 +122,10 @@ The items below do not block starting MVP implementation; resolve each before pl
 
 | Outcome / acceptance criterion | Check | Verification method | Result / evidence |
 | --- | --- | --- | --- |
-| Every sheet layout is in bounds, non-overlapping, grain compliant, and represented by a feasible guillotine cut order. | Mandatory | Independent validator tests over edge cases and generated fixtures. | PENDING |
-| Mixed projects produce correct per-material plans, purchase quantities, warnings, and combined totals. | Mandatory | Unit tests for mixed materials, owned stock, quantity limits, missing prices, tax display, and invalid-fit cases. | PENDING |
-| CSV, JSON, print output, and phone results preserve information needed in the shop. | Mandatory | Export assertions and UI review at desktop and phone widths, including browser print preview. | PENDING |
-| The 1D and 2D optimizer outputs are valid and comparable against naive baselines. | Mandatory | Deterministic fixture suite; exact 1D mode used only for small-case benchmark measurement. | PENDING |
+| Every sheet layout is in bounds, non-overlapping, grain compliant, and represented by a feasible guillotine cut order. | Mandatory | Independent validator tests over edge cases and generated fixtures. | PASS, FIXTURE SET — independent tree/placement validator and tests cover overlap, grain-lock rotation, rotation-only fits, full-length strip cuts, bounds, stock limits, and repeat quantities; full suite passes. Broader randomized/property fixtures remain for Phase 3. |
+| Mixed projects produce correct per-material plans, purchase quantities, warnings, and combined totals. | Mandatory | Unit tests for mixed materials, owned stock, quantity limits, missing prices, tax display, and invalid-fit cases. | PASS, CORE CASES — combined linear/sheet totals and display-only tax tested; engine-level tests cover owned stock, purchase caps, missing prices and invalid fits. Additional full mixed-project adversarial cases remain for Phase 3. |
+| CSV, JSON, print output, and phone results preserve information needed in the shop. | Mandatory | Export assertions and UI review at desktop and phone widths, including browser print preview. | PASS, INTERACTION COVERAGE — quoted CSV contents, versioned JSON replacement flow, CSV download action, and browser print invocation are tested; print CSS keeps results visible. Phone and browser print preview review remains for Phase 3. |
+| The 1D and 2D optimizer outputs are valid and comparable against naive baselines. | Mandatory | Deterministic fixture suite; exact 1D mode used only for small-case benchmark measurement. | PASS, LIMITED FIXTURES — linear exact/naive and sheet naive baselines pass included fixtures; adversarial sheet fixture compares $15 larger-sheet plan against $20 one-sheet-per-part baseline. General optimality is not claimed. |
 
 ### UI Validation
 - **Viewport(s):** Desktop/tablet editing and phone results.
@@ -133,12 +134,13 @@ The items below do not block starting MVP implementation; resolve each before pl
 - **Preview limitations/fallbacks:** Browser print review cannot establish output across all browsers and printers.
 
 ### Phase Record
-- **Artifacts created/modified:** Pending.
-- **Decisions/deviations:** Pending.
+- **Artifacts created/modified:** `src/lib/planner/sheet.ts` guillotine/strip engines and independent validator; mixed-plan aggregation; sheet data/presets, layout controls, diagrams and cut order; CSV export and browser print styling; import collision/replacement handling; test fixtures in planner and workflow suites.
+- **Decisions/deviations:** Cheapest compares strip and guillotine candidates; Simplest cuts uses true strip-only layouts. Heuristic stock choice is judged against deterministic naive fixtures but does not claim global optimality. 3D workspace implementation and documentation remain out of scope.
+- **Validation:** `npm run test` passed (12 files, 40 tests); `npm run build` passed; targeted ESLint passed; `git diff --check` passed. Full `npm run lint` reports only the existing unrelated `src/components/ui/button.tsx:67` fast-refresh error. Browser print preview and broad phone/real-project review remain for Phase 3.
 - **Next-phase context:** Phase 3 completes MVP acceptance and release readiness; no post-MVP features enter the MVP scope by default.
 
 ## Phase 3: MVP Quality, Performance, and Release Readiness
-- **Status:** NOT_STARTED
+- **Status:** COMPLETE_WITH_GAPS
 - **Objective:** Close MVP validation against the spec's success criteria and resolve functional or usability gaps in the agreed MVP scope.
 - **Dependencies:** Phases 1 and 2.
 
@@ -153,9 +155,9 @@ The items below do not block starting MVP implementation; resolve each before pl
 
 | Outcome / acceptance criterion | Check | Verification method | Result / evidence |
 | --- | --- | --- | --- |
-| MVP scope includes the two-function app shell and 3D page scaffold, without pulling in functional modeling, alternative materials, custom PDF generation, accounts, tiers, or other future ideas. | Mandatory | Review changed behavior and artifacts against section 5.1, this plan's added UI foundation, and its scope boundaries. | PENDING |
-| Every displayed plan passes independent validation and every representative plan is no more expensive than its naive baseline. | Mandatory | Required automated suites and documented fixture results. | PENDING |
-| MVP success criteria have explicit measured or reviewed evidence, with gaps visible. | Mandatory | Review each criterion in product-spec section 10 against benchmark output, tests, and UI evidence. | PENDING |
+| MVP scope includes the two-function app shell and 3D page scaffold, without pulling in functional modeling, alternative materials, custom PDF generation, accounts, tiers, or other future ideas. | Mandatory | Review changed behavior and artifacts against section 5.1, this plan's added UI foundation, and its scope boundaries. | PASS — implementation stays client-side/local with manual price entry, print CSS, and an explicit nonfunctional Design shell. No backend, functional modeling, alternative-material optimizer, custom PDF writer, accounts, or tiers were added. |
+| Every displayed plan passes independent validation and every representative plan is no more expensive than its naive baseline. | Mandatory | Required automated suites and documented fixture results. | PASS, INCLUDED FIXTURES — 43 tests pass; entry-bench mixed linear/sheet plan passes both validators and costs CAD $122 vs CAD $348 naive. Small 1D exact case is CAD $52 vs CAD $52 heuristic (0¢ gap). This is fixture evidence, not a global optimality guarantee. |
+| MVP success criteria have explicit measured or reviewed evidence, with gaps visible. | Mandatory | Review each criterion in product-spec section 10 against benchmark output, tests, and UI evidence. | COMPLETE WITH GAPS — 100-part linear run measured 10.8 ms; responsive browser review found and fixed the 900px overflow, then confirmed no document overflow and tabs within bounds at 900px and 390px. Entry time under five minutes was not measured; actual print preview/printer variations, screen-reader/400% zoom, broad randomized optimizer quality, and deployed Cloudflare behavior remain unverified. |
 
 ### UI Validation
 - **Viewport(s):** Desktop and tablet editing; phone results and print preview.
@@ -164,5 +166,6 @@ The items below do not block starting MVP implementation; resolve each before pl
 - **Preview limitations/fallbacks:** Clearly separate automated/browser evidence from user-performed shop usability and cross-browser printer checks.
 
 ### Phase Record
-- **Artifacts created/modified:** Pending.
-- **Decisions/deviations:** Record unmet success criteria and approved scope changes.
+- **Artifacts created/modified:** Added `src/lib/planner/release-readiness.test.ts`, strengthened the 100-part benchmark to verify output, added sheet-specific oversized-part warnings, and fixed responsive workspace geometry in `src/index.css` for tablet and phone widths.
+- **Decisions/deviations:** Kept optimizer validation deterministic and test-local. The plan completed with explicit unverified release evidence rather than claiming external deployment or universal shop/browser acceptance.
+- **Validation:** `npm run test -- --maxWorkers=2` passed (13 files, 43 tests); `npm run build` passed; targeted ESLint passed; `git diff --check` passed. `npm run lint` fails only on the existing `src/components/ui/button.tsx:67` fast-refresh rule violation. Visual review at 900px and 390px confirmed no horizontal document overflow and project tabs remain within the toolbar. Cloudflare Pages deployment and actual print preview were not performed.

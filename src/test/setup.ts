@@ -23,3 +23,5 @@ afterEach(() => {
   document.documentElement.classList.remove('dark')
   document.documentElement.style.colorScheme = ''
 })
+
+Object.defineProperty(window, 'scrollTo', { configurable: true, value: vi.fn() })

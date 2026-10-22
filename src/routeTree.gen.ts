@@ -9,9 +9,17 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as DesignPreviewRouteImport } from './routes/design-preview'
 import { Route as AboutRouteImport } from './routes/about'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as ProjectsProjectIdDesignRouteImport } from './routes/projects.$projectId.design'
+import { Route as ProjectsProjectIdCutlistRouteImport } from './routes/projects.$projectId.cutlist'
 
+const DesignPreviewRoute = DesignPreviewRouteImport.update({
+  id: '/design-preview',
+  path: '/design-preview',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const AboutRoute = AboutRouteImport.update({
   id: '/about',
   path: '/about',
@@ -22,35 +30,81 @@ const IndexRoute = IndexRouteImport.update({
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ProjectsProjectIdDesignRoute = ProjectsProjectIdDesignRouteImport.update({
+  id: '/projects/$projectId/design',
+  path: '/projects/$projectId/design',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ProjectsProjectIdCutlistRoute =
+  ProjectsProjectIdCutlistRouteImport.update({
+    id: '/projects/$projectId/cutlist',
+    path: '/projects/$projectId/cutlist',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/about': typeof AboutRoute
+  '/design-preview': typeof DesignPreviewRoute
+  '/projects/$projectId/cutlist': typeof ProjectsProjectIdCutlistRoute
+  '/projects/$projectId/design': typeof ProjectsProjectIdDesignRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/about': typeof AboutRoute
+  '/design-preview': typeof DesignPreviewRoute
+  '/projects/$projectId/cutlist': typeof ProjectsProjectIdCutlistRoute
+  '/projects/$projectId/design': typeof ProjectsProjectIdDesignRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/about': typeof AboutRoute
+  '/design-preview': typeof DesignPreviewRoute
+  '/projects/$projectId/cutlist': typeof ProjectsProjectIdCutlistRoute
+  '/projects/$projectId/design': typeof ProjectsProjectIdDesignRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/about'
+  fullPaths:
+    | '/'
+    | '/about'
+    | '/design-preview'
+    | '/projects/$projectId/cutlist'
+    | '/projects/$projectId/design'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/about'
-  id: '__root__' | '/' | '/about'
+  to:
+    | '/'
+    | '/about'
+    | '/design-preview'
+    | '/projects/$projectId/cutlist'
+    | '/projects/$projectId/design'
+  id:
+    | '__root__'
+    | '/'
+    | '/about'
+    | '/design-preview'
+    | '/projects/$projectId/cutlist'
+    | '/projects/$projectId/design'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AboutRoute: typeof AboutRoute
+  DesignPreviewRoute: typeof DesignPreviewRoute
+  ProjectsProjectIdCutlistRoute: typeof ProjectsProjectIdCutlistRoute
+  ProjectsProjectIdDesignRoute: typeof ProjectsProjectIdDesignRoute
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/design-preview': {
+      id: '/design-preview'
+      path: '/design-preview'
+      fullPath: '/design-preview'
+      preLoaderRoute: typeof DesignPreviewRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/about': {
       id: '/about'
       path: '/about'
@@ -65,12 +119,29 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/projects/$projectId/design': {
+      id: '/projects/$projectId/design'
+      path: '/projects/$projectId/design'
+      fullPath: '/projects/$projectId/design'
+      preLoaderRoute: typeof ProjectsProjectIdDesignRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/projects/$projectId/cutlist': {
+      id: '/projects/$projectId/cutlist'
+      path: '/projects/$projectId/cutlist'
+      fullPath: '/projects/$projectId/cutlist'
+      preLoaderRoute: typeof ProjectsProjectIdCutlistRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AboutRoute: AboutRoute,
+  DesignPreviewRoute: DesignPreviewRoute,
+  ProjectsProjectIdCutlistRoute: ProjectsProjectIdCutlistRoute,
+  ProjectsProjectIdDesignRoute: ProjectsProjectIdDesignRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
