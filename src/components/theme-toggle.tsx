@@ -1,5 +1,4 @@
 import { Monitor, Moon, Sun } from '@phosphor-icons/react'
-import { Button } from '@/components/ui/button'
 import { useTheme, type Theme } from '@/components/theme-context'
 
 const themeOptions: { value: Theme; label: string; icon: typeof Monitor }[] = [
@@ -10,21 +9,22 @@ const themeOptions: { value: Theme; label: string; icon: typeof Monitor }[] = [
 
 export function ThemeToggle() {
   const { theme, setTheme } = useTheme()
-  const currentOption = themeOptions.find((option) => option.value === theme) ?? themeOptions[0]
-  const currentIndex = themeOptions.findIndex((option) => option.value === theme)
-  const nextOption = themeOptions[(currentIndex + 1) % themeOptions.length]
-  const Icon = currentOption.icon
 
   return (
-    <Button
-      aria-label={`Theme: ${currentOption.label}. Switch to ${nextOption.label}.`}
-      onClick={() => setTheme(nextOption.value)}
-      size="sm"
-      title={`Switch to ${nextOption.label} theme`}
-      variant="outline"
-    >
-      <Icon aria-hidden="true" weight="regular" />
-      <span>{currentOption.label}</span>
-    </Button>
+    <div className="theme-picker" role="group" aria-label="Color theme">
+      {themeOptions.map(({ value, label, icon: Icon }) => (
+        <button
+          key={value}
+          type="button"
+          className="theme-picker-option"
+          aria-label={`${label} theme`}
+          aria-pressed={theme === value}
+          title={`${label} theme`}
+          onClick={() => setTheme(value)}
+        >
+          <Icon aria-hidden="true" weight="regular" />
+        </button>
+      ))}
+    </div>
   )
 }

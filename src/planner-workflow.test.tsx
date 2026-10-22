@@ -5,11 +5,12 @@ import { describe, expect, it, vi } from 'vitest';
 import { routeTree } from './routeTree.gen';
 import { exportProject } from './lib/planner/model';
 import { createProject } from './lib/planner/storage';
+import { ThemeProvider } from './components/theme-provider';
 
 async function renderApp(path = '/') {
   const router = createRouter({ routeTree, history: createMemoryHistory({ initialEntries: [path] }) });
   await router.load();
-  render(<RouterProvider router={router}/>);
+  render(<ThemeProvider><RouterProvider router={router}/></ThemeProvider>);
   return router;
 }
 

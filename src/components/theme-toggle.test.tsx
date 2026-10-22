@@ -6,22 +6,27 @@ import { ThemeProvider } from './theme-provider'
 import { ThemeToggle } from './theme-toggle'
 
 describe('ThemeToggle', () => {
-  it('cycles through system, light, and dark with accessible names and persists each choice', async () => {
+  it('selects a theme directly, exposes the active choice, and persists it', async () => {
     const user = userEvent.setup()
     render(<ThemeProvider><ThemeToggle /></ThemeProvider>)
 
-    let toggle = screen.getByRole('button', { name: 'Theme: System. Switch to Light.' })
-    await user.click(toggle)
-    expect(screen.getByRole('button', { name: 'Theme: Light. Switch to Dark.' })).toBeInTheDocument()
-    expect(window.localStorage.getItem(THEME_STORAGE_KEY)).toBe('light')
-
-    await user.click(screen.getByRole('button', { name: 'Theme: Light. Switch to Dark.' }))
-    expect(screen.getByRole('button', { name: 'Theme: Dark. Switch to System.' })).toBeInTheDocument()
+    expect(screen.getByRole('group', { name: 'Color theme' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'System theme' })).toHaveTextContent(/^$/)
+    expect(screen.getByRole('button', { name: 'System theme' })).toHaveAttribute('title', 'System theme')
+    expect(screen.getAllByRole('button', { pressed: true })).toHaveLength(1)
+    await user.click(screen.getByRole('button', { name: 'Dark theme' }))
+    expect(screen.getByRole('button', { name: 'Dark theme' })).toHaveAttribute('aria-pressed', 'true')
+    expect(screen.getAllByRole('button', { pressed: true })).toHaveLength(1)
     expect(window.localStorage.getItem(THEME_STORAGE_KEY)).toBe('dark')
 
-    await user.click(screen.getByRole('button', { name: 'Theme: Dark. Switch to System.' }))
-    toggle = screen.getByRole('button', { name: 'Theme: System. Switch to Light.' })
-    expect(toggle).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Light theme' }))
+    expect(screen.getByRole('button', { name: 'Light theme' })).toHaveAttribute('aria-pressed', 'true')
+    expect(screen.getAllByRole('button', { pressed: true })).toHaveLength(1)
+    expect(window.localStorage.getItem(THEME_STORAGE_KEY)).toBe('light')
+
+    await user.click(screen.getByRole('button', { name: 'System theme' }))
+    expect(screen.getByRole('button', { name: 'System theme' })).toHaveAttribute('aria-pressed', 'true')
+    expect(screen.getAllByRole('button', { pressed: true })).toHaveLength(1)
     expect(window.localStorage.getItem(THEME_STORAGE_KEY)).toBe('system')
   })
 
@@ -30,10 +35,14 @@ describe('ThemeToggle', () => {
     render(<ThemeProvider><ThemeToggle /></ThemeProvider>)
 
     await user.tab()
-    expect(screen.getByRole('button', { name: 'Theme: System. Switch to Light.' })).toHaveFocus()
+    expect(screen.getByRole('button', { name: 'System theme' })).toHaveFocus()
     await user.keyboard('{Enter}')
 
-    expect(screen.getByRole('button', { name: 'Theme: Light. Switch to Dark.' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'System theme' })).toHaveAttribute('aria-pressed', 'true')
+    await user.tab()
+    expect(screen.getByRole('button', { name: 'Light theme' })).toHaveFocus()
+    await user.keyboard(' ')
+    expect(screen.getByRole('button', { name: 'Light theme' })).toHaveAttribute('aria-pressed', 'true')
     expect(window.localStorage.getItem(THEME_STORAGE_KEY)).toBe('light')
   })
 })
