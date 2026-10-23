@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { copyStockPreset, presetsFor, STOCK_PRESETS } from './stock-presets';
+import { umFromInches } from './model';
 
 describe('regional stock preset catalog', () => {
   it('records source links and region-accurate actual 2x sizes', () => {
@@ -34,5 +35,20 @@ describe('regional stock preset catalog', () => {
     expect(preset.lengthUm).not.toBe(stock.length.um);
     expect(stock.price?.cents).toBe(1700);
     expect(stock.ownedQuantity).toBe(0);
+  });
+  it('offers added linear sections and common lengths without changing original preset dimensions', () => {
+    expect(STOCK_PRESETS.find(preset => preset.id === 'ca-1x6-8ft')).toMatchObject({ widthUm: 140_000, thicknessUm: 19_000, lengthUm: 2_438_400 });
+    expect(STOCK_PRESETS.some(preset => preset.id === 'us-4x4-16ft')).toBe(true);
+    expect(STOCK_PRESETS.some(preset => preset.id === 'ca-2x4-10ft')).toBe(true);
+  });
+  it('offers sheet presets with distinct US inch and Canadian millimeter footprints', () => {
+    const us = STOCK_PRESETS.find(preset => preset.id === 'us-sheet-4x8')!;
+    const ca = STOCK_PRESETS.find(preset => preset.id === 'ca-sheet-4x8')!;
+    expect([us.widthUm, us.lengthUm]).toEqual([umFromInches(48), umFromInches(96)]);
+    expect([ca.widthUm, ca.lengthUm]).toEqual([1_220_000, 2_440_000]);
+    expect(presetsFor('US', 'metric', 'sheet').find(preset => preset.id === us.id)?.label).toContain('1219 mm × 2438 mm');
+    const stock = copyStockPreset(ca, 'sheet-stock');
+    expect(stock).toMatchObject({ widthUm: 1_220_000, length: { um: 2_440_000 } });
+    expect(stock.price).toBeUndefined();
   });
 });
