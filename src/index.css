@@ -519,6 +519,25 @@ button,a,input,select { outline-offset:3px; }
 .dark .units-row input, .dark .units-row select, .dark .part-row input, .dark .part-row select,
 .dark .material-row input, .dark .material-heading input, .dark .stock-fields input, .dark .stock-fields select,
 .dark .notes-field textarea { background: var(--pp-input-bg); border-color: var(--pp-border); color: var(--pp-text); }
+
+/* Cutlist header is intentionally arranged as three rows: identity, project tools, then notes. */
+.cutlist-workspace-head{display:grid;grid-template-columns:minmax(0,1fr);align-items:stretch;gap:12px;padding-bottom:16px}
+.cutlist-title-row{display:flex;align-items:center;gap:18px;min-width:0}
+.cutlist-title-row .project-name{width:min(480px,100%)}
+.cutlist-action-row{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px}
+.cutlist-action-row .tabs{width:auto}
+.cutlist-export-actions{display:flex;align-items:center;justify-content:flex-end;gap:8px;flex-wrap:wrap}
+.cutlist-notes-row{display:flex;align-items:center}
+.cutlist-notes-overlay{position:fixed;inset:0;background:rgb(14 29 39 / 55%);z-index:100;animation:cutlist-notes-fade .14s ease-out}
+.cutlist-notes-dialog{position:fixed;z-index:101;top:50%;left:50%;transform:translate(-50%,-50%);width:min(620px,calc(100vw - 32px));max-height:calc(100dvh - 32px);overflow:auto;padding:24px;background:var(--pp-surface);color:var(--pp-text);border:1px solid var(--pp-border);border-radius:14px;box-shadow:0 24px 70px rgb(10 28 40 / 28%)}
+.cutlist-notes-title{margin:0;color:var(--pp-navy);font-size:20px}
+.cutlist-notes-description{margin:6px 0 14px;color:var(--pp-muted);font-size:13px}
+.cutlist-notes-dialog textarea{display:block;width:100%;min-height:260px;resize:vertical;border:1px solid var(--pp-border);border-radius:8px;background:var(--pp-surface);color:var(--pp-text);padding:11px 12px;font:inherit;line-height:1.5}
+.cutlist-notes-close{display:flex;margin:14px 0 0 auto}
+@keyframes cutlist-notes-fade{from{opacity:0}to{opacity:1}}
+.dark .cutlist-notes-dialog textarea{background:var(--pp-input-bg)}
+@media(max-width:760px){.cutlist-title-row{align-items:flex-start;flex-direction:column;gap:8px}.cutlist-title-row .project-name{width:100%;font-size:23px}.cutlist-action-row{align-items:stretch;flex-direction:column}.cutlist-action-row .tabs{width:100%}.cutlist-export-actions{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));width:100%}.cutlist-export-actions>.compact{min-width:0;white-space:normal;text-align:center}.cutlist-notes-dialog{padding:18px}.cutlist-notes-dialog textarea{min-height:220px}}
+@media print{.cutlist-notes-trigger,.cutlist-notes-overlay,.cutlist-notes-dialog{display:none!important}}
 .dark .sheet-diagram { background: var(--pp-raised); }
 .dark .cut-diagram .stock-outline, .dark .sheet-diagram .stock-outline { fill: var(--pp-soft-blue); stroke: #7994a5; }
 .dark .cut-diagram .part-block, .dark .sheet-diagram .part-block { fill: #276a91; stroke: #d7e7ef; }

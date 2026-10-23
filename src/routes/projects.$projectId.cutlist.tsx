@@ -1,7 +1,8 @@
 /* TanStack file routes export a Route object alongside their page component. */
 /* eslint-disable react-refresh/only-export-components */
 import { createFileRoute, Link } from '@tanstack/react-router';
-import { useMemo, useState, type ChangeEvent } from 'react';
+import { useMemo, useRef, useState, type ChangeEvent } from 'react';
+import { Dialog } from 'radix-ui';
 import { exportProject, importProject, parseFractionalInches, umFromInches, umFromMillimeters, type Material, type Project, type StockOption } from '@/lib/planner/model';
 import { optimizeMixedProject } from '@/lib/planner/combined';
 import type { SheetCutTree } from '@/lib/planner/sheet';
@@ -24,6 +25,8 @@ function Cutlist() {
   const [stockPreset, setStockPreset] = useState('standard');
   const [settingsTab, setSettingsTab] = useState<'cutting' | 'currency'>('cutting');
   const [dimensionDrafts, setDimensionDrafts] = useState<Record<string, string>>({});
+  const [notesOpen, setNotesOpen] = useState(false);
+  const notesTextareaRef = useRef<HTMLTextAreaElement>(null);
   const project = all.find(p => p.id === projectId);
   const update = (nextProject: Project) => {
     nextProject.updatedAt = new Date().toISOString();
@@ -100,7 +103,11 @@ function Cutlist() {
 
   return <main className="app-shell workspace">
     <header className="topbar"><Link to="/" className="brand"><img src="/plankplan-studio-stock-mix-v02.svg"/><span>PlankPlan <b>Studio</b></span></Link><strong>{project.name}</strong><div className="topbar-tools"><span className="local-badge">Saved locally</span><ThemeToggle /></div></header>
-    <div className="workspace-head"><div><Link className="back-link" to="/">← All projects</Link><input className="project-name" aria-label="Project name" value={project.name} onChange={e => update({ ...project, name: e.target.value })}/><label className="notes-field">Project notes<textarea aria-label="Project notes" value={project.notes ?? ''} onChange={e => update({ ...project, notes: e.target.value })}/></label></div><div className="workspace-actions"><button className="secondary compact" onClick={downloadBackup}>Export JSON</button><label className="secondary compact import-backup">Replace from JSON<input type="file" accept="application/json,.json" aria-label="Replace project from JSON" onChange={e => { void importBackup(e.target.files?.[0]); e.currentTarget.value = ''; }}/></label><button className="secondary compact" onClick={downloadCsv}>Export CSV</button><button className="secondary compact" onClick={() => window.print()}>Print / Save PDF</button><nav className="tabs" aria-label="Project areas"><Link to="/projects/$projectId/design" params={{ projectId }} className="tab">Design <span>Planned</span></Link><Link to="/projects/$projectId/cutlist" params={{ projectId }} aria-current="page" className="tab active">Cutlist</Link></nav></div></div>
+    <div className="workspace-head cutlist-workspace-head">
+      <div className="cutlist-title-row"><Link className="back-link" to="/">← All projects</Link><input className="project-name" aria-label="Project name" value={project.name} onChange={e => update({ ...project, name: e.target.value })}/></div>
+      <div className="workspace-actions cutlist-action-row"><nav className="tabs" aria-label="Project areas"><Link to="/projects/$projectId/design" params={{ projectId }} className="tab">Design <span>Planned</span></Link><Link to="/projects/$projectId/cutlist" params={{ projectId }} aria-current="page" className="tab active">Cutlist</Link></nav><div className="cutlist-export-actions"><button className="secondary compact" onClick={downloadBackup}>Export JSON</button><label className="secondary compact import-backup">Replace from JSON<input type="file" accept="application/json,.json" aria-label="Replace project from JSON" onChange={e => { void importBackup(e.target.files?.[0]); e.currentTarget.value = ''; }}/></label><button className="secondary compact" onClick={downloadCsv}>Export CSV</button><button className="secondary compact" onClick={() => window.print()}>Print / Save PDF</button></div></div>
+      <div className="cutlist-notes-row"><Dialog.Root open={notesOpen} onOpenChange={setNotesOpen}><Dialog.Trigger asChild><button className="secondary compact cutlist-notes-trigger">Project notes</button></Dialog.Trigger><Dialog.Portal><Dialog.Overlay className="cutlist-notes-overlay"/><Dialog.Content className="cutlist-notes-dialog" onOpenAutoFocus={event => { event.preventDefault(); notesTextareaRef.current?.focus(); }}><Dialog.Title className="cutlist-notes-title">Project notes</Dialog.Title><Dialog.Description className="cutlist-notes-description">Notes are saved automatically as you type.</Dialog.Description><textarea ref={notesTextareaRef} aria-label="Project notes" value={project.notes ?? ''} onChange={e => update({ ...project, notes: e.target.value })}/><Dialog.Close asChild><button className="primary compact cutlist-notes-close">Done</button></Dialog.Close></Dialog.Content></Dialog.Portal></Dialog.Root></div>
+    </div>
     <div className="workspace-grid"><section className="editor-column">
       <section className="panel"><div className="panel-title"><div><p className="eyebrow">01 · PARTS</p><h2>What are you making?</h2></div><button className="primary compact" onClick={addPart}>＋ Add part</button></div>
         <div className="project-settings">
