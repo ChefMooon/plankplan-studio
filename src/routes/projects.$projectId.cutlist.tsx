@@ -19,11 +19,19 @@ function sheetCutOrder(tree: SheetCutTree, format: (um: number) => string, out: 
   sheetCutOrder(tree.before, format, out); sheetCutOrder(tree.after, format, out); return out;
 }
 
+const PROJECT_SETTINGS_EXPANDED_KEY = 'plankplan-studio.project-settings-expanded.v1';
+
+function getProjectSettingsExpanded() {
+  try { return window.localStorage.getItem(PROJECT_SETTINGS_EXPANDED_KEY) !== 'false'; }
+  catch { return true; }
+}
+
 function Cutlist() {
   const { projectId } = Route.useParams();
   const [all, setAll] = useState(loadProjects);
   const [stockPreset, setStockPreset] = useState('standard');
   const [settingsTab, setSettingsTab] = useState<'cutting' | 'currency'>('cutting');
+  const [projectSettingsExpanded, setProjectSettingsExpanded] = useState(getProjectSettingsExpanded);
   const [dimensionDrafts, setDimensionDrafts] = useState<Record<string, string>>({});
   const [notesOpen, setNotesOpen] = useState(false);
   const notesTextareaRef = useRef<HTMLTextAreaElement>(null);
@@ -32,6 +40,12 @@ function Cutlist() {
     nextProject.updatedAt = new Date().toISOString();
     const next = all.map(p => p.id === nextProject.id ? nextProject : p);
     setAll(next); saveProjects(next);
+  };
+  const toggleProjectSettings = () => {
+    const nextExpanded = !projectSettingsExpanded;
+    setProjectSettingsExpanded(nextExpanded);
+    try { window.localStorage.setItem(PROJECT_SETTINGS_EXPANDED_KEY, String(nextExpanded)); }
+    catch { /* Keep the control usable when browser storage is unavailable. */ }
   };
   const mixedResult = useMemo(() => project ? optimizeMixedProject(project) : null, [project]);
   const result = mixedResult?.linear ?? null;
@@ -109,8 +123,9 @@ function Cutlist() {
       <div className="cutlist-notes-row"><Dialog.Root open={notesOpen} onOpenChange={setNotesOpen}><Dialog.Trigger asChild><button className="secondary compact cutlist-notes-trigger">Project notes</button></Dialog.Trigger><Dialog.Portal><Dialog.Overlay className="cutlist-notes-overlay"/><Dialog.Content className="cutlist-notes-dialog" onOpenAutoFocus={event => { event.preventDefault(); notesTextareaRef.current?.focus(); }}><Dialog.Title className="cutlist-notes-title">Project notes</Dialog.Title><Dialog.Description className="cutlist-notes-description">Notes are saved automatically as you type.</Dialog.Description><textarea ref={notesTextareaRef} aria-label="Project notes" value={project.notes ?? ''} onChange={e => update({ ...project, notes: e.target.value })}/><Dialog.Close asChild><button className="primary compact cutlist-notes-close">Done</button></Dialog.Close></Dialog.Content></Dialog.Portal></Dialog.Root></div>
     </div>
     <div className="workspace-grid"><section className="editor-column">
-      <section className="panel"><div className="panel-title"><div><p className="eyebrow">01 · PARTS</p><h2>What are you making?</h2></div><button className="primary compact" onClick={addPart}>＋ Add part</button></div>
-        <div className="project-settings">
+      <section className="panel"><div className="panel-title"><div><p className="eyebrow">01 · PARTS</p><h2>What are you making?</h2></div><div className="parts-panel-actions"><button className="secondary compact" type="button" aria-expanded={projectSettingsExpanded} aria-controls="project-settings" onClick={toggleProjectSettings}>{projectSettingsExpanded ? 'Hide settings' : 'Show settings'}</button><button className="primary compact" onClick={addPart}>＋ Add part</button></div></div>
+        <div className={`project-settings ${projectSettingsExpanded ? 'expanded' : 'collapsed'}`} id="project-settings" aria-hidden={!projectSettingsExpanded} inert={!projectSettingsExpanded}>
+          <div className="project-settings-content">
           <div className="settings-tabs" role="tablist" aria-label="Project settings" onKeyDown={event => {
             if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight' && event.key !== 'Home' && event.key !== 'End') return;
             event.preventDefault();
@@ -131,6 +146,7 @@ function Cutlist() {
             <label>Currency<Select aria-label="Project currency" value={project.currency} onValueChange={value => update({ ...project, currency: value })} options={[{ value: 'CAD', label: 'CAD · Canadian dollar' }, { value: 'USD', label: 'USD · US dollar' }, { value: 'EUR', label: 'EUR · Euro' }, { value: 'GBP', label: 'GBP · Pound sterling' }]}/></label>
             <label>Tax (%)<input aria-label="Tax rate" type="number" min="0" max="100" step="0.01" value={project.taxRate ?? ''} placeholder="None" onChange={e => update({ ...project, taxRate: e.target.value === '' ? undefined : Math.min(100, Math.max(0, Number(e.target.value))) })}/></label>
           </div>}
+          </div>
           </div>
         </div>
         {project.parts.length ? <div className="parts-list">{project.parts.map(part => { const sheetPart = project.materials.find(m => m.id === part.materialId)?.type === 'sheet'; return <div className="part-row" key={part.id}><label>Part name<input aria-label="Part name" value={part.name} onChange={e => update({ ...project, parts: project.parts.map(p => p.id === part.id ? { ...p, name: e.target.value } : p) })}/></label><label>{sheetPart ? 'Length' : 'Length'} ({project.unitSystem === 'imperial' ? 'in · fractions accepted' : 'mm'})<input aria-label="Part length" {...dimensionProps(`part-${part.id}`, part.length.um, um => update({ ...project, parts: project.parts.map(p => p.id === part.id ? { ...p, length: { um } } : p) }))}/></label>{sheetPart && <><label>Width ({project.unitSystem === 'imperial' ? 'in' : 'mm'})<input aria-label="Part width" {...dimensionProps(`part-width-${part.id}`, part.width?.um ?? 0, um => update({ ...project, parts: project.parts.map(p => p.id === part.id ? { ...p, width: { um } } : p) }))}/></label><label className="grain-lock"><input aria-label={`Grain locked ${part.name}`} type="checkbox" checked={part.grainLocked ?? false} onChange={e => update({ ...project, parts: project.parts.map(p => p.id === part.id ? { ...p, grainLocked: e.target.checked } : p) })}/> Grain locked</label></>}<label>Qty<input aria-label="Part quantity" type="number" min="1" value={part.quantity} onChange={e => update({ ...project, parts: project.parts.map(p => p.id === part.id ? { ...p, quantity: Math.max(1, Math.floor(Number(e.target.value) || 1)) } : p) })}/></label><label>Group<input aria-label="Part group" value={part.group ?? ''} onChange={e => update({ ...project, parts: project.parts.map(p => p.id === part.id ? { ...p, group: e.target.value || undefined } : p) })}/></label><label>Material<Select aria-label="Part material" value={part.materialId} onValueChange={value => update({ ...project, parts: project.parts.map(p => p.id === part.id ? { ...p, materialId: value } : p) })} options={project.materials.map(m => ({ value: m.id, label: m.name }))}/></label><label>Notes<input aria-label="Part notes" value={part.notes ?? ''} onChange={e => update({ ...project, parts: project.parts.map(p => p.id === part.id ? { ...p, notes: e.target.value || undefined } : p) })}/></label><button aria-label={`Remove ${part.name}`} onClick={() => update({ ...project, parts: project.parts.filter(p => p.id !== part.id) })}>×</button></div>; })}</div> : <p className="muted">Add parts to start planning your cuts.</p>}

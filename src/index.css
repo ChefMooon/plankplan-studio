@@ -534,9 +534,14 @@ button,a,input,select { outline-offset:3px; }
 .cutlist-notes-description{margin:6px 0 14px;color:var(--pp-muted);font-size:13px}
 .cutlist-notes-dialog textarea{display:block;width:100%;min-height:260px;resize:vertical;border:1px solid var(--pp-border);border-radius:8px;background:var(--pp-surface);color:var(--pp-text);padding:11px 12px;font:inherit;line-height:1.5}
 .cutlist-notes-close{display:flex;margin:14px 0 0 auto}
+.parts-panel-actions{display:flex;align-items:center;gap:8px}
+.project-settings{display:grid;grid-template-rows:1fr;opacity:1;transition:grid-template-rows 220ms ease,opacity 180ms ease}
+.project-settings.collapsed{grid-template-rows:0fr;opacity:0}
+.project-settings-content{min-height:0;overflow:hidden}
 @keyframes cutlist-notes-fade{from{opacity:0}to{opacity:1}}
 .dark .cutlist-notes-dialog textarea{background:var(--pp-input-bg)}
-@media(max-width:760px){.cutlist-title-row{align-items:flex-start;flex-direction:column;gap:8px}.cutlist-title-row .project-name{width:100%;font-size:23px}.cutlist-action-row{align-items:stretch;flex-direction:column}.cutlist-action-row .tabs{width:100%}.cutlist-export-actions{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));width:100%}.cutlist-export-actions>.compact{min-width:0;white-space:normal;text-align:center}.cutlist-notes-dialog{padding:18px}.cutlist-notes-dialog textarea{min-height:220px}}
+@media(max-width:760px){.cutlist-title-row{align-items:flex-start;flex-direction:column;gap:8px}.cutlist-title-row .project-name{width:100%;font-size:23px}.cutlist-action-row{align-items:stretch;flex-direction:column}.cutlist-action-row .tabs{width:100%}.cutlist-export-actions{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));width:100%}.cutlist-export-actions>.compact{min-width:0;white-space:normal;text-align:center}.cutlist-notes-dialog{padding:18px}.cutlist-notes-dialog textarea{min-height:220px}.parts-panel-actions{flex-wrap:wrap;justify-content:flex-end}}
+@media(prefers-reduced-motion:reduce){.project-settings{transition:none}}
 @media print{.cutlist-notes-trigger,.cutlist-notes-overlay,.cutlist-notes-dialog{display:none!important}}
 .dark .sheet-diagram { background: var(--pp-raised); }
 .dark .cut-diagram .stock-outline, .dark .sheet-diagram .stock-outline { fill: var(--pp-soft-blue); stroke: #7994a5; }
