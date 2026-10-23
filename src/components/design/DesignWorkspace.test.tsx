@@ -12,6 +12,23 @@ const project: Project = {
 };
 
 describe('DesignWorkspace', () => {
+  it('saves project information and shared unit preferences without changing stored dimensions', async () => {
+    const onCommit=vi.fn().mockResolvedValue(true);
+    render(<DesignWorkspace project={project} onCommit={onCommit} />);
+    fireEvent.click(screen.getByRole('button',{name:'Project Info'}));
+    fireEvent.change(screen.getByLabelText('Project name'),{target:{value:'  Workbench  '}});
+    fireEvent.change(screen.getByLabelText('Notes'),{target:{value:'Shop build'}});
+    fireEvent.click(screen.getByRole('combobox',{name:'Project units'}));
+    fireEvent.click(await screen.findByRole('option',{name:'Metric · mm'}));
+    fireEvent.click(screen.getByRole('button',{name:'Save'}));
+    await waitFor(()=>expect(onCommit).toHaveBeenCalledOnce());
+    const saved=onCommit.mock.calls[0][0] as Project;
+    expect(saved.name).toBe('Workbench');
+    expect(saved.notes).toBe('Shop build');
+    expect(saved.unitSystem).toBe('metric');
+    expect(saved.design?.definitions[0].cutSpec?.lengthUm).toBe(400_000);
+  });
+
   it('keeps tools and camera controls accessible and synchronizes model/list selection', async () => {
     render(<DesignWorkspace project={project} />);
     expect(screen.getByRole('button', { name: 'Select (Space)' })).toBeEnabled();
@@ -23,7 +40,7 @@ describe('DesignWorkspace', () => {
     fireEvent.click(screen.getByRole('tab', { name: 'Entity Info' }));
     const info = within(screen.getByRole('tabpanel'));
     expect(info.getByRole('textbox', { name: 'Entity name' })).toHaveValue('Left side');
-    expect(info.getByText('Length').parentElement).toHaveTextContent('400,000 µm');
+    expect(info.getByText('Length').parentElement).toHaveTextContent('15.748 in');
   });
 
   it('does not create or persist a design while the workspace is visited', () => {
@@ -100,7 +117,7 @@ describe('DesignWorkspace', () => {
     render(<DesignWorkspace project={project} onCommit={onCommit} />);
     fireEvent.click(screen.getByRole('button', { name: /Left side/ }));
     const exact=screen.getByRole('spinbutton', { name: 'Exact value' });
-    fireEvent.change(exact,{target:{value:'610000'}});
+    fireEvent.change(exact,{target:{value:'24.015748'}});
     fireEvent.click(screen.getByRole('button',{name:'Apply exact value'}));
     expect(onCommit).toHaveBeenCalledOnce();
     expect(onCommit.mock.calls[0][0].design?.definitions[0].cutSpec?.lengthUm).toBe(610_000);
