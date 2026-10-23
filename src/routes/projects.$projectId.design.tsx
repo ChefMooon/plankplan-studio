@@ -1,15 +1,18 @@
 /* TanStack file routes export a Route object alongside their page component. */
 /* eslint-disable react-refresh/only-export-components */
-import { createFileRoute, Link } from '@tanstack/react-router';
+import { createFileRoute } from '@tanstack/react-router';
 import { useEffect, useRef, useState } from 'react';
 import type { Project } from '@/lib/planner/model';
 import { projectRepository } from '@/lib/planner/repository.indexeddb';
-import { ThemeToggle } from '@/components/theme-toggle';
 import { DesignWorkspace } from '@/components/design/DesignWorkspace';
+import { PageSkeleton, useProjectShell } from '@/components/ProjectWorkspaceShell';
 
 export const Route = createFileRoute('/projects/$projectId/design')({ component: Design });
 
 function Design() {
+  const shell = useProjectShell();
+  const setShellProject = shell.setProject;
+  const setShellStatus = shell.setStatus;
   const { projectId } = Route.useParams();
   const [project, setProject] = useState<Project>();
   const [message, setMessage] = useState('Loading project…');
@@ -29,7 +32,11 @@ function Design() {
     const unsubscribe = projectRepository.subscribe('local', changed => { if (!saving.current && changed.some(key => key.projectId === projectId)) { setLocalGeneration(value=>value+1); setMessage('Conflict · this project changed elsewhere. Reload before reviewing or saving.'); } });
     return () => { active = false; unsubscribe(); };
   }, [projectId]);
-  if (!project) return <main className="app-shell"><Link to="/">← Dashboard</Link><h1>{message}</h1><button type="button" onClick={() => { setMessage('Loading project…'); void projectRepository.get({ namespaceId: 'local', projectId }).then(result => { if (result.ok) { setProject(result.value); setMessage(''); } else setMessage(result.kind === 'not-found' ? 'Project not found.' : 'Project could not be opened.'); }); }}>Retry</button></main>;
+  useEffect(() => {
+    if (project) setShellProject(project.name, message || 'Saved locally');
+    else if (message.startsWith('Project not found') || message.startsWith('Project could not')) setShellStatus(message);
+  }, [project, message, setShellProject, setShellStatus]);
+  if (!project) return <>{message.startsWith('Project not found') || message.startsWith('Project could not') ? <section className="project-load-error"><h1>{message}</h1><button type="button" onClick={() => { setMessage('Loading project…'); void projectRepository.get({ namespaceId: 'local', projectId }).then(result => { if (result.ok) { token.current=result.token; setProject(result.value); setMessage(''); } else setMessage(result.kind === 'not-found' ? 'Project not found.' : 'Project could not be opened.'); }); }}>Retry</button></section> : <PageSkeleton page="design" />}</>;
   const commit = (next: Project): Promise<boolean> => {
     const operation=saveQueue.current.then(async()=>{
       if (!token.current) return false;
@@ -43,9 +50,7 @@ function Design() {
     saveQueue.current=operation.then(()=>undefined);
     return operation;
   };
-  return <main className="app-shell workspace design-page">
-    <header className="topbar"><Link to="/" className="brand"><img src="/plankplan-studio-stock-mix-v02.svg" alt="" /><span>PlankPlan <b>Studio</b></span></Link><strong>{project.name}</strong><div className="topbar-tools"><span className="local-badge" role="status">{message || 'Saved locally'}</span>{message.startsWith('Conflict')&&<button type="button" onClick={()=>window.location.reload()}>Reload project</button>}<ThemeToggle /></div></header>
-    <div className="workspace-head"><div><Link className="back-link" to="/">← All projects</Link><h1>{project.name}</h1></div><div className="design-project-actions"><nav className="tabs" aria-label="Project areas"><Link to="/projects/$projectId/design" params={{ projectId }} aria-current="page" className="tab active">Design</Link><Link to="/projects/$projectId/cutlist" params={{ projectId }} className="tab">Cutlist</Link></nav><div id="design-project-info-action" /></div></div>
+  return <>
     <DesignWorkspace key={project.id} project={project} localGeneration={localGeneration} saveStatus={message || 'Saved locally'} onCommit={commit} />
-  </main>;
+  </>;
 }

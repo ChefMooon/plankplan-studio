@@ -1,16 +1,17 @@
 /* TanStack file routes export a Route object alongside their page component. */
 /* eslint-disable react-refresh/only-export-components */
 /* eslint-disable react-hooks/refs */
-import { createFileRoute, Link } from '@tanstack/react-router';
+import { createFileRoute } from '@tanstack/react-router';
 import { useEffect, useMemo, useRef, useState, type ChangeEvent } from 'react';
-import { Dialog, DropdownMenu } from 'radix-ui';
+import { DropdownMenu } from 'radix-ui';
 import { exportProject, importProject, parseFractionalInches, restoreProjectDocument, umFromInches, umFromMillimeters, type Material, type Project, type StockOption } from '@/lib/planner/model';
 import { optimizeMixedProject } from '@/lib/planner/combined';
 import type { SheetCutTree } from '@/lib/planner/sheet';
 import { exportCutCsv } from '@/lib/planner/exports';
 import { projectRepository } from '@/lib/planner/repository.indexeddb';
 import type { ConcurrencyToken } from '@/lib/planner/repository';
-import { ThemeToggle } from '@/components/theme-toggle';
+import { PageSkeleton, useProjectShell } from '@/components/ProjectWorkspaceShell';
+import { ProjectInfoDialog, type ProjectInfoDraft } from '@/components/ProjectInfoDialog';
 import { Select } from '@/components/ui/select';
 import { NumberStepper } from '@/components/ui/number-stepper';
 import { insertEditorCopy, moveEditorItem, removeEditorId, resolveEditorOrder, withEditorOrder } from '@/lib/planner/editor-order';
@@ -32,6 +33,9 @@ function getProjectSettingsExpanded() {
 }
 
 function Cutlist() {
+  const shell = useProjectShell();
+  const setShellProject = shell.setProject;
+  const setShellStatus = shell.setStatus;
   const { projectId } = Route.useParams();
   const [all, setAll] = useState<Project[]>([]);
   const [loadStatus, setLoadStatus] = useState('Loading project…');
@@ -43,19 +47,24 @@ function Cutlist() {
   const [settingsTab, setSettingsTab] = useState<'cutting' | 'currency'>('cutting');
   const [projectSettingsExpanded, setProjectSettingsExpanded] = useState(getProjectSettingsExpanded);
   const [dimensionDrafts, setDimensionDrafts] = useState<Record<string, string>>({});
-  const [notesOpen, setNotesOpen] = useState(false);
+  const [projectInfoOpen, setProjectInfoOpen] = useState(false);
+  const [projectInfoDraft, setProjectInfoDraft] = useState<ProjectInfoDraft>({ name: '', notes: '', unitSystem: 'imperial' });
+  const [projectInfoError, setProjectInfoError] = useState('');
   const [draggingItem, setDraggingItem] = useState<string | null>(null);
   const [draggingKind, setDraggingKind] = useState<'parts' | 'materials' | 'stocks' | null>(null);
   const [draggingMaterialId, setDraggingMaterialId] = useState<string | null>(null);
   const [dropTarget, setDropTarget] = useState<string | null>(null);
   const [orderAnnouncement, setOrderAnnouncement] = useState('');
-  const notesTextareaRef = useRef<HTMLTextAreaElement>(null);
   useEffect(() => {
     const load=async()=>{const result=await projectRepository.get({namespaceId:'local',projectId});if(result.ok){setAll([result.value]);tokenRef.current=result.token;setLoadStatus('');}else setLoadStatus(result.kind==='not-found'?'Project not found.':'Project could not be opened. Your saved data has not been changed.');};
     void load();
     return projectRepository.subscribe('local',changed=>{if(changed.some(key=>key.projectId===projectId))void load();});
   },[projectId]);
   const project = all.find(p => p.id === projectId);
+  useEffect(() => {
+    if (project) setShellProject(project.name, saveStatus || 'Saved locally', () => { setProjectInfoDraft({ name: project.name, notes: project.notes ?? '', unitSystem: project.unitSystem }); setProjectInfoError(''); setProjectInfoOpen(true); });
+    else if (loadStatus.startsWith('Project not found') || loadStatus.startsWith('Project could not')) setShellStatus(loadStatus);
+  }, [project, saveStatus, loadStatus, setShellProject, setShellStatus]);
   const update = (nextProject: Project) => {
     const savedProject = { ...nextProject, updatedAt: new Date().toISOString() };
     setAll([savedProject]);
@@ -67,6 +76,15 @@ function Cutlist() {
       if(result.ok){tokenRef.current=result.token;setSaveStatus('Saved');}
       else setSaveStatus(result.kind==='conflict'?'Conflict · newer project data exists. Reload before saving.':result.kind==='quota'?'Not saved · storage is full. Your edits remain here.':'Not saved · your edits remain here. Retry after checking storage.');
     });
+  };
+  const saveProjectInfo = (currentProject: Project) => {
+    const name = projectInfoDraft.name.trim();
+    if (!name) { setProjectInfoError('Enter a project name.'); return; }
+    if (name.length > 256) { setProjectInfoError('Project names must be 256 characters or fewer.'); return; }
+    if (projectInfoDraft.notes.length > 16384) { setProjectInfoError('Notes must be 16,384 characters or fewer.'); return; }
+    update({ ...currentProject, name, notes: projectInfoDraft.notes || undefined, unitSystem: projectInfoDraft.unitSystem });
+    setDimensionDrafts({});
+    setProjectInfoOpen(false);
   };
   const orderedParts = project ? resolveEditorOrder(project.parts, project.editorOrder?.parts) : [];
   const orderedMaterials = project ? resolveEditorOrder(project.materials, project.editorOrder?.materials) : [];
@@ -99,7 +117,7 @@ function Cutlist() {
   const mixedResult = useMemo(() => { const currentProject = all.find(item => item.id === projectId); return currentProject ? optimizeMixedProject(currentProject) : null; }, [all, projectId]);
   const result = mixedResult?.linear ?? null;
   const sheetResult = mixedResult?.sheets ?? null;
-  if (!project) return <main className="app-shell"><Link to="/">← Dashboard</Link><h1>{loadStatus || 'Loading project…'}</h1><button type="button" onClick={() => { setLoadStatus('Loading project…'); void projectRepository.get({namespaceId:'local',projectId}).then(r=>{if(r.ok){setAll([r.value]);tokenRef.current=r.token;setLoadStatus('');}else setLoadStatus(r.kind==='not-found'?'Project not found.':'Project could not be opened.');}); }}>Retry</button></main>;
+  if (!project) return <>{loadStatus.startsWith('Project not found') || loadStatus.startsWith('Project could not') ? <section className="project-load-error"><h1>{loadStatus}</h1><button type="button" onClick={() => { setLoadStatus('Loading project…'); void projectRepository.get({namespaceId:'local',projectId}).then(r=>{if(r.ok){setAll([r.value]);tokenRef.current=r.token;setLoadStatus('');}else setLoadStatus(r.kind==='not-found'?'Project not found.':'Project could not be opened.');}); }}>Retry</button></section> : <PageSkeleton page="cutlist" />}</>;
 
   const stockPresets = presetsFor(stockRegion, project.unitSystem);
   const selectedPreset = stockPresets.find(preset => preset.id === stockPreset) ?? stockPresets[0];
@@ -173,12 +191,10 @@ function Cutlist() {
   const taxCents = Math.round(combinedCost * (project.taxRate ?? 0) / 100);
   const money = (cents: number) => { try { return new Intl.NumberFormat(undefined, { style: 'currency', currency: project.currency }).format(cents / 100); } catch { return `$${(cents / 100).toFixed(2)}`; } };
 
-  return <main className="app-shell workspace">
-    <header className="topbar"><Link to="/" className="brand"><img src="/plankplan-studio-stock-mix-v02.svg"/><span>PlankPlan <b>Studio</b></span></Link><strong>{project.name}</strong><div className="topbar-tools"><span className="local-badge" role="status">{saveStatus || 'Saved locally'}</span><ThemeToggle /></div></header>
+  return <>
+    <ProjectInfoDialog open={projectInfoOpen} onOpenChange={setProjectInfoOpen} draft={projectInfoDraft} onDraftChange={setProjectInfoDraft} error={projectInfoError} onSave={() => saveProjectInfo(project)} />
       <div className="workspace-head cutlist-workspace-head">
-      <div className="cutlist-title-row"><Link className="back-link" to="/">← All projects</Link><input className="project-name" aria-label="Project name" value={project.name} onChange={e => update({ ...project, name: e.target.value })}/></div>
-      <div className="workspace-actions cutlist-action-row"><nav className="tabs" aria-label="Project areas"><Link to="/projects/$projectId/design" params={{ projectId }} className="tab">Design</Link><Link to="/projects/$projectId/cutlist" params={{ projectId }} aria-current="page" className="tab active">Cutlist</Link></nav><div className="cutlist-export-actions"><button className="secondary compact" onClick={downloadBackup}>Export JSON</button><label className="secondary compact import-backup">Replace from JSON<input type="file" accept="application/json,.json" aria-label="Replace project from JSON" onChange={e => { void importBackup(e.target.files?.[0]); e.currentTarget.value = ''; }}/></label><button className="secondary compact" onClick={downloadCsv}>Export CSV</button><button className="secondary compact" onClick={() => window.print()}>Print / Save PDF</button></div></div>
-      <div className="cutlist-notes-row"><Dialog.Root open={notesOpen} onOpenChange={setNotesOpen}><Dialog.Trigger asChild><button className="secondary compact cutlist-notes-trigger">Project notes</button></Dialog.Trigger><Dialog.Portal><Dialog.Overlay className="cutlist-notes-overlay"/><Dialog.Content className="cutlist-notes-dialog" onOpenAutoFocus={event => { event.preventDefault(); notesTextareaRef.current?.focus(); }}><Dialog.Title className="cutlist-notes-title">Project notes</Dialog.Title><Dialog.Description className="cutlist-notes-description">Notes are saved automatically as you type.</Dialog.Description><textarea ref={notesTextareaRef} aria-label="Project notes" value={project.notes ?? ''} onChange={e => update({ ...project, notes: e.target.value })}/><Dialog.Close asChild><button className="primary compact cutlist-notes-close">Done</button></Dialog.Close></Dialog.Content></Dialog.Portal></Dialog.Root></div>
+      <div className="workspace-actions cutlist-action-row"><div className="cutlist-export-actions"><button className="secondary compact" onClick={downloadBackup}>Export JSON</button><label className="secondary compact import-backup">Replace from JSON<input type="file" accept="application/json,.json" aria-label="Replace project from JSON" onChange={e => { void importBackup(e.target.files?.[0]); e.currentTarget.value = ''; }}/></label><button className="secondary compact" onClick={downloadCsv}>Export CSV</button><button className="secondary compact" onClick={() => window.print()}>Print / Save PDF</button></div></div>
     </div>
     <div className="workspace-grid"><section className="editor-column">
       <section className="panel"><div className="panel-title"><div><p className="eyebrow">01 · PARTS</p><h2>What are you making?</h2></div><div className="parts-panel-actions"><button className="secondary compact" type="button" aria-expanded={projectSettingsExpanded} aria-controls="project-settings" onClick={toggleProjectSettings}>{projectSettingsExpanded ? 'Hide settings' : 'Show settings'}</button><button id="add-part" className="primary compact" onClick={addPart}>＋ Add part</button></div></div>
@@ -221,5 +237,5 @@ function Cutlist() {
     <aside className="results-column"><section className="panel result-panel"><p className="eyebrow">03 · CUT PLAN</p><h2>Plan overview</h2>{hasLinkedPanelCut&&<p className="warning" role="status">2D sheet placement checks length, width and grain only. Panel thickness compatibility is unverified.</p>}{[...(result?.warnings ?? []), ...(sheetResult?.warnings ?? [])].map((w, i) => <p className="warning" key={`${w.code}-${w.partId ?? i}`}>⚠ {w.message}</p>)}
       {(result?.plans.length || sheetResult?.plans.length) ? <>{!(result?.valid && sheetResult?.valid) && <p className="warning" role="status">Partial plan only. The warnings above identify parts that still need available stock.</p>}<div className="cost-total"><span>{result?.valid && sheetResult?.valid ? 'Estimated purchase subtotal' : 'Partial purchase subtotal'}</span><strong>{money(combinedCost)}</strong></div><div className="shopping-row"><span>Tax ({project.taxRate ?? 0}%)</span><strong>{money(taxCents)}</strong></div><div className="shopping-row"><b>Estimated total</b><strong>{money(combinedCost + taxCents)}</strong></div><p className="muted">Manual prices · tax is an estimate and does not affect stock selection.</p><h3>Material subtotals · waste</h3>{[...materialTotals].map(([materialId, total]) => <div className="shopping-row" key={materialId}><b>{project.materials.find(m => m.id === materialId)?.name}</b><span>{total.count} {project.materials.find(m => m.id === materialId)?.type === 'sheet' ? 'sheets' : 'boards'} · {total.stockLength ? (total.waste / total.stockLength * 100).toFixed(1) : '0.0'}% waste</span><strong>{money(total.cost)}</strong></div>)}<h3>Shopping list</h3>{[...shopping].map(([stockId, row]) => { const entry = stockMap.get(stockId); if (!entry) return null; return <div className="shopping-row" key={stockId}><b>{entry.material.name} · {entry.stock.name}</b><span>{row.count} {entry.material.type === 'sheet' ? 'sheets' : 'boards'} · {row.owned} owned · {row.count - row.owned} to buy</span><strong>{money(row.cost)}</strong></div>; })}<h3>Cut list and diagrams</h3>{result?.plans.map((p, i) => { const entry = stockMap.get(p.stockId); if (!entry) return null; const scale = 700 / entry.stock.length.um; let x = project.trim.um * scale; return <article className="plan-card" key={`${p.stockId}-${i}`}><div className="plan-row"><b>{entry.material.name} · {entry.stock.name}</b><span>Buy cost {money(p.costCents)}</span></div><svg className="cut-diagram" viewBox="0 0 720 68" role="img" aria-label={`Cut diagram for ${entry.stock.name}`}><rect x="4" y="12" width="712" height="34" rx="4" className="stock-outline" fill="#e5f0f6" stroke="#9cb7c7"/>{p.cuts.map(c => { const width = Math.max(2, c.lengthUm * scale); const current = x; x += width + project.kerf.um * scale; return <g key={`${c.partId}-${current}`}><rect x={4 + current} y="12" width={width} height="34" className="part-block" fill="#276a91" stroke="white"/><text x={4 + current + width / 2} y="34" textAnchor="middle" fill="white" fontSize="10">{project.parts.find(q => q.id === c.partId)?.name ?? 'Part'}</text></g>; })}</svg><div className="diagram-legend">{p.cuts.map((c, cutIndex) => <span key={`${c.partId}-label-${cutIndex}`}>{project.parts.find(q => q.id === c.partId)?.name}: {formatDim(c.lengthUm)}</span>)}<span className="offcut">Offcut: {formatDim(p.wasteUm)}</span></div></article>; })}<h3>Sheet layouts · cut order</h3>{sheetResult?.plans.map((plan, index) => { const entry = stockMap.get(plan.stockId); if (!entry) return null; const stockWidth = entry.stock.widthUm ?? 1; const stockHeight = entry.stock.length.um; const scale = 320 / Math.max(stockWidth, stockHeight); return <article className="plan-card sheet-plan" key={`sheet-${index}`}><div className="plan-row"><b>{entry.material.name} · {entry.stock.name}</b><span>{plan.layout === 'strips' ? 'Full-length strips' : 'Guillotine layout'} · {plan.ownedUsed ? 'Owned sheet' : `Buy cost ${money(plan.costCents)}`}</span></div><svg className="sheet-diagram" viewBox={`0 0 ${stockWidth * scale + 12} ${stockHeight * scale + 12}`} role="img" aria-label={`Sheet layout ${index + 1} for ${entry.stock.name}`}><rect x="4" y="4" width={stockWidth * scale} height={stockHeight * scale} className="stock-outline" fill="#e5f0f6" stroke="#9cb7c7"/>{plan.placements.map((placement, partIndex) => { const part = project.parts.find(p => p.id === placement.partId); return <g key={`${placement.partId}-${partIndex}`}><rect x={4 + placement.rect.x * scale} y={4 + placement.rect.y * scale} width={placement.rect.width * scale} height={placement.rect.height * scale} className="part-block" fill="#276a91" stroke="white"/><text x={4 + (placement.rect.x + placement.rect.width / 2) * scale} y={4 + (placement.rect.y + placement.rect.height / 2) * scale} textAnchor="middle" dominantBaseline="middle" fill="white" fontSize="10">{part?.name ?? 'Part'}{placement.rotated ? ' ↻' : ''}</text></g>; })}</svg><ol className="sheet-cut-order" aria-label="Sheet cut order">{sheetCutOrder(plan.cutTree, formatDim).map((step, i) => <li key={i}>{step}</li>)}</ol><p className="muted">{plan.placements.length} parts · {plan.offcuts.length} usable offcuts.</p>{plan.offcuts.map((offcut, i) => <span className="offcut" key={i}>{formatDim(offcut.width)} × {formatDim(offcut.height)} </span>)}</article>; })}<h3>Usable offcuts · at least {formatDim(project.minOffcutLinear.um)}</h3>{result?.plans.flatMap(p => { const entry = stockMap.get(p.stockId); return entry && p.wasteUm >= project.minOffcutLinear.um ? [<div className="shopping-row" key={`offcut-${p.stockId}-${p.wasteUm}`}><span>{entry.material.name} · {entry.stock.name}</span><strong>{formatDim(p.wasteUm)}</strong></div>] : []; })}{!result?.plans.some(p => p.wasteUm >= project.minOffcutLinear.um) && <p className="muted">No offcuts meet the minimum usable length.</p>}</> : <p className="muted">Add parts and assign a material to see your cut plan and shopping estimate.</p>}
     </section></aside></div>
-  </main>;
+  </>;
 }
