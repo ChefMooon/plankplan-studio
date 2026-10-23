@@ -47,8 +47,7 @@ describe('local project workflow', () => {
     const file = new File([exportProject(project)], 'bench.json', { type: 'application/json' });
     await user.upload(screen.getByLabelText(/import project/i), file);
     await screen.findByText('Imported bench');
-    await user.click(within(screen.getByText('Imported bench').closest('article')!).getByRole('link', { name: /open cutlist/i }));
-    await user.click(await screen.findByRole('link', { name: /design/i }));
+    await user.click(within(screen.getByText('Imported bench').closest('article')!).getByRole('link', { name: /open design/i }));
     expect(await screen.findByRole('heading', { name: 'Model workspace' })).toBeInTheDocument();
     // Canvas mounting is covered by browser smoke checks; jsdom verifies route composition and navigation.
     expect(screen.getByRole('link', { name: 'Cutlist' })).toBeInTheDocument();
