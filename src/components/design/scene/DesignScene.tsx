@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Canvas, useFrame, useThree, type ThreeEvent } from '@react-three/fiber';
+import { useFrame, useThree, type ThreeEvent } from '@react-three/fiber';
+import { DesignCanvas as Canvas } from './DesignCanvas';
 import { Edges, Grid, Line, OrbitControls } from '@react-three/drei';
 import * as THREE from 'three';
 import type { DesignDocumentV1, Geometry, Instance, LooseObject } from '@/lib/planner/design/schema';
