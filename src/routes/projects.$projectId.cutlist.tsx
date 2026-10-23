@@ -83,7 +83,10 @@ function Cutlist() {
     if (!name) { setProjectInfoError('Enter a project name.'); return; }
     if (name.length > 256) { setProjectInfoError('Project names must be 256 characters or fewer.'); return; }
     if (projectInfoDraft.notes.length > 16384) { setProjectInfoError('Notes must be 16,384 characters or fewer.'); return; }
-    update({ ...currentProject, name, notes: projectInfoDraft.notes || undefined, unitSystem: projectInfoDraft.unitSystem });
+    const nextProject = { ...currentProject, name, unitSystem: projectInfoDraft.unitSystem };
+    if (projectInfoDraft.notes) nextProject.notes = projectInfoDraft.notes;
+    else delete nextProject.notes;
+    update(nextProject);
     setDimensionDrafts({});
     setProjectInfoOpen(false);
   };
