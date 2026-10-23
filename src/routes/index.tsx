@@ -2,6 +2,8 @@
 /* eslint-disable react-refresh/only-export-components */
 import { createFileRoute, useNavigate, useRouterState } from '@tanstack/react-router';
 import { useEffect, useRef, useState } from 'react';
+import { ArrowSquareOut, Info, Plus, UploadSimple, X } from '@phosphor-icons/react';
+import { Popover } from 'radix-ui';
 import { createProject, importProjectAsNew } from '@/lib/planner/storage';
 import { copyProjectDocument, type Project } from '@/lib/planner/model';
 import { projectRepository } from '@/lib/planner/repository.indexeddb';
@@ -18,18 +20,93 @@ function Home() {
   const [status, setStatus] = useState('Loading projects…');
   const [recoveryIssues,setRecoveryIssues]=useState<RecoveryIssue[]>([]);
   const reloadSequence=useRef(0);
-  const reload = async () => { const sequence=++reloadSequence.current;let migratedState='empty'; if(window.localStorage.getItem(LEGACY_PROJECTS_KEY)!==null)migratedState=(await migrateLegacyProjects()).state; const listed = await projectRepository.list('local'); if(sequence!==reloadSequence.current)return;if (!listed.ok) { setStatus('Project storage is unavailable. Retry to load your projects.'); return; } setRecoveryIssues(listed.issues); const loaded = await Promise.all(listed.summaries.map(async summary => { const result = await projectRepository.get({ namespaceId:'local', projectId:summary.id }); return result.ok ? result.value : undefined; })); if(sequence!==reloadSequence.current)return;setProjects(loaded.filter((p):p is Project => !!p)); setStatus(migratedState === 'needs-recovery' || listed.issues.length ? 'Some older project data needs recovery. Valid projects remain available.' : ''); };
-  const exportRecoveryCopy=async(recoveryId:string)=>{const blob=await projectRepository.exportRecovery(recoveryId);if(!blob){setStatus('Recovery data could not be read.');return;}const url=URL.createObjectURL(blob);const anchor=document.createElement('a');anchor.href=url;anchor.download=`plankplan-recovery-${recoveryId.replace(/[^a-z0-9-]/gi,'-')}.bin`;anchor.click();URL.revokeObjectURL(url);};
+  const importInput = useRef<HTMLInputElement>(null);
+  const hasRecovery = recoveryIssues.length > 0;
+  const [recoveryOpen, setRecoveryOpen] = useState(false);
+  const [recoveryBusy, setRecoveryBusy] = useState(false);
+  const [recoveryFeedback, setRecoveryFeedback] = useState('');
+  const reload = async () => { const sequence=++reloadSequence.current;if(window.localStorage.getItem(LEGACY_PROJECTS_KEY)!==null)await migrateLegacyProjects(); const listed = await projectRepository.list('local'); if(sequence!==reloadSequence.current)return;if (!listed.ok) { setStatus('Project storage is unavailable. Retry to load your projects.'); return; } setRecoveryIssues(listed.issues); const loaded = await Promise.all(listed.summaries.map(async summary => { const result = await projectRepository.get({ namespaceId:'local', projectId:summary.id }); return result.ok ? result.value : undefined; })); if(sequence!==reloadSequence.current)return;setProjects(loaded.filter((p):p is Project => !!p)); setStatus(''); };
+  const exportRecoveryCopy=async(recoveryId:string)=>{const blob=await projectRepository.exportRecovery(recoveryId);if(!blob){setStatus('Recovery data could not be read.');return;}const url=URL.createObjectURL(blob);const anchor=document.createElement('a');anchor.href=url;anchor.download=`plankplan-recovery-${recoveryId.replace(/[^a-z0-9-]/gi,'-')}.bin`;anchor.click();URL.revokeObjectURL(url);setRecoveryFeedback('Recovery copy exported. Restore projects to add them here, or archive the notice to keep the original data on this device.');};
+  const resolveRecovery = async (recoveryId: string, archive: boolean) => {
+    setRecoveryBusy(true);
+    try {
+      if (archive) {
+        await projectRepository.archiveRecovery(recoveryId);
+        setRecoveryFeedback('Notice archived. Original data is still saved on this device.');
+      } else {
+        const result = await projectRepository.restoreRecovery(recoveryId);
+        setRecoveryFeedback(`${result.restored} project${result.restored === 1 ? '' : 's'} restored as new copies.${result.remaining ? ` ${result.remaining} unreadable item${result.remaining === 1 ? '' : 's'} remain. Export the original data for repair, or archive the notice.` : ' Recovery complete.'}`);
+      }
+      await reload();
+    } catch (error) {
+      setRecoveryFeedback(error instanceof Error ? error.message : 'Recovery could not be saved. Please retry.');
+    } finally { setRecoveryBusy(false); }
+  };
   useEffect(() => { const scheduleReload=()=>{ queueMicrotask(()=>{ if(pathname==='/')void reload(); }); }; scheduleReload(); const unsubscribe=projectRepository.subscribe('local', scheduleReload); const stopWatching=watchLegacyPayloadChanges(result=>{if(result.state==='needs-recovery')setStatus('Legacy project data changed. Recovery copies were preserved for review.');scheduleReload();}); return () => {unsubscribe();stopWatching();}; }, [pathname]);
   const create = async (name = 'Untitled project') => { const p = createProject(name); const result = await projectRepository.create('local',p); if (!result.ok) { setStatus('Project could not be saved. Retry after checking local storage.'); return p; } ++reloadSequence.current;setProjects(current => [result.value,...current]); return result.value; };
   const restore = async (file?: File) => { if (!file) return; try { const imported = importProjectAsNew(await file.text(), projects); const result=await projectRepository.create('local',imported); if(!result.ok)throw new Error('Save failed');++reloadSequence.current;setProjects(current=>[result.value,...current]); setStatus('Project imported as a new copy.'); } catch { setStatus('This project file could not be imported. The saved projects were not changed.'); } };
   const startProject = () => { void create().then(p => navigate({ to: '/projects/$projectId/cutlist', params: { projectId: p.id } })); };
   const preview = () => { void navigate({ to: '/design-preview' }); };
-  return <main className="app-shell">
-    <header className="topbar"><div className="brand"><img src="/plankplan-studio-stock-mix-v02.svg"/><span>PlankPlan <b>Studio</b></span></div><div className="topbar-tools"><span className="local-badge">Saved on this device</span><ThemeToggle /></div></header>
-    <section className="hero"><p className="eyebrow">YOUR WORKSHOP, PLANNED</p><h1>Make every board count.</h1><p>Plan precise cuts, compare stock costs, and take a clear list to the shop.</p><div className="entry-actions"><button className="primary" onClick={startProject}>＋ Start a cutlist project</button><button className="secondary" onClick={preview}>▦ Open workspace preview <small>No project saved</small></button></div><div className="availability"><span><i className="dot live"/>Cutlist <b>Manual planning</b></span><span><i className="dot live"/>Design <b>Available in projects</b></span></div></section>
-    <section className="project-section"><div className="section-heading"><div><p className="eyebrow">LOCAL PROJECTS</p><h2>Pick up where you left off</h2></div><label className="secondary import-button">Import project<input type="file" accept="application/json,.json" onChange={e => { void restore(e.target.files?.[0]); e.currentTarget.value = ''; }}/></label></div>
-      {status && <p role="status">{status} <button type="button" onClick={() => void reload()}>Retry</button></p>}{recoveryIssues.map(issue=><article className="recovery-card" key={issue.recoveryId}><strong>Recovery copy available</strong><p>{issue.sourceProjectId ? `Project ${issue.sourceProjectId}` : 'Legacy project data'} · {issue.code}</p><button type="button" onClick={()=>void exportRecoveryCopy(issue.recoveryId)}>Export original bytes</button></article>)}{projects.length ? <div className="project-grid">{projects.map(p => <ProjectCard key={p.id} project={p} onDuplicate={() => { const copy=copyProjectDocument(p); void projectRepository.create('local',copy).then(r=>{if(r.ok){++reloadSequence.current;setProjects(current=>[r.value,...current]);}else setStatus('Could not duplicate project.');}); }} onDelete={() => { if (confirm(`Delete ${p.name}?`)) void projectRepository.get({namespaceId:'local',projectId:p.id}).then(r=>r.ok?projectRepository.delete({namespaceId:'local',projectId:p.id},r.token):{ok:false}).then(r=>{if(r.ok){++reloadSequence.current;setProjects(current=>current.filter(x=>x.id!==p.id));}else setStatus('Project changed elsewhere and was not deleted. Reload and retry.');}); }}/>)}</div> : !status.includes('unavailable') && <div className="empty-state"><div className="empty-mark">⌂</div><h3>Your next shop project starts here</h3><p>Create a cutlist project to organize parts, materials, and stock.</p><button className="primary" onClick={startProject}>Start your first project</button></div>}
+  return <main className="app-shell home-page">
+    <header className="topbar">
+      <div className="brand"><img src="/plankplan-studio-stock-mix-v02.svg" alt=""/><span>PlankPlan <b>Studio</b></span></div>
+      <div className="topbar-tools">
+        <Popover.Root>
+          <Popover.Trigger asChild><button type="button" className="home-info-button" aria-label="About this workspace"><Info size={21} aria-hidden="true"/></button></Popover.Trigger>
+          <Popover.Portal><Popover.Content className="home-popover" sideOffset={10} align="end" aria-label="About this workspace">
+            <Popover.Close className="home-popover-close" aria-label="Close workspace information"><X size={17} aria-hidden="true"/></Popover.Close>
+            <h2>Your local workspace</h2>
+            <p>Projects are saved on this device. Export a project from its workspace to keep a backup or move it elsewhere.</p>
+            <p>Plan cuts and stock in Cutlist, or build your project in Design.</p>
+            <button type="button" className="secondary compact" onClick={preview}><ArrowSquareOut size={17} aria-hidden="true"/>Explore workspace preview</button>
+          </Popover.Content></Popover.Portal>
+        </Popover.Root>
+        <ThemeToggle />
+      </div>
+    </header>
+    <section className="home-intro" aria-labelledby="home-intro-heading">
+      <div className="home-intro-copy">
+        <h1 id="home-intro-heading">Make a plan. <span>Make the cut.</span></h1>
+        <p>Design your next build, plan your stock, and turn dimensions into a clear cutlist.</p>
+      </div>
+      <div className="home-intro-art" aria-hidden="true">
+        <svg viewBox="0 0 440 240" fill="none">
+          <path d="M98 83 243 43l106 39-147 43L98 83Z" fill="#C18D5B" stroke="#E0BB8E" strokeWidth="2"/>
+          <path d="m98 83 104 42v23L98 106V83Z" fill="#9D6C43" stroke="#D6A675" strokeWidth="2"/>
+          <path d="m202 125 147-43v24l-147 42v-23Z" fill="#AC794C" stroke="#D6A675" strokeWidth="2"/>
+          <path d="m119 111 19 7v80l-19-7v-80ZM321 111l19-6v80l-19 6v-80ZM185 142l19 7v80l-19-7v-80ZM257 130l19-6v80l-19 6v-80Z" fill="#694332" stroke="#83ABC3" strokeWidth="2"/>
+          <path d="M108 69 245 31M78 62v43M362 78l-8 3m-1 41 9-3" stroke="#D7C8AA" strokeWidth="1.5" strokeLinecap="round"/>
+          <path d="M105 55 240 18" stroke="#D7C8AA" strokeDasharray="3 5"/>
+        </svg>
+      </div>
+    </section>
+    <section className="project-section home-projects" aria-labelledby="projects-heading">
+      <div className="home-project-heading">
+        <div className="home-title"><h2 id="projects-heading">Projects</h2><span className="home-project-count" aria-label={`${projects.length} saved projects`}>{projects.length}</span></div>
+        <div className="home-project-actions">
+          {(hasRecovery || recoveryOpen) && <Popover.Root open={recoveryOpen} onOpenChange={setRecoveryOpen}>
+            <Popover.Trigger asChild><button type="button" className="home-info-button home-recovery-button" aria-label="Review older project data"><Info size={21} aria-hidden="true"/></button></Popover.Trigger>
+            <Popover.Portal><Popover.Content className="home-popover home-recovery-popover" sideOffset={8} align="end" aria-label="Project recovery">
+              <Popover.Close className="home-popover-close" aria-label="Close recovery details"><X size={17} aria-hidden="true"/></Popover.Close>
+              <h2>Older project data</h2>
+              <p>Restore readable projects as new copies. Original data stays saved on this device.</p>
+              {recoveryFeedback && <p role="status">{recoveryFeedback}</p>}
+              {!hasRecovery && <p>All recovery notices are resolved.</p>}
+              {recoveryIssues.map((issue, index) => <article className="home-recovery-item" key={issue.recoveryId}>
+                <strong>{issue.sourceProjectId ? `Project ${issue.sourceProjectId}` : `Recovery copy ${index + 1}`}</strong>
+                <button type="button" className="primary compact" disabled={recoveryBusy} onClick={() => void resolveRecovery(issue.recoveryId, false)}>Restore projects</button>
+                <button type="button" className="secondary compact" disabled={recoveryBusy} onClick={() => void exportRecoveryCopy(issue.recoveryId)}>Export original data</button>
+                <button type="button" className="home-text-button" disabled={recoveryBusy} onClick={() => void resolveRecovery(issue.recoveryId, true)}>Archive notice · keep original data</button>
+              </article>)}
+            </Popover.Content></Popover.Portal>
+          </Popover.Root>}
+          <button type="button" className="secondary" onClick={() => importInput.current?.click()}><UploadSimple size={18} aria-hidden="true"/>Import</button>
+          <input ref={importInput} className="home-file-input" type="file" accept="application/json,.json" aria-label="Import project" onChange={e => { void restore(e.target.files?.[0]); e.currentTarget.value = ''; }}/>
+          <button type="button" className="primary" onClick={startProject}><Plus size={18} weight="bold" aria-hidden="true"/>New project</button>
+        </div>
+      </div>
+      {status && <p className="home-status" role="status">{status}{!status.startsWith('Loading') && <button type="button" className="home-text-button" onClick={() => void reload()}>Refresh</button>}</p>}
+      {projects.length ? <div className="project-grid">{projects.map(p => <ProjectCard key={p.id} project={p} onDuplicate={() => { const copy=copyProjectDocument(p); void projectRepository.create('local',copy).then(r=>{if(r.ok){++reloadSequence.current;setProjects(current=>[r.value,...current]);}else setStatus('Could not duplicate project.');}); }} onDelete={() => { if (confirm(`Delete ${p.name}?`)) void projectRepository.get({namespaceId:'local',projectId:p.id}).then(r=>r.ok?projectRepository.delete({namespaceId:'local',projectId:p.id},r.token):{ok:false}).then(r=>{if(r.ok){++reloadSequence.current;setProjects(current=>current.filter(x=>x.id!==p.id));}else setStatus('Project changed elsewhere and was not deleted. Reload and retry.');}); }}/>)}</div> : !status.startsWith('Loading') && !status.includes('unavailable') && <div className="empty-state"><div className="empty-mark">⌂</div><h2>No projects yet</h2><p>Create a project or import one to get started.</p><button type="button" className="primary" onClick={startProject}><Plus size={18} weight="bold" aria-hidden="true"/>New project</button></div>}
     </section>
   </main>;
 }

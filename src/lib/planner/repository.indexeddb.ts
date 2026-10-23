@@ -1,8 +1,8 @@
-import { normalizeProjectDocument, type Project } from './model';
+import { copyProjectDocument, importProject, normalizeProjectDocument, type Project } from './model';
 import type { ConcurrencyToken, DeleteResult, ListResult, NamespaceId, ProjectKey, ProjectRepository, ProjectSummary, ReadResult, WriteResult } from './repository';
 
 type StoredProject = { namespaceId: NamespaceId; projectId: string; generation: number; schemaVersion: number; name: string; updatedAt: string; document: Project };
-type RecoveryRecord = { recoveryId: string; namespaceId: NamespaceId; sourceKind: 'legacy-library'|'legacy-project'|'import'|'unsupported-document'; sourceHash?: string; sourceBytes: ArrayBuffer; sourceProjectId?: string; status: 'available'|'repair-candidate'|'recovered'; observedAt: string };
+type RecoveryRecord = { recoveryId: string; namespaceId: NamespaceId; sourceKind: 'legacy-library'|'legacy-project'|'import'|'unsupported-document'; sourceHash?: string; sourceBytes: ArrayBuffer; sourceProjectId?: string; status: 'available'|'repair-candidate'|'recovered'; observedAt: string; restoredIndexes?: number[] };
 const DB_NAME = 'plankplan-studio.local';
 const DB_VERSION = 1;
 function openDb(): Promise<IDBDatabase> {
@@ -53,7 +53,47 @@ export class IndexedDbProjectRepository implements ProjectRepository {
     try {const db=await openDb();const tx=db.transaction('projects','readwrite');const store=tx.objectStore('projects');const idbKey=[key.namespaceId,key.projectId];const old=await req(store.get(idbKey)) as StoredProject|undefined;if(!old)return{ok:false,kind:'not-found'};if(old.generation!==expected.localGeneration)return{ok:false,kind:'conflict'};store.delete(idbKey);await txDone(tx);notify([key]);return{ok:true};}catch{return{ok:false,kind:'storage-failure'};}
   }
   subscribe(namespaceId: NamespaceId, listener: (changed: ProjectKey[]) => void): () => void {let set=subscribers.get(namespaceId);if(!set){set=new Set();subscribers.set(namespaceId,set);}set.add(listener);return()=>{set?.delete(listener);if(!set?.size)subscribers.delete(namespaceId);};}
-  async putRecovery(record: RecoveryRecord): Promise<void> {const db=await openDb();const tx=db.transaction('recovery','readwrite');tx.objectStore('recovery').put(record);await txDone(tx);}
+  async putRecovery(record: RecoveryRecord): Promise<void> {const db=await openDb();const tx=db.transaction('recovery','readwrite');const store=tx.objectStore('recovery');const existing=await req(store.get(record.recoveryId)) as RecoveryRecord|undefined;if(!existing)store.put(record);await txDone(tx);}
+  /** Resolve the notice while retaining the original bytes for a future export. */
+  async archiveRecovery(recoveryId: string): Promise<void> {
+    const db = await openDb();
+    const tx = db.transaction('recovery', 'readwrite');
+    const store = tx.objectStore('recovery');
+    const record = await req(store.get(recoveryId)) as RecoveryRecord | undefined;
+    if (record) store.put({ ...record, status: 'recovered' });
+    await txDone(tx);
+  }
+  async restoreRecovery(recoveryId: string): Promise<{ restored: number; remaining: number }> {
+    const original = await this.getRecovery(recoveryId);
+    if (!original) throw new Error('Recovery copy is unavailable.');
+    let parsed: unknown;
+    try { parsed = JSON.parse(new TextDecoder().decode(original.sourceBytes)); }
+    catch { throw new Error('This copy is not readable project JSON. Export it for repair, or archive the notice to keep the original data on this device.'); }
+    const candidates = Array.isArray(parsed) ? parsed : [parsed];
+    const valid: { index: number; project: Project }[] = [];
+    candidates.forEach((candidate, index) => {
+      try { const source = importProject(JSON.stringify(candidate)); valid.push({ index, project: copyProjectDocument(source, source.name) }); }
+      catch { /* Invalid entries remain available for export and repair. */ }
+    });
+    const db = await openDb();
+    const tx = db.transaction(['projects', 'recovery'], 'readwrite');
+    const store = tx.objectStore('recovery');
+    const current = await req(store.get(recoveryId)) as RecoveryRecord | undefined;
+    if (!current || current.status === 'recovered') { await txDone(tx); return { restored: 0, remaining: 0 }; }
+    const restoredIndexes = new Set(current.restoredIndexes ?? []);
+    const added: Project[] = [];
+    for (const { index, project } of valid) {
+      if (restoredIndexes.has(index)) continue;
+      tx.objectStore('projects').add({ namespaceId: current.namespaceId, projectId: project.id, generation: 1, schemaVersion: project.schemaVersion, name: project.name, updatedAt: project.updatedAt, document: project } satisfies StoredProject);
+      restoredIndexes.add(index);
+      added.push(project);
+    }
+    const remaining = candidates.length - restoredIndexes.size;
+    store.put({ ...current, restoredIndexes: [...restoredIndexes], status: remaining ? 'repair-candidate' : 'recovered' });
+    await txDone(tx);
+    notify(added.map(project => ({ namespaceId: current.namespaceId, projectId: project.id })));
+    return { restored: added.length, remaining };
+  }
   async getRecovery(recoveryId:string):Promise<RecoveryRecord|undefined>{const db=await openDb();const tx=db.transaction('recovery','readonly');const record=await req(tx.objectStore('recovery').get(recoveryId)) as RecoveryRecord|undefined;await txDone(tx);return record;}
   async exportRecovery(recoveryId:string):Promise<Blob|undefined>{const record=await this.getRecovery(recoveryId);return record?new Blob([record.sourceBytes],{type:'application/octet-stream'}):undefined;}
 }

@@ -40,6 +40,7 @@ export async function migrateLegacyProjects(storage: Storage = localStorage): Pr
     if(latest!==raw){if(latest!==null){const id=await preserve(latest,'legacy-library');recoveryIds.push(id);}await finishMigrationAttempt(ownerKey,owner,{complete:false,sourceHash:hash,projectIds,recoveryIds});return{state:'needs-recovery',sourceHash:hash,projectIds,recoveryIds};}
     const committed=await finishMigrationAttempt(ownerKey,owner,{complete:true,sourceHash:hash,projectIds,recoveryIds});
     if(!committed){const current=storage.getItem(LEGACY_PROJECTS_KEY);if(current!==null&&current!==raw)recoveryIds.push(await preserve(current,'legacy-library'));return{state:'needs-recovery',sourceHash:hash,projectIds,recoveryIds};}
+    await projectRepository.archiveRecovery(whole);
     return{state:recoveryIds.length>1?'needs-recovery':'complete',sourceHash:hash,projectIds,recoveryIds};
   }catch{const id=await preserve(raw,'legacy-library');return{state:'needs-recovery',projectIds:[],recoveryIds:[id]};}
 }
