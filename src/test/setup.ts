@@ -25,3 +25,7 @@ afterEach(() => {
 })
 
 Object.defineProperty(window, 'scrollTo', { configurable: true, value: vi.fn() })
+Object.defineProperty(Element.prototype, 'scrollIntoView', { configurable: true, value: vi.fn() })
+Object.defineProperty(Element.prototype, 'hasPointerCapture', { configurable: true, value: () => false })
+Object.defineProperty(Element.prototype, 'setPointerCapture', { configurable: true, value: vi.fn() })
+Object.defineProperty(Element.prototype, 'releasePointerCapture', { configurable: true, value: vi.fn() })

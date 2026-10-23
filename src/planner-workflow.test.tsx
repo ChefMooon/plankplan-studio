@@ -99,10 +99,12 @@ describe('local project workflow', () => {
     fireEvent.change(length, { target: { value: '2 3/8' } }); fireEvent.blur(length);
     let saved = JSON.parse(localStorage.getItem('plankplan-studio.projects.v1') ?? '[]');
     expect(saved[0].parts[0].length.um).toBe(60325);
-    await user.selectOptions(screen.getByLabelText('Units'), 'metric');
+    await user.click(screen.getByRole('combobox', { name: 'Units' }));
+    await user.keyboard('{ARROWDOWN}{ENTER}');
     saved = JSON.parse(localStorage.getItem('plankplan-studio.projects.v1') ?? '[]');
     expect(saved[0].parts[0].length.um).toBe(60325);
-    await user.selectOptions(screen.getByLabelText('Starter stock preset'), 'one-by-four');
+    await user.click(screen.getByRole('combobox', { name: 'Starter stock preset' }));
+    await user.keyboard('{ARROWDOWN}{ENTER}');
     await user.click(screen.getByRole('button', { name: /add material/i }));
     saved = JSON.parse(localStorage.getItem('plankplan-studio.projects.v1') ?? '[]');
     expect(saved[0].materials.at(-1).stocks[0]).toMatchObject({ length: { um: 2400000 }, widthUm: 89000, thicknessUm: 19000 });
