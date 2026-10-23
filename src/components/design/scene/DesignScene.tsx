@@ -408,7 +408,7 @@ function DrawingPlane({activeTool,snap,exactUm,unitSystem,pivotMode,axisMode,onC
   </>;
 }
 
-function CameraSetup({ preset, design, selectedId, frameRequest }: Pick<Props, 'preset'|'design'|'selectedId'|'frameRequest'>) {
+function CameraSetup({ preset, design, frameRequest }: Pick<Props, 'preset'|'design'|'frameRequest'>) {
   const camera = useThree(state => state.camera);
   const controls = useThree(state => state.controls) as { target?: THREE.Vector3; update?: () => void } | null;
   useEffect(() => {
@@ -424,15 +424,14 @@ function CameraSetup({ preset, design, selectedId, frameRequest }: Pick<Props, '
       ...(design?.looseObjects.map(item => ({ id: item.id, point: item.pose.positionUm.map(umToMeters) as [number,number,number], radius: geometryRadius(item.geometry, item.scalePpm) })) ?? []),
       ...(design?.definitions.filter(def => !design.instances.some(item => item.definitionId === def.id)).map((def, index) => ({ id: def.id, point: [index * 1.5,0,0] as [number,number,number], radius: def.cutSpec ? Math.hypot(umToMeters(def.cutSpec.lengthUm), umToMeters(def.cutSpec.widthUm), umToMeters(def.cutSpec.thicknessUm)) / 2 : geometryRadius(def.geometry) })) ?? []),
     ];
-    const selectedRecord = records.find(record => record.id === selectedId);
-    const center = selectedRecord?.point ?? (records.length ? records.reduce((sum, record) => sum.map((n, i) => n + record.point[i]) as [number,number,number], [0,0,0]).map(v => v / records.length) as [number,number,number] : [0,0,0]);
-    const maxOffset = records.filter(record => !selectedRecord || record === selectedRecord).reduce((max, record) => Math.max(max, Math.hypot(record.point[0]-center[0], record.point[1]-center[1], record.point[2]-center[2]) + record.radius), 0);
+    const center = records.length ? records.reduce((sum, record) => sum.map((n, i) => n + record.point[i]) as [number,number,number], [0,0,0]).map(v => v / records.length) as [number,number,number] : [0,0,0];
+    const maxOffset = records.reduce((max, record) => Math.max(max, Math.hypot(record.point[0]-center[0], record.point[1]-center[1], record.point[2]-center[2]) + record.radius), 0);
     const distance = Math.max(1.5, maxOffset * 2.5 + 0.8);
     const direction = targets[preset];
     const norm = Math.hypot(direction[0], direction[1], direction[2]);
     camera.position.set(center[0] + direction[0] / norm * distance, center[1] + direction[1] / norm * distance, center[2] + direction[2] / norm * distance); camera.up.set(0, 1, 0); camera.lookAt(center[0], center[1], center[2]);
-    controls?.target?.set(...center); controls?.update?.();
-  }, [camera, controls, design, frameRequest, preset, selectedId]);
+    controls?.target?.set(center[0], center[1], center[2]); controls?.update?.();
+  }, [camera, controls, design, frameRequest, preset]);
   return null;
 }
 
@@ -449,7 +448,7 @@ export function DesignScene({ design, unitSystem, selectedId, selectedCount, sel
     {/* Offset shadow sampling away from each face to prevent self-shadow stripes. */}
     <directionalLight position={[4, 8, 5]} intensity={2.1} castShadow shadow-mapSize={[2048, 2048]} shadow-normalBias={0.02} shadow-bias={-0.0001} />
     <ContextLifecycle onContextLoss={onContextLoss} onContextRestore={onContextRestore} />
-    <CameraSetup preset={preset} design={design} selectedId={selectedId} frameRequest={frameRequest} />
+    <CameraSetup preset={preset} design={design} frameRequest={frameRequest} />
     <OrbitControls makeDefault enableDamping dampingFactor={0.12} minDistance={0.25} maxDistance={80} zoomToCursor mouseButtons={{LEFT:activeTool==='orbit'?THREE.MOUSE.ROTATE:activeTool==='pan'?THREE.MOUSE.PAN:undefined,MIDDLE:THREE.MOUSE.ROTATE,RIGHT:THREE.MOUSE.PAN}} />
     <DrawingPlane key={activeTool} activeTool={activeTool} snap={snap} unitSystem={unitSystem} exactUm={exactUm} pivotMode={pivotMode} axisMode={axisMode} onCommand={onCommand} onMeasure={onMeasure} onSelect={onSelect} onToolError={onToolError} design={design} selectedId={selectedId} selectedCount={selectedCount} editingDefinitionId={editingDefinitionId} toolMeasurement={toolMeasurement} onToolMeasurementChange={onToolMeasurementChange} onRegisterMeasurementActions={onRegisterMeasurementActions} />
     {grid && <Grid args={[30, 30]} cellSize={0.25} cellThickness={0.75} cellColor="#8297a1" sectionSize={1} sectionThickness={1.5} sectionColor="#476878" fadeDistance={30} infiniteGrid />}
