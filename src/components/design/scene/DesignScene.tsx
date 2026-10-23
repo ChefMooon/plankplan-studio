@@ -411,7 +411,18 @@ function DrawingPlane({activeTool,snap,exactUm,unitSystem,pivotMode,axisMode,onC
 function CameraSetup({ preset, design, frameRequest }: Pick<Props, 'preset'|'design'|'frameRequest'>) {
   const camera = useThree(state => state.camera);
   const controls = useThree(state => state.controls) as { target?: THREE.Vector3; update?: () => void } | null;
+  const initialized = useRef(false);
+  const lastPreset = useRef(preset);
+  const lastFrameRequest = useRef(frameRequest);
   useEffect(() => {
+    // Design edits replace the document object, but should not move a camera the
+    // user has already positioned. Only initial framing and explicit requests
+    // (preset changes / Frame model) should run this setup.
+    const needsInitialFrame = !initialized.current && !!design && !!controls;
+    const needsRequestedFrame = initialized.current && (lastPreset.current !== preset || lastFrameRequest.current !== frameRequest);
+    if (!needsInitialFrame && !needsRequestedFrame) return;
+    if (!controls) return;
+
     const targets = { iso: [6, 5, 7], top: [0, 9, 0.001], front: [0, 0.001, 9], right: [9, 0.001, 0] } as const;
     const geometryRadius = (geometry: Geometry, scale: readonly number[] = [1_000_000, 1_000_000, 1_000_000]) => geometry.vertices.reduce((radius, vertex) => Math.max(radius, Math.hypot(...vertex.positionUm.map((n, i) => umToMeters(n * scale[i] / 1_000_000)))), 0);
     const records = [
@@ -431,6 +442,9 @@ function CameraSetup({ preset, design, frameRequest }: Pick<Props, 'preset'|'des
     const norm = Math.hypot(direction[0], direction[1], direction[2]);
     camera.position.set(center[0] + direction[0] / norm * distance, center[1] + direction[1] / norm * distance, center[2] + direction[2] / norm * distance); camera.up.set(0, 1, 0); camera.lookAt(center[0], center[1], center[2]);
     controls?.target?.set(center[0], center[1], center[2]); controls?.update?.();
+    initialized.current = true;
+    lastPreset.current = preset;
+    lastFrameRequest.current = frameRequest;
   }, [camera, controls, design, frameRequest, preset]);
   return null;
 }
