@@ -40,6 +40,18 @@ const CA_12FT_LISTING = 'https://www.homedepot.ca/product/pro-direct-2-inch-x-4-
 const CA_LENGTH_RANGE = 'https://www.homedepot.ca/s/en/home/categories/building-materials/lumber-and-composites/dimensional-lumber-and-studs/2x4x12';
 
 const nominalOrder = ['1×6', '1×4', '2×4', '2×6', '2×8', '2×10', '2×12'];
+
+function formatApproximateInches(micrometers: number): string {
+  const sixteenths = Math.round(micrometers / 25_400 * 16);
+  const whole = Math.floor(sixteenths / 16);
+  const numerator = sixteenths % 16;
+  if (numerator === 0) return String(whole);
+  let divisor = 16;
+  while (numerator % divisor !== 0) divisor /= 2;
+  const fraction = `${numerator / divisor}/${16 / divisor}`;
+  return whole === 0 ? fraction : `${whole} ${fraction}`;
+}
+
 export const STOCK_PRESETS: readonly StockPreset[] = sizes.flatMap(size =>
   (['CA', 'US'] as const).flatMap(region => lengths.map(length => {
     const [width, thickness] = region === 'CA' ? size.ca : size.us;
@@ -61,20 +73,25 @@ export const STOCK_PRESETS: readonly StockPreset[] = sizes.flatMap(size =>
       id: `${region.toLowerCase()}-${size.id}-${length.suffix}`,
       region,
       nominal: size.nominal,
-      label: `${region} ${size.nominal} · ${metric ? `${width} × ${thickness} mm` : `${width} × ${thickness} in`} · ${metric ? `${metricLength} mm` : length.labelImperial}`,
-      name: `${size.nominal} (${metric ? `${width} × ${thickness} mm` : `${width} × ${thickness} in`}) · ${metric ? `${metricLength} mm` : length.labelImperial}`,
+      label: `${region} ${size.nominal} · ${metric ? `${thickness} × ${width} mm` : `${thickness} × ${width} in`} · ${metric ? `${metricLength} mm` : length.labelImperial}`,
+      name: `${size.nominal} (${metric ? `${thickness} × ${width} mm` : `${thickness} × ${width} in`}) · ${metric ? `${metricLength} mm` : length.labelImperial}`,
       lengthUm, widthUm, thicknessUm, source, lengthSource,
     };
   })),
 ).sort((a, b) => a.region.localeCompare(b.region) || Number(!a.id.endsWith('8ft')) - Number(!b.id.endsWith('8ft')) || nominalOrder.indexOf(a.nominal) - nominalOrder.indexOf(b.nominal));
 
 export function presetsFor(region: StockRegion, unitSystem: UnitSystem): StockPreset[] {
-  return STOCK_PRESETS.filter(preset => preset.region === region).map(preset => ({
-    ...preset,
-    label: unitSystem === 'imperial'
-      ? `${preset.region} ${preset.nominal} · ${preset.widthUm / 25_400} × ${preset.thicknessUm / 25_400} in · ${preset.lengthUm / 25_400} in`
-      : `${preset.region} ${preset.nominal} · ${preset.widthUm / 1_000} × ${preset.thicknessUm / 1_000} mm · ${preset.lengthUm / 1_000} mm`,
-  }));
+  return STOCK_PRESETS.filter(preset => preset.region === region).map(preset => {
+    const imperialDimensions = region === 'CA'
+      ? `${formatApproximateInches(preset.thicknessUm)} × ~${formatApproximateInches(preset.widthUm)} in`
+      : `${preset.thicknessUm / 25_400} × ${preset.widthUm / 25_400} in`;
+    return {
+      ...preset,
+      label: unitSystem === 'imperial'
+        ? `${preset.region} ${preset.nominal} · ${imperialDimensions} · ${preset.lengthUm / 304_800} ft`
+        : `${preset.region} ${preset.nominal} · ${preset.thicknessUm / 1_000} × ${preset.widthUm / 1_000} mm · ${preset.lengthUm / 1_000} mm`,
+    };
+  });
 }
 
 /** Returns a fresh project-owned value; editing it cannot mutate the catalog. */
