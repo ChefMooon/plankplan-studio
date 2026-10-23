@@ -794,6 +794,12 @@ button,a,input,select { outline-offset:3px; }
 .design-info-panel input:not([type="checkbox"]):not([type="color"]),.design-info-panel select { box-sizing: border-box; width: 100%; min-width: 0; min-height: 32px; padding: 6px 8px; border: 1px solid var(--pp-border); border-radius: 5px; background: var(--pp-surface); color: var(--pp-text); font: inherit; font-size: 11px; }
 .design-info-panel > button { min-height: 32px; padding: 6px 8px; border: 1px solid var(--pp-border); border-radius: 5px; background: var(--pp-raised); color: var(--pp-text); font: inherit; font-size: 11px; text-align: left; cursor: pointer; }
 .design-info-panel > button:disabled { opacity: .5; cursor: default; }
+.design-shape-dimensions { display: grid; gap: 8px; }
+.design-shape-dimensions form { display: grid; gap: 8px; }
+.design-shape-dimensions label { display: grid; gap: 4px; color: var(--pp-muted); font-size: 11px; }
+.design-shape-dimension-actions { display: flex; flex-wrap: wrap; gap: 6px; }
+.design-shape-dimension-actions button { min-height: 32px; padding: 6px 8px; border: 1px solid var(--pp-border); border-radius: 5px; background: var(--pp-raised); color: var(--pp-text); font: inherit; font-size: 11px; cursor: pointer; }
+.design-shape-dimension-actions button:disabled { opacity: .5; cursor: default; }
 .design-stock-default { display: grid; gap: 4px; padding: 8px; border: 1px solid var(--pp-border); border-radius: 5px; font-size: 11px; overflow-wrap: anywhere; }
 .design-stock-default small { color: var(--pp-muted); font-size: 10px; line-height: 1.5; }
 .design-object-list li,.design-selection-list li { min-width: 0; }

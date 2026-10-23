@@ -102,3 +102,38 @@ export function setExtrusionDistance(geometry: Geometry, faceId: string, distanc
   const next: Geometry={...geometry,extrusions:[...geometry.extrusions.filter(e=>e.faceId!==faceId),{id,faceId,distanceUm}]};
   const errors=validateGeometryTopology(next); if(errors.length)throw new Error(errors[0]); return next;
 }
+
+export type RectangularProfile = { minX:number;maxX:number;minY:number;maxY:number;z:number;faceId:string;depthUm?:number;extrusionId?:string };
+export function getRectangularProfile(geometry:Geometry):RectangularProfile|undefined {
+  if(geometry.vertices.length!==4||geometry.edges.length!==4||geometry.faces.length!==1||geometry.extrusions.length>1)return;
+  const face=geometry.faces[0],extrusion=geometry.extrusions[0];if(face.vertexIds.length!==4||new Set(face.vertexIds).size!==4||face.vertexIds.some(id=>!geometry.vertices.some(vertex=>vertex.id===id))||extrusion&&extrusion.faceId!==face.id)return;
+  const points=geometry.vertices.map(vertex=>vertex.positionUm);const z=points[0][2];if(points.some(point=>point[2]!==z))return;
+  const xs=[...new Set(points.map(point=>point[0]))].sort((a,b)=>a-b),ys=[...new Set(points.map(point=>point[1]))].sort((a,b)=>a-b);if(xs.length!==2||ys.length!==2)return;
+  const corners=new Set(points.map(point=>`${point[0]},${point[1]}`));if(corners.size!==4||points.some(point=>!xs.includes(point[0])||!ys.includes(point[1])))return;
+  const edges=new Set(geometry.edges.map(edge=>edge.vertexIds.slice().sort().join('|')));if(edges.size!==4||geometry.edges.some(edge=>!edge.vertexIds.every(id=>geometry.vertices.some(vertex=>vertex.id===id))))return;
+  const expected=new Set<string>();for(let i=0;i<4;i++){const a=face.vertexIds[i],b=face.vertexIds[(i+1)%4];if(!a||!b)return;expected.add([a,b].sort().join('|'));}if(expected.size!==4||[...expected].some(edge=>!edges.has(edge)))return;
+  return {minX:xs[0],maxX:xs[1],minY:ys[0],maxY:ys[1],z,faceId:face.id,...(extrusion?{depthUm:Math.abs(extrusion.distanceUm),extrusionId:extrusion.id}:{})};
+}
+
+export function resizeRectangularProfile(geometry:Geometry,dimensions:{lengthUm:number;widthUm:number;depthUm?:number},anchor?:{axis:'x'|'y'|'z';side:-1|1},extrusionId='rectangle-resize'):Geometry {
+  const rect=getRectangularProfile(geometry);if(!rect)throw new Error('Unsupported rectangular profile');
+  if(![dimensions.lengthUm,dimensions.widthUm,...(dimensions.depthUm===undefined?[]:[dimensions.depthUm])].every(value=>Number.isSafeInteger(value)&&value>0&&value<=DESIGN_LIMIT_UM))throw new Error('Rectangle dimensions must be positive bounded integers');
+  const oldLength=rect.maxX-rect.minX,oldWidth=rect.maxY-rect.minY;if(!oldLength||!oldWidth)throw new Error('Unsupported rectangular profile');
+  let minX=rect.minX,maxX=rect.maxX,minY=rect.minY,maxY=rect.maxY;
+  if(anchor?.axis==='x'&&anchor.side===-1)minX=maxX-dimensions.lengthUm;else maxX=minX+dimensions.lengthUm;
+  if(anchor?.axis==='y'&&anchor.side===-1)minY=maxY-dimensions.widthUm;else maxY=minY+dimensions.widthUm;
+  if([minX,maxX,minY,maxY].some(value=>!Number.isSafeInteger(value)||Math.abs(value)>DESIGN_LIMIT_UM))throw new Error('Rectangle dimensions exceed design bounds');
+  const vertices=geometry.vertices.map(vertex=>({...vertex,positionUm:[vertex.positionUm[0]===rect.minX?minX:maxX,vertex.positionUm[1]===rect.minY?minY:maxY,rect.z] as [number,number,number]}));
+  let extrusions=geometry.extrusions;
+  if(dimensions.depthUm!==undefined){if(rect.depthUm!==undefined){const source=geometry.extrusions[0];extrusions=[{...source,distanceUm:Math.sign(source.distanceUm)*dimensions.depthUm}];}else extrusions=[{id:extrusionId,faceId:rect.faceId,distanceUm:dimensions.depthUm}];}
+  if(anchor?.axis==='z'&&rect.depthUm===undefined)throw new Error('A flat profile has no opposite extrusion face to anchor');
+  const next={...geometry,vertices,extrusions};const errors=validateGeometryTopology(next);if(errors.length)throw new Error(errors[0]);return next;
+}
+
+export function rectangularProfileSide(geometry:Geometry,point:readonly [number,number,number],normal:readonly [number,number,number],toleranceUm=2_000):{axis:'x'|'y';side:-1|1}|undefined {
+  const rect=getRectangularProfile(geometry);if(!rect?.depthUm)return;
+  const xAxis=Math.abs(normal[0])>0.8&&Math.abs(normal[0])>Math.abs(normal[1])&&Math.abs(normal[0])>Math.abs(normal[2]);
+  const yAxis=Math.abs(normal[1])>0.8&&Math.abs(normal[1])>Math.abs(normal[0])&&Math.abs(normal[1])>Math.abs(normal[2]);if(!xAxis&&!yAxis)return;
+  const axis=xAxis?'x':'y',side=(Math.sign(normal[xAxis?0:1])||1) as -1|1,expected=xAxis?(side>0?rect.maxX:rect.minX):(side>0?rect.maxY:rect.minY),coordinate=point[xAxis?0:1]*1_000_000;
+  return Math.abs(coordinate-expected)<=toleranceUm?{axis,side}:undefined;
+}

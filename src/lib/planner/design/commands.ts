@@ -10,7 +10,7 @@ export type DesignCommand =
   | {type:'make-component';objectId?:string;objectIds?:string[];definitionId:string;instanceId:string;name:string;cutSpec?:CutSpec}
   | {type:'set-geometry';definitionId:string;geometry:Geometry}
   | {type:'set-loose-geometry';objectId:string;geometry:Geometry}
-  | {type:'set-primitive-dimensions';definitionId:string;lengthUm:number;widthUm:number;thicknessUm:number}
+  | {type:'set-primitive-dimensions';definitionId:string;lengthUm:number;widthUm:number;thicknessUm:number;anchor?:{axis:'x'|'y'|'z';side:-1|1}}
   | {type:'set-material';target:'definition'|'instance';id:string;materialId?:string}
   | {type:'erase-geometry';definitionId:string;target:'edge'|'face';elementId:string}
   | {type:'erase-loose-geometry';objectId:string;target:'edge'|'face';elementId:string}
@@ -124,7 +124,21 @@ export function applyDesignCommand(project:Project,command:DesignCommand):Comman
         if(![command.lengthUm,command.widthUm,command.thicknessUm].every(v=>Number.isSafeInteger(v)&&v>0&&v<=1_000_000_000))throw Error('invalid-dimension');
         const geometry:Geometry={...def.geometry,vertices:def.geometry.vertices.map(vertex=>{const [x,y,z]=vertex.positionUm;if(z!==0||![0,def.cutSpec!.lengthUm].includes(x)||![0,def.cutSpec!.widthUm].includes(y))throw Error('invalid-primitive-profile');return {...vertex,positionUm:[x===0?0:command.lengthUm,y===0?0:command.widthUm,0]};}),extrusions:def.geometry.extrusions.map(extrusion=>({...extrusion,distanceUm:command.thicknessUm}))};
         const cutSpec={...def.cutSpec,lengthUm:command.lengthUm,widthUm:command.widthUm,thicknessUm:command.thicknessUm,confirmation:'confirmed' as const};
-        d={...d,definitions:d.definitions.map(x=>x.id===def.id?{...x,geometry,cutSpec}:x)};d=markLinks(d,def.id,'definition-edited');label='Edit primitive dimensions';break;
+        let instances=d.instances;
+        if(command.anchor){
+          const axisIndex={x:0,y:1,z:2}[command.anchor.axis];
+          const old=[def.cutSpec.lengthUm,def.cutSpec.widthUm,def.cutSpec.thicknessUm][axisIndex];
+          const next=[command.lengthUm,command.widthUm,command.thicknessUm][axisIndex];
+          const shift=[0,0,0];shift[axisIndex]=command.anchor.side*(next-old)/2;
+          instances=d.instances.map(instance=>{
+            if(instance.definitionId!==def.id||!shift.some(Boolean))return instance;
+            const rotated=transformLocalPoint(shift as [number,number,number],{positionUm:[0,0,0],rotation:instance.pose.rotation},instance.scalePpm);
+            const positionUm=instance.pose.positionUm.map((value,index)=>value+rotated[index]) as [number,number,number];
+            if(positionUm.some(value=>!Number.isSafeInteger(value)||Math.abs(value)>1_000_000_000))throw Error('Transformed coordinate is outside design bounds');
+            return {...instance,pose:{...instance.pose,positionUm}};
+          });
+        }
+        d={...d,definitions:d.definitions.map(x=>x.id===def.id?{...x,geometry,cutSpec}:x),instances};d=markLinks(d,def.id,'definition-edited');label='Edit primitive dimensions';break;
       }
       case 'erase-geometry': {
         const def=d.definitions.find(x=>x.id===command.definitionId);if(!def)throw Error('definition-not-found');

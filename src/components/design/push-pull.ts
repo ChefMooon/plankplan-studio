@@ -1,5 +1,5 @@
 import type { Geometry } from '@/lib/planner/design/schema';
-import { umToMeters } from '@/lib/planner/design/geometry';
+import { rectangularProfileSide, getRectangularProfile, umToMeters } from '@/lib/planner/design/geometry';
 
 /** Only the source face or its derived end cap may drive a simple extrusion. */
 export function isPushPullEndFace(geometry: Geometry, faceId: string, point: readonly [number, number, number], toleranceM = 0.001): boolean {
@@ -17,4 +17,21 @@ export function isPushPullEndFace(geometry: Geometry, faceId: string, point: rea
   const offset = normal.reduce((sum, value, index) => sum + value * (point[index] - a[index]), 0) / magnitude;
   const extrusion = geometry.extrusions.find(candidate => candidate.faceId === faceId);
   return Math.abs(offset) <= toleranceM || !!extrusion && Math.abs(offset - umToMeters(extrusion.distanceUm)) <= toleranceM;
+}
+
+export function shouldShowPushPullFaceIndicator(geometry:Geometry,confirmation:string|undefined,activeTool:string):boolean {
+  const complete=confirmation==='confirmed'||geometry.extrusions.length>0;
+  return activeTool==='push-pull'&&complete;
+}
+
+/** The generated end caps are not stored faces, so resolve them from the hit normal. */
+export function rectangularPushPullFace(geometry:Geometry,point:readonly [number,number,number],normal:readonly [number,number,number]):{axis:'x'|'y'|'z';side:-1|1}|undefined {
+  const side=rectangularProfileSide(geometry,point,normal);
+  if(side)return side;
+  const rect=getRectangularProfile(geometry);
+  if(!rect?.depthUm||Math.abs(normal[2])<0.8)return;
+  const distance=geometry.extrusions[0].distanceUm;
+  const sign=normal[2]>0?1:-1;
+  const endZ=rect.z+(sign>0?Math.max(0,distance):Math.min(0,distance));
+  return Math.abs(point[2]*1_000_000-endZ)<=2_000?{axis:'z',side:sign}:undefined;
 }

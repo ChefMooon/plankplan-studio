@@ -1,21 +1,31 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Canvas, useThree, type ThreeEvent } from '@react-three/fiber';
+import { Canvas, useFrame, useThree, type ThreeEvent } from '@react-three/fiber';
 import { Edges, Grid, Line, OrbitControls } from '@react-three/drei';
 import * as THREE from 'three';
 import type { DesignDocumentV1, Geometry, Instance, LooseObject } from '@/lib/planner/design/schema';
 import type { UnitSystem } from '@/lib/planner/model';
-import { umToMeters, metersToUm, setExtrusionDistance, transformLocalPoint } from '@/lib/planner/design/geometry';
+import { getRectangularProfile, umToMeters, metersToUm, rectangularProfileSide, resizeRectangularProfile, setExtrusionDistance, transformLocalPoint } from '@/lib/planner/design/geometry';
 import type { DesignCommand } from '@/lib/planner/design/commands';
 import { buildPlanarGesture, createCapturedPlanarSession, createHitCycle } from '../planar-gesture';
 import { geometryCenter, keepGeometryCenter, localizeDelta, worldToLocalDelta, type AxisMode, type PivotMode, type RotationAxis } from '../transform-pivot';
 import { resolveSubElement, type SubElement } from '../sub-selection';
 import { appendTrianglePositions } from './mesh-geometry';
-import { isPushPullEndFace } from '../push-pull';
+import { isPushPullEndFace, rectangularPushPullFace, shouldShowPushPullFaceIndicator } from '../push-pull';
 import type { ToolMeasurementSession } from '../tool-measurements';
 import { parseMeasurement, previewMove, previewRotate, previewScale } from '../tool-measurements';
 
-type Props = { design?: DesignDocumentV1; unitSystem: UnitSystem; selectedId?: string; selectedCount?:number; selectedElement?:{objectId:string}&SubElement; editingDefinitionId?: string; onSelect: (id?: string, additive?: boolean, subtractive?: boolean, shiftOnly?:boolean) => void; onSubSelect?: (objectId:string, element?:SubElement)=>void; onEnterDefinition:(id:string)=>void; activeTool: string; snap: boolean; exactUm?: number; pivotMode: PivotMode; axisMode: AxisMode; onCommand: (command: DesignCommand) => void; onMeasure: (value?: number) => void; onToolError:(message:string)=>void; preset: 'iso'|'top'|'front'|'right'; projection: 'perspective'|'orthographic'; grid: boolean; axes: boolean; frameRequest: number; toolMeasurement?:ToolMeasurementSession; onToolMeasurementChange:(session?:ToolMeasurementSession)=>void; onRegisterMeasurementActions:(actions?:{commit:()=>void;cancel:()=>void})=>void; onContextLoss: () => void; onContextRestore: () => void };
+type Props = { design?: DesignDocumentV1; unitSystem: UnitSystem; selectedId?: string; selectedCount?:number; selectedElement?:{objectId:string}&SubElement; editingDefinitionId?: string; editingObjectId?: string; onSelect: (id?: string, additive?: boolean, subtractive?: boolean, shiftOnly?:boolean) => void; onSubSelect?: (objectId:string, element?:SubElement)=>void; onEnterDefinition:(id:string)=>void; activeTool: string; snap: boolean; exactUm?: number; pivotMode: PivotMode; axisMode: AxisMode; onCommand: (command: DesignCommand) => void; onMeasure: (value?: number) => void; onToolError:(message:string)=>void; preset: 'iso'|'top'|'front'|'right'; projection: 'perspective'|'orthographic'; grid: boolean; axes: boolean; frameRequest: number; toolMeasurement?:ToolMeasurementSession; onToolMeasurementChange:(session?:ToolMeasurementSession)=>void; onRegisterMeasurementActions:(actions?:{commit:()=>void;cancel:()=>void})=>void; onContextLoss: () => void; onContextRestore: () => void };
 const colors = { board: '#bd8a56', selected: '#e6a94e', locked: '#747f86', hover: '#d4a979' };
+function createDotTexture() {
+  const canvas=document.createElement('canvas');canvas.width=canvas.height=16;
+  const context=canvas.getContext('2d');if(context){context.fillStyle='#000';context.beginPath();context.arc(8,8,3,0,Math.PI*2);context.fill();}
+  const texture=new THREE.CanvasTexture(canvas);texture.wrapS=texture.wrapT=THREE.RepeatWrapping;texture.colorSpace=THREE.SRGBColorSpace;return texture;
+}
+function dotSpacingWorld(camera:THREE.Camera,point:THREE.Vector3,height:number) {
+  if(camera instanceof THREE.PerspectiveCamera)return Math.max(0.01,2*camera.position.distanceTo(point)*Math.tan(THREE.MathUtils.degToRad(camera.fov/2))/(camera.zoom*height)*12);
+  if(camera instanceof THREE.OrthographicCamera)return Math.max(0.01,(camera.top-camera.bottom)/(camera.zoom*height)*12);
+  return 0.01;
+}
 
 function ContextLifecycle({ onContextLoss, onContextRestore }: Pick<Props, 'onContextLoss'|'onContextRestore'>) {
   const canvas = useThree(state => state.gl.domElement);
@@ -28,8 +38,18 @@ function ContextLifecycle({ onContextLoss, onContextRestore }: Pick<Props, 'onCo
   return null;
 }
 
-function ObjectGeometry({ geometry, targetId, color, selected, invalid = false, preview = false, onSelect, onPushPullPointerDown, onPushPullPointerMove }: { geometry: Geometry; targetId:string; color: string; selected: boolean; invalid?: boolean; preview?:boolean; onSelect: (event:ThreeEvent<MouseEvent>) => void; onPushPullPointerDown?:(event:ThreeEvent<PointerEvent>)=>void; onPushPullPointerMove?:(event:ThreeEvent<PointerEvent>)=>void }) {
+function ObjectGeometry({ geometry, targetId, color, selected, invalid = false, preview = false, overlay, onFaceOut, onSelect, onPushPullPointerDown, onPushPullPointerMove }: { geometry: Geometry; targetId:string; color: string; selected: boolean; invalid?: boolean; preview?:boolean; overlay?:{axis:'x'|'y'|'z';side:-1|1;active:boolean}; onFaceOut?:()=>void; onSelect: (event:ThreeEvent<MouseEvent>) => void; onPushPullPointerDown?:(event:ThreeEvent<PointerEvent>)=>void; onPushPullPointerMove?:(event:ThreeEvent<PointerEvent>)=>void }) {
   const [hovered, setHovered] = useState(false);
+  const rect=getRectangularProfile(geometry);const axis=overlay?.axis;const side=overlay?.side??1;
+  const distance=geometry.extrusions[0]?.distanceUm??0;
+  const centerX=umToMeters(((rect?.minX??0)+(rect?.maxX??0))/2),centerY=umToMeters(((rect?.minY??0)+(rect?.maxY??0))/2),centerZ=umToMeters((rect?.z??0)+distance/2);
+  const depth=umToMeters(Math.abs(distance)),width=umToMeters((rect?.maxX??0)-(rect?.minX??0)),height=umToMeters((rect?.maxY??0)-(rect?.minY??0));
+  const indicatorPosition:[number,number,number]=axis==='x'?[umToMeters(side>0?rect?.maxX??0:rect?.minX??0),centerY,centerZ]:axis==='y'?[centerX,umToMeters(side>0?rect?.maxY??0:rect?.minY??0),centerZ]:[centerX,centerY,umToMeters((rect?.z??0)+(side>0?Math.max(0,distance):Math.min(0,distance)))];
+  const indicatorSize:[number,number]=axis==='x'?[depth,height]:axis==='y'?[width,depth]:[width,height];
+  const indicatorRotation:[number,number,number]=axis==='x'?[0,Math.PI/2,0]:axis==='y'?[Math.PI/2,0,0]:[0,0,0];
+  const dotTexture=useMemo(()=>createDotTexture(),[]);const meshRef=useRef<THREE.Mesh>(null);const {camera,size}=useThree();
+  useFrame(()=>{if(!overlay||!meshRef.current)return;const worldPosition=meshRef.current.getWorldPosition(new THREE.Vector3());const scale=meshRef.current.getWorldScale(new THREE.Vector3());const planeScale=axis==='x'?[scale.z,scale.y]:axis==='y'?[scale.x,scale.z]:[scale.x,scale.y];const pitch=dotSpacingWorld(camera,worldPosition,size.height);dotTexture.repeat.set(Math.max(1,indicatorSize[0]*planeScale[0]/pitch),Math.max(1,indicatorSize[1]*planeScale[1]/pitch));});
+  useEffect(()=>()=>dotTexture.dispose(),[dotTexture]);
   const built = useMemo(() => {
     const vertices = new Map(geometry.vertices.map(v => [v.id, v.positionUm]));
     const positions: number[] = [];
@@ -56,10 +76,11 @@ function ObjectGeometry({ geometry, targetId, color, selected, invalid = false, 
     result.computeVertexNormals();
     return result;
   }, [geometry]);
-  return <mesh geometry={built} userData={{designTargetId:targetId}} onPointerDown={onPushPullPointerDown} onPointerMove={onPushPullPointerMove} onClick={(event) => { event.stopPropagation(); onSelect(event); }} onPointerOver={(event) => { event.stopPropagation(); setHovered(true); }} onPointerOut={() => setHovered(false)} castShadow receiveShadow>
+  return <mesh ref={meshRef} geometry={built} userData={{designTargetId:targetId}} onPointerDown={onPushPullPointerDown} onPointerMove={onPushPullPointerMove} onClick={(event) => { event.stopPropagation(); onSelect(event); }} onPointerOver={(event) => { event.stopPropagation(); setHovered(true); }} onPointerOut={() => {setHovered(false);onFaceOut?.();}} castShadow receiveShadow>
     <meshStandardMaterial color={preview?'#e6a94e':invalid ? '#c56b62' : selected ? colors.selected : hovered ? colors.hover : color} roughness={0.78} side={THREE.DoubleSide} transparent={preview} opacity={preview?0.5:1} depthWrite={!preview} />
-    {invalid && <Edges scale={1.02} color="#a52f2f" threshold={12} />}
-    {selected && <Edges scale={1.015} color="#173b56" threshold={12} />}
+    {invalid && <Edges scale={1} color="#a52f2f" threshold={12} />}
+    <Edges scale={1} color="#000000" threshold={12} />
+    {overlay&&rect?.depthUm&&<mesh position={indicatorPosition} rotation={indicatorRotation} raycast={()=>null} renderOrder={1}><planeGeometry args={indicatorSize}/><meshBasicMaterial map={dotTexture} color={overlay.active?'#f2ae36':'#80c7e8'} transparent opacity={overlay.active?0.72:0.5} side={THREE.DoubleSide} depthWrite={false} polygonOffset polygonOffsetFactor={-1} polygonOffsetUnits={-1}/></mesh>}
   </mesh>;
 }
 
@@ -78,15 +99,23 @@ function pointerOnAxisPlane(camera:THREE.Camera,canvas:HTMLCanvasElement,center:
   return intersection&&intersection.distanceToSquared(center)>1e-10?intersection:undefined;
 }
 
-function InstanceMesh({ item, geometry, cutSpec, selected, selectedElement, onSelect, onEnterDefinition, baseColor, tool, snap, onCommand, exactUm, onToolError, pickHit,toolMeasurement,onToolMeasurementChange,onRegisterMeasurementActions,unitSystem }: { item: Instance|LooseObject; geometry: Geometry; cutSpec?: DesignDocumentV1['definitions'][number]['cutSpec']; selected: boolean; selectedElement?:SubElement; onSelect: (event: ThreeEvent<MouseEvent>, targetId?:string, subElement?:SubElement) => void; onEnterDefinition:(id:string)=>void; baseColor?: string; tool:string; snap:boolean; onCommand:(command:DesignCommand)=>void; exactUm?:number; onToolError:(message:string)=>void; pickHit:(event:ThreeEvent<MouseEvent>,fallbackId:string)=>string; toolMeasurement?:ToolMeasurementSession; onToolMeasurementChange:(session?:ToolMeasurementSession)=>void; onRegisterMeasurementActions:(actions?:{commit:()=>void;cancel:()=>void})=>void; unitSystem:UnitSystem }) {
+function InstanceMesh({ item, geometry, cutSpec, selected, selectedElement, onSelect, onEnterDefinition, baseColor, tool, snap, onCommand, exactUm, onToolError, pickHit,toolMeasurement,onToolMeasurementChange,onRegisterMeasurementActions,unitSystem,componentEditMode=false }: { item:Instance|LooseObject; geometry:Geometry; cutSpec?:DesignDocumentV1['definitions'][number]['cutSpec']; selected:boolean; selectedElement?:SubElement; onSelect:(event:ThreeEvent<MouseEvent>,targetId?:string,subElement?:SubElement)=>void; onEnterDefinition:(id:string)=>void; baseColor?:string; tool:string; snap:boolean; onCommand:(command:DesignCommand)=>void; exactUm?:number; onToolError:(message:string)=>void; pickHit:(event:ThreeEvent<MouseEvent>,fallbackId:string)=>string; toolMeasurement?:ToolMeasurementSession; onToolMeasurementChange:(session?:ToolMeasurementSession)=>void; onRegisterMeasurementActions:(actions?:{commit:()=>void;cancel:()=>void})=>void; unitSystem:UnitSystem; componentEditMode?:boolean }) {
   const {camera,size,gl}=useThree();
-  const pushPullRef=useRef<{faceId:string;startY:number;baseDistance:number;worldPerPixel:number;primitive:boolean;sessionId:string}|undefined>(undefined);
-  const lastPointerY=useRef(0);
+  const pushPullRef=useRef<{faceId:string;startX:number;startY:number;screenDirection:[number,number];baseDistance:number;worldPerPixel:number;primitive:boolean;profileSide:boolean;anchor?:{axis:'x'|'y'|'z';side:-1|1};sessionId:string}|undefined>(undefined);
+  const lastPointer=useRef<[number,number]>([0,0]);
   const [pushPullPreview,setPushPullPreview]=useState<Geometry>();
-  const [primitiveThicknessPreview,setPrimitiveThicknessPreview]=useState<number>();
+  const [primitiveDimensionPreview,setPrimitiveDimensionPreview]=useState<{lengthUm:number;widthUm:number;thicknessUm:number}>();
+  const [primitiveFaceIndicator,setPrimitiveFaceIndicator]=useState<{axis:'x'|'y'|'z';side:-1|1}>();
+  const [profileFaceIndicator,setProfileFaceIndicator]=useState<{axis:'x'|'y'|'z';side:-1|1}>();
+  const [primitiveActiveFace,setPrimitiveActiveFace]=useState<{axis:'x'|'y'|'z';side:-1|1}>();
   const [pushPullActive,setPushPullActive]=useState(false);
-  const previewAtRef=useRef<(clientY:number)=>void>(()=>{});
-  const commitAtRef=useRef<(clientY:number)=>void>(()=>{});
+  const canShowDotFace=shouldShowPushPullFaceIndicator(geometry,cutSpec?.confirmation,tool);
+  const dotFace=canShowDotFace?(pushPullActive?primitiveActiveFace:primitiveFaceIndicator):undefined;const dotDims=primitiveDimensionPreview??cutSpec;const dotWidth=dotFace?.axis==='x'?dotDims?.thicknessUm:dotFace?.axis==='y'?dotDims?.lengthUm:dotDims?.lengthUm;const dotHeight=dotFace?.axis==='x'?dotDims?.widthUm:dotFace?.axis==='y'?dotDims?.thicknessUm:dotDims?.widthUm;
+  const primitiveDotTexture=useMemo(()=>createDotTexture(),[]);const boxRef=useRef<THREE.Mesh>(null);
+  useEffect(()=>()=>primitiveDotTexture.dispose(),[primitiveDotTexture]);
+  useFrame(()=>{if(!dotFace||!boxRef.current)return;const worldPosition=boxRef.current.getWorldPosition(new THREE.Vector3());const scale=boxRef.current.getWorldScale(new THREE.Vector3());const planeScale=dotFace.axis==='x'?[scale.z,scale.y]:dotFace.axis==='y'?[scale.x,scale.z]:[scale.x,scale.y];const pitch=dotSpacingWorld(camera,worldPosition,size.height);primitiveDotTexture.repeat.set(Math.max(1,umToMeters(dotWidth??1)*planeScale[0]/pitch),Math.max(1,umToMeters(dotHeight??1)*planeScale[1]/pitch));});
+  const previewAtRef=useRef<(clientX:number,clientY:number)=>void>(()=>{});
+  const commitAtRef=useRef<(clientX:number,clientY:number)=>void>(()=>{});
   const position = item.pose.positionUm.map(umToMeters) as [number, number, number];
   const quaternion = item.pose.rotation as [number, number, number, number];
   const scale = item.scalePpm.map(v => v / 1_000_000) as [number, number, number];
@@ -97,54 +126,55 @@ function InstanceMesh({ item, geometry, cutSpec, selected, selectedElement, onSe
     const local=event.object.worldToLocal(event.point.clone());
     return resolveSubElement(geometry,[local.x,local.y,local.z],0);
   };
-  const distanceFor=(clientY:number)=>{
+  const distanceFor=(clientX:number,clientY:number)=>{
     const gesture=pushPullRef.current;if(!gesture)return 0;
-    const raw=Math.round((gesture.startY-clientY)*gesture.worldPerPixel*1_000_000);
+    const raw=Math.round(((clientX-gesture.startX)*gesture.screenDirection[0]+(clientY-gesture.startY)*gesture.screenDirection[1])*gesture.worldPerPixel*1_000_000);
     const field=toolMeasurement?.id===gesture.sessionId?toolMeasurement.fields[0]:undefined;
     const exact=field?.exact?parseMeasurement(field.value):undefined;
     if(field?.exact&&exact===undefined)return Number.NaN;
     const delta=exact!==undefined?Math.round(exact*(unitSystem === 'imperial' ? 25400 : 1000)):exactUm!==undefined?Math.sign(raw||1)*Math.abs(exactUm):snap?Math.round(raw/10_000)*10_000:raw;
     return gesture.baseDistance+delta;
   };
-  const previewAt=(clientY:number)=>{
+  const previewAt=(clientX:number,clientY:number)=>{
     const gesture=pushPullRef.current;if(!gesture)return;
-    lastPointerY.current=clientY;
-    const distance=distanceFor(clientY);if(!Number.isFinite(distance)){setPushPullPreview(undefined);setPrimitiveThicknessPreview(undefined);return;}
+    lastPointer.current=[clientX,clientY];
+    const distance=distanceFor(clientX,clientY);if(!Number.isFinite(distance)){setPushPullPreview(undefined);setPrimitiveDimensionPreview(undefined);return;}
     const deltaUm=distance-gesture.baseDistance;
     if(toolMeasurement?.id===gesture.sessionId){const field=toolMeasurement.fields[0];const valid=deltaUm!==0&&(gesture.primitive?distance>0&&distance<=1_000_000_000:true);const display=unitSystem==='imperial'?deltaUm/25_400:deltaUm/1_000;const nextField=field.exact?field:{...field,value:display.toFixed(unitSystem==='imperial'?3:1)};if(!field.exact||toolMeasurement.canPlace!==valid)onToolMeasurementChange({...toolMeasurement,fields:[nextField],canPlace:valid});}
     if(gesture.primitive){
-      if(distance<=0||distance>1_000_000_000){setPrimitiveThicknessPreview(undefined);onToolError('The end cap cannot cross the base');return;}
-      setPrimitiveThicknessPreview(distance);return;
+      if(distance<=0||distance>1_000_000_000){setPrimitiveDimensionPreview(undefined);onToolError('The opposite face cannot be crossed');return;}
+      const anchor=gesture.anchor!;setPrimitiveDimensionPreview({lengthUm:anchor.axis==='x'?distance:cutSpec!.lengthUm,widthUm:anchor.axis==='y'?distance:cutSpec!.widthUm,thicknessUm:anchor.axis==='z'?distance:cutSpec!.thicknessUm});return;
     }
+    if(gesture.profileSide){const rect=getRectangularProfile(geometry);if(!rect||distance<=0||distance>1_000_000_000){setPushPullPreview(undefined);return;}try{setPushPullPreview(resizeRectangularProfile(geometry,{lengthUm:gesture.anchor!.axis==='x'?distance:rect.maxX-rect.minX,widthUm:gesture.anchor!.axis==='y'?distance:rect.maxY-rect.minY},gesture.anchor,`preview-${item.id}`));}catch(error){setPushPullPreview(undefined);onToolError(error instanceof Error?error.message:'Unsupported rectangular resize');}return;}
     if(!distance){setPushPullPreview(undefined);return;}
     try{setPushPullPreview(setExtrusionDistance(geometry,gesture.faceId,distance,`preview-${item.id}-${gesture.faceId}`));}
     catch(error){setPushPullPreview(undefined);onToolError(error instanceof Error?error.message:'Unsupported Push/Pull movement');}
   };
-  const commitPushPull=(clientY=lastPointerY.current)=>{
+  const commitPushPull=(clientX=lastPointer.current[0],clientY=lastPointer.current[1])=>{
     const current=pushPullRef.current;if(!current)return;
-    const distance=distanceFor(clientY);
+    const distance=distanceFor(clientX,clientY);
     if(!distance){onToolError('Move the face before placing it');return;}
     try{
       if(current.primitive&&cutSpec&&'definitionId' in item){
         if(distance<=0||distance>1_000_000_000)throw Error('The end cap cannot cross the base');
-        onCommand({type:'set-primitive-dimensions',definitionId:item.definitionId,lengthUm:cutSpec.lengthUm,widthUm:cutSpec.widthUm,thicknessUm:distance});
+        const anchor=current.anchor!;onCommand({type:'set-primitive-dimensions',definitionId:item.definitionId,lengthUm:anchor.axis==='x'?distance:cutSpec.lengthUm,widthUm:anchor.axis==='y'?distance:cutSpec.widthUm,thicknessUm:anchor.axis==='z'?distance:cutSpec.thicknessUm,anchor});
       }else{
-        const nextGeometry=setExtrusionDistance(geometry,current.faceId,distance,`extrusion-${Date.now()}`);
+        const nextGeometry=current.profileSide?resizeRectangularProfile(geometry,{lengthUm:current.anchor!.axis==='x'?distance:getRectangularProfile(geometry)!.maxX-getRectangularProfile(geometry)!.minX,widthUm:current.anchor!.axis==='y'?distance:getRectangularProfile(geometry)!.maxY-getRectangularProfile(geometry)!.minY},current.anchor,`extrusion-${Date.now()}`):setExtrusionDistance(geometry,current.faceId,distance,`extrusion-${Date.now()}`);
         onCommand('definitionId' in item?{type:'set-geometry',definitionId:item.definitionId,geometry:nextGeometry}:{type:'set-loose-geometry',objectId:item.id,geometry:nextGeometry});
       }
-      pushPullRef.current=undefined;setPushPullActive(false);setPushPullPreview(undefined);setPrimitiveThicknessPreview(undefined);onToolMeasurementChange(undefined);onRegisterMeasurementActions(undefined);onToolError('Face placed');
+      pushPullRef.current=undefined;setPushPullActive(false);setPushPullPreview(undefined);setPrimitiveDimensionPreview(undefined);onToolMeasurementChange(undefined);onRegisterMeasurementActions(undefined);onToolError('Face placed');
     }catch(error){onToolError(error instanceof Error?error.message:'Unsupported Push/Pull movement');}
   };
   useEffect(()=>{previewAtRef.current=previewAt;commitAtRef.current=commitPushPull;});
-  useEffect(()=>{if(pushPullRef.current){onRegisterMeasurementActions({commit:()=>commitPushPull(),cancel:()=>{pushPullRef.current=undefined;setPushPullActive(false);setPushPullPreview(undefined);setPrimitiveThicknessPreview(undefined);onToolMeasurementChange(undefined);onRegisterMeasurementActions(undefined);}});}});
-  useEffect(()=>{if(pushPullRef.current&&toolMeasurement?.id===pushPullRef.current.sessionId&&toolMeasurement.fields[0]?.exact)previewAtRef.current(lastPointerY.current);},[toolMeasurement]);
+  useEffect(()=>{if(pushPullRef.current){onRegisterMeasurementActions({commit:()=>commitPushPull(),cancel:()=>{pushPullRef.current=undefined;setPushPullActive(false);setPushPullPreview(undefined);setPrimitiveDimensionPreview(undefined);onToolMeasurementChange(undefined);onRegisterMeasurementActions(undefined);}});}});
+  useEffect(()=>{if(pushPullRef.current&&toolMeasurement?.id===pushPullRef.current.sessionId&&toolMeasurement.fields[0]?.exact)previewAtRef.current(...lastPointer.current);},[toolMeasurement]);
   useEffect(()=>{
     if(!pushPullActive)return;
-    const move=(event:PointerEvent)=>{if(!(event.target instanceof Node)||!gl.domElement.contains(event.target))return;previewAtRef.current(event.clientY);};
+    const move=(event:PointerEvent)=>{if(!(event.target instanceof Node)||!gl.domElement.contains(event.target))return;previewAtRef.current(event.clientX,event.clientY);};
     const down=(event:PointerEvent)=>{
       if(event.button!==0||!(event.target instanceof Node)||!gl.domElement.contains(event.target))return;
       if((event.target as Element).closest?.('.design-measurement-box'))return;
-      commitAtRef.current(event.clientY);
+      commitAtRef.current(event.clientX,event.clientY);
       event.preventDefault();event.stopImmediatePropagation();
     };
     window.addEventListener('pointermove',move);
@@ -158,18 +188,19 @@ function InstanceMesh({ item, geometry, cutSpec, selected, selectedElement, onSe
     if(item.locked){onToolError('This entity is locked');return;}
     const current=pushPullRef.current;
     if(current){
-      commitPushPull(event.nativeEvent.clientY);
+      commitPushPull(event.nativeEvent.clientX,event.nativeEvent.clientY);
       return;
     }
-    if(cutSpec?.confirmation==='confirmed'){
-      if(!event.face||event.face.normal.z<0.9){onToolError('Push/Pull can move the end cap along the stock thickness axis');return;}
-    }
+    if(cutSpec?.confirmation==='confirmed'&&!event.face){onToolError('Select a box face to start Push/Pull');return;}
     const primitive=cutSpec?.confirmation==='confirmed';
+    const localPoint=event.object.worldToLocal(event.point.clone());const profileAnchor=!primitive&&(!('definitionId'in item)||componentEditMode)&&event.face?rectangularProfileSide(geometry,[localPoint.x,localPoint.y,localPoint.z],event.face.normal.toArray() as [number,number,number]):undefined;const profileRect=profileAnchor?getRectangularProfile(geometry):undefined;
     const sub=clickedFace(event);
-    if(!primitive&&sub?.type!=='face'){onToolError('Click inside a face, away from its edges, to start Push/Pull');return;}
-    const face=primitive?geometry.faces[0]:geometry.faces.find(candidate=>candidate.id===sub?.id);if(!face)return;
-    if(!primitive){const local=event.object.worldToLocal(event.point.clone());if(!isPushPullEndFace(geometry,face.id,[local.x,local.y,local.z])){onToolError('Push/Pull can move the source face or end cap, not a side face');return;}}
+    if(!primitive&&!profileAnchor&&sub?.type!=='face'){onToolError('Select a rectangular side or profile face to start Push/Pull');return;}
+    const face=primitive?geometry.faces[0]:geometry.faces.find(candidate=>candidate.id===sub?.id)??(profileAnchor?geometry.faces[0]:undefined);if(!face)return;
+    if(!primitive&&!profileAnchor&&!isPushPullEndFace(geometry,face.id,[localPoint.x,localPoint.y,localPoint.z])){onToolError('Push/Pull can move the source face or rectangular sides');return;}
     const existing=primitive?undefined:geometry.extrusions.find(extrusion=>extrusion.faceId===face.id);
+    const boxNormal=primitive?event.face!.normal:new THREE.Vector3(0,0,1);const anchor=primitive?{axis:(Math.abs(boxNormal.x)>0.5?'x':Math.abs(boxNormal.y)>0.5?'y':'z') as 'x'|'y'|'z',side:(Math.sign(boxNormal.x||boxNormal.y||boxNormal.z)||1) as -1|1}:undefined;
+    const profileSide=!!profileAnchor;const profileBase=profileSide?(profileAnchor.axis==='x'?profileRect!.maxX-profileRect!.minX:profileRect!.maxY-profileRect!.minY):0;const primitiveBase=primitive?({x:cutSpec!.lengthUm,y:cutSpec!.widthUm,z:cutSpec!.thicknessUm}[anchor!.axis]):0;
     let worldPerPixel:number;
     if(camera instanceof THREE.PerspectiveCamera){
       const distance=camera.position.distanceTo(event.point);
@@ -177,19 +208,22 @@ function InstanceMesh({ item, geometry, cutSpec, selected, selectedElement, onSe
     }else if(camera instanceof THREE.OrthographicCamera){
       worldPerPixel=(camera.top-camera.bottom)/(camera.zoom*size.height);
     }else worldPerPixel=0.001;
-    const sessionId=`push-pull-${item.id}-${Date.now()}`;pushPullRef.current={faceId:primitive?'':face.id,startY:event.nativeEvent.clientY,baseDistance:primitive?cutSpec!.thicknessUm:existing?.distanceUm??0,worldPerPixel,primitive,sessionId};lastPointerY.current=event.nativeEvent.clientY;
+    const localNormal=event.face?.normal.clone()??new THREE.Vector3(0,0,1);const normalLocalPoint=event.object.worldToLocal(event.point.clone());const screenOrigin=event.point.clone().project(camera);const screenTip=event.object.localToWorld(normalLocalPoint.clone().add(localNormal)).project(camera);let directionX=(screenTip.x-screenOrigin.x)*size.width/2;let directionY=-(screenTip.y-screenOrigin.y)*size.height/2;const directionLength=Math.hypot(directionX,directionY);if(directionLength<1e-5){directionX=0;directionY=1;}else{directionX/=directionLength;directionY/=directionLength;}
+    const sessionId=`push-pull-${item.id}-${Date.now()}`;pushPullRef.current={faceId:primitive?'':face.id,startX:event.nativeEvent.clientX,startY:event.nativeEvent.clientY,screenDirection:[directionX,directionY],baseDistance:primitive?primitiveBase:profileSide?profileBase:existing?.distanceUm??0,worldPerPixel,primitive,profileSide,anchor:primitive?anchor:profileAnchor,sessionId};setPrimitiveActiveFace(anchor??rectangularPushPullFace(geometry,[localPoint.x,localPoint.y,localPoint.z],event.face?.normal.toArray() as [number,number,number]??[0,0,1]));lastPointer.current=[event.nativeEvent.clientX,event.nativeEvent.clientY];
     onToolMeasurementChange({id:sessionId,tool:'Push/Pull',canPlace:false,fields:[{id:'distance',label:'Length',value:'0',unit:unitSystem === 'imperial' ? 'in' : 'mm',step:'any'}]});
     setPushPullActive(true);
     setPushPullPreview(undefined);onToolError('Face selected · move the pointer to preview, then click to place');
   };
-  const pushPullPointerMove=(event:ThreeEvent<PointerEvent>)=>{if(tool==='push-pull'&&pushPullRef.current)previewAt(event.nativeEvent.clientY);};
+  const pushPullPointerMove=(event:ThreeEvent<PointerEvent>)=>{if(tool==='push-pull'&&pushPullRef.current){previewAt(event.nativeEvent.clientX,event.nativeEvent.clientY);return;}if(!canShowDotFace){setPrimitiveFaceIndicator(undefined);setProfileFaceIndicator(undefined);return;}if(cutSpec?.confirmation==='confirmed'&&event.face){const n=event.face.normal;setPrimitiveFaceIndicator({axis:(Math.abs(n.x)>0.5?'x':Math.abs(n.y)>0.5?'y':'z'),side:(Math.sign(n.x||n.y||n.z)||1) as -1|1});}else if(event.face){const point=event.object.worldToLocal(event.point.clone());setProfileFaceIndicator(rectangularPushPullFace(geometry,[point.x,point.y,point.z],event.face.normal.toArray() as [number,number,number]));}};
   const click = (event:ThreeEvent<MouseEvent>) => { event.stopPropagation(); if(item.locked){onToolError('This entity is locked');return;} if(tool==='erase'){ if(selectedElement?.id&&'definitionId' in item){if(selectedElement.type==='face')onCommand({type:'erase-geometry',definitionId:item.definitionId,target:'face',elementId:selectedElement.id});else onCommand({type:'erase-geometry',definitionId:item.definitionId,target:'edge',elementId:selectedElement.id});}else if(selectedElement?.id&&!('definitionId' in item)){onCommand({type:'erase-loose-geometry',objectId:item.id,target:selectedElement.type,elementId:selectedElement.id});}else if('definitionId' in item)onCommand({type:'delete-instance',instanceId:item.id});else onCommand({type:'delete-loose',objectId:item.id}); return; } if(tool==='paint'){if('definitionId' in item)onCommand({type:'set-appearance',instanceId:item.id,color:'#d18a45'});else onCommand({type:'set-appearance',objectId:item.id,color:'#d18a45'});return;} if(tool==='push-pull')return;const sub=event.nativeEvent.altKey?nearestSubElement(event,geometry,cutSpec):undefined;onSelect(event,event.nativeEvent.altKey?item.id:pickHit(event,item.id),sub); };
-  if (cutSpec && cutSpec.confirmation === 'confirmed') return <mesh userData={{designTargetId:item.id}} position={position} quaternion={quaternion} scale={scale} onPointerDown={pushPullPointerDown} onPointerMove={pushPullPointerMove} onClick={click} onDoubleClick={event=>{if(tool==='select'&&'definitionId' in item){event.stopPropagation();onEnterDefinition(item.definitionId);}}} onPointerOver={(event) => { event.stopPropagation(); setHovered(true); }} onPointerOut={() => setHovered(false)} castShadow>
-    <boxGeometry args={[umToMeters(cutSpec.lengthUm), umToMeters(cutSpec.widthUm), umToMeters(primitiveThicknessPreview??cutSpec.thicknessUm)]} />
-    <meshStandardMaterial color={primitiveThicknessPreview?'#e6a94e':color} roughness={0.78} transparent={primitiveThicknessPreview!==undefined} opacity={primitiveThicknessPreview!==undefined?0.55:1} depthWrite={primitiveThicknessPreview===undefined} />
-    {selected && <Edges scale={1.015} color="#173b56" threshold={12} />}
-  </mesh>;
-  return <group position={position} quaternion={quaternion} scale={scale} onDoubleClick={event=>{if(tool==='select'&&'definitionId' in item){event.stopPropagation();onEnterDefinition(item.definitionId);}}}><ObjectGeometry geometry={pushPullPreview??geometry} targetId={item.id} color={color} selected={selected} invalid={invalid} preview={!!pushPullPreview} onSelect={click} onPushPullPointerDown={pushPullPointerDown} onPushPullPointerMove={pushPullPointerMove} /></group>;
+  if (cutSpec && cutSpec.confirmation === 'confirmed') {const face=dotFace;const dims=primitiveDimensionPreview??cutSpec;const axis=face?.axis;const side=face?.side??1;const planePosition: [number,number,number]=axis==='x'?[side*umToMeters(dims.lengthUm/2),0,0]:axis==='y'?[0,side*umToMeters(dims.widthUm/2),0]:[0,0,side*umToMeters(dims.thicknessUm/2)];const planeSize: [number,number]=axis==='x'?[umToMeters(dims.thicknessUm),umToMeters(dims.widthUm)]:axis==='y'?[umToMeters(dims.lengthUm),umToMeters(dims.thicknessUm)]:[umToMeters(dims.lengthUm),umToMeters(dims.widthUm)];const planeRotation: [number,number,number]=axis==='x'?[0,Math.PI/2,0]:axis==='y'?[Math.PI/2,0,0]:[0,0,0];return <mesh ref={boxRef} userData={{designTargetId:item.id}} position={position} quaternion={quaternion} scale={scale} onPointerDown={pushPullPointerDown} onPointerMove={pushPullPointerMove} onClick={click} onDoubleClick={event=>{if(tool==='select'&&'definitionId' in item){event.stopPropagation();onEnterDefinition(item.definitionId);}}} onPointerOver={(event) => { event.stopPropagation(); setHovered(true); }} onPointerOut={() => {setHovered(false);setPrimitiveFaceIndicator(undefined);}} castShadow>
+    <boxGeometry args={[umToMeters(primitiveDimensionPreview?.lengthUm??cutSpec.lengthUm), umToMeters(primitiveDimensionPreview?.widthUm??cutSpec.widthUm), umToMeters(primitiveDimensionPreview?.thicknessUm??cutSpec.thicknessUm)]} />
+    <meshStandardMaterial color={primitiveDimensionPreview?'#e6a94e':color} roughness={0.78} transparent={primitiveDimensionPreview!==undefined} opacity={primitiveDimensionPreview!==undefined?0.55:1} depthWrite={primitiveDimensionPreview===undefined} />
+    <Edges scale={1} color="#000000" threshold={12} />
+    {face&&<mesh position={planePosition} rotation={planeRotation} raycast={()=>null} renderOrder={1}><planeGeometry args={planeSize}/><meshBasicMaterial map={primitiveDotTexture} color={pushPullActive?'#f2ae36':'#80c7e8'} transparent opacity={pushPullActive?0.72:0.5} side={THREE.DoubleSide} depthWrite={false} polygonOffset polygonOffsetFactor={-1} polygonOffsetUnits={-1}/></mesh>}
+  </mesh>;}
+  const profileOverlay=canShowDotFace?(pushPullActive&&primitiveActiveFace?{...primitiveActiveFace,active:true}:profileFaceIndicator?{...profileFaceIndicator,active:false}:undefined):undefined;
+  return <group position={position} quaternion={quaternion} scale={scale} onDoubleClick={event=>{if(tool==='select'){event.stopPropagation();if('definitionId'in item)onEnterDefinition(item.definitionId);else onEnterDefinition(item.id);}}}><ObjectGeometry geometry={pushPullPreview??geometry} targetId={item.id} color={color} selected={selected} invalid={invalid} preview={!!pushPullPreview} overlay={profileOverlay} onFaceOut={()=>setProfileFaceIndicator(undefined)} onSelect={click} onPushPullPointerDown={pushPullPointerDown} onPushPullPointerMove={pushPullPointerMove} /></group>;
 }
 
 function DrawingPlane({activeTool,snap,exactUm,unitSystem,pivotMode,axisMode,onCommand,onMeasure,onSelect,onToolError,design,selectedId,selectedCount,editingDefinitionId,toolMeasurement,onToolMeasurementChange,onRegisterMeasurementActions}:Pick<Props,'activeTool'|'snap'|'exactUm'|'pivotMode'|'axisMode'|'onCommand'|'onMeasure'|'onSelect'|'onToolError'|'design'|'selectedId'|'selectedCount'|'editingDefinitionId'|'toolMeasurement'|'onToolMeasurementChange'|'onRegisterMeasurementActions'|'unitSystem'>) {
@@ -449,7 +483,7 @@ function CameraSetup({ preset, design, frameRequest }: Pick<Props, 'preset'|'des
   return null;
 }
 
-export function DesignScene({ design, unitSystem, selectedId, selectedCount, selectedElement, editingDefinitionId, onSelect, onSubSelect, onEnterDefinition, activeTool, snap, exactUm, pivotMode, axisMode, onCommand, onMeasure, onToolError, preset, projection, grid, axes, frameRequest, toolMeasurement, onToolMeasurementChange, onRegisterMeasurementActions, onContextLoss, onContextRestore }: Props) {
+export function DesignScene({ design, unitSystem, selectedId, selectedCount, selectedElement, editingDefinitionId, editingObjectId, onSelect, onSubSelect, onEnterDefinition, activeTool, snap, exactUm, pivotMode, axisMode, onCommand, onMeasure, onToolError, preset, projection, grid, axes, frameRequest, toolMeasurement, onToolMeasurementChange, onRegisterMeasurementActions, onContextLoss, onContextRestore }: Props) {
   const definitionById = new Map(design?.definitions.map(d => [d.id, d]) ?? []);
   const placed = new Set(design?.instances.map(i => i.definitionId) ?? []);
   const hitCycle=useRef(createHitCycle());
@@ -469,10 +503,10 @@ export function DesignScene({ design, unitSystem, selectedId, selectedCount, sel
     {axes && <axesHelper args={[1]} />}
     {design?.instances.filter(i => !i.hidden && (!editingDefinitionId||i.definitionId===editingDefinitionId)).map(instance => {
       const definition = definitionById.get(instance.definitionId); if (!definition) return null;
-      return <InstanceMesh key={`${instance.id}-${activeTool}`} item={instance} geometry={definition.geometry} cutSpec={definition.cutSpec} selected={selectedId === instance.id} selectedElement={selectedElement?.objectId===instance.id?selectedElement:undefined} onSelect={(event,id,sub)=>selectHit(event,id??instance.id,sub)} pickHit={pickHit} onEnterDefinition={onEnterDefinition} tool={activeTool} snap={snap} onCommand={onCommand} exactUm={exactUm} onToolError={onToolError} toolMeasurement={toolMeasurement} onToolMeasurementChange={onToolMeasurementChange} onRegisterMeasurementActions={onRegisterMeasurementActions} unitSystem={unitSystem} />;
+      return <InstanceMesh key={`${instance.id}-${activeTool}`} item={instance} geometry={definition.geometry} cutSpec={definition.cutSpec} componentEditMode={editingDefinitionId===instance.definitionId} selected={selectedId === instance.id} selectedElement={selectedElement?.objectId===instance.id?selectedElement:undefined} onSelect={(event,id,sub)=>selectHit(event,id??instance.id,sub)} pickHit={pickHit} onEnterDefinition={onEnterDefinition} tool={activeTool} snap={snap} onCommand={onCommand} exactUm={exactUm} onToolError={onToolError} toolMeasurement={toolMeasurement} onToolMeasurementChange={onToolMeasurementChange} onRegisterMeasurementActions={onRegisterMeasurementActions} unitSystem={unitSystem} />;
     })}
-    {editingDefinitionId && !design?.instances.some(item=>item.definitionId===editingDefinitionId) && design?.definitions.find(item=>item.id===editingDefinitionId) && <InstanceMesh key={`editing-${editingDefinitionId}-${activeTool}`} item={{id:editingDefinitionId,definitionId:editingDefinitionId,pose:{positionUm:[0,0,0],rotation:[0,0,0,1]},scalePpm:[1_000_000,1_000_000,1_000_000],hidden:false,locked:false}} geometry={design.definitions.find(item=>item.id===editingDefinitionId)!.geometry} selected={selectedId===editingDefinitionId} onSelect={(event,id,sub)=>selectHit(event,id??editingDefinitionId,sub)} pickHit={pickHit} onEnterDefinition={onEnterDefinition} tool={activeTool} snap={snap} onCommand={onCommand} exactUm={exactUm} onToolError={onToolError} toolMeasurement={toolMeasurement} onToolMeasurementChange={onToolMeasurementChange} onRegisterMeasurementActions={onRegisterMeasurementActions} unitSystem={unitSystem} />}
-    {!editingDefinitionId&&design?.looseObjects.filter(i => !i.hidden).map(item => <InstanceMesh key={`${item.id}-${activeTool}`} item={item} geometry={item.geometry} selected={selectedId === item.id} selectedElement={selectedElement?.objectId===item.id?selectedElement:undefined} onSelect={(event,id,sub)=>selectHit(event,id??item.id,sub)} pickHit={pickHit} onEnterDefinition={onEnterDefinition} tool={activeTool} snap={snap} onCommand={onCommand} exactUm={exactUm} onToolError={onToolError} toolMeasurement={toolMeasurement} onToolMeasurementChange={onToolMeasurementChange} onRegisterMeasurementActions={onRegisterMeasurementActions} unitSystem={unitSystem} />)}
+    {editingDefinitionId && !design?.instances.some(item=>item.definitionId===editingDefinitionId) && design?.definitions.find(item=>item.id===editingDefinitionId) && <InstanceMesh key={`editing-${editingDefinitionId}-${activeTool}`} item={{id:editingDefinitionId,definitionId:editingDefinitionId,pose:{positionUm:[0,0,0],rotation:[0,0,0,1]},scalePpm:[1_000_000,1_000_000,1_000_000],hidden:false,locked:false}} geometry={design.definitions.find(item=>item.id===editingDefinitionId)!.geometry} cutSpec={design.definitions.find(item=>item.id===editingDefinitionId)!.cutSpec} componentEditMode selected={selectedId===editingDefinitionId} onSelect={(event,id,sub)=>selectHit(event,id??editingDefinitionId,sub)} pickHit={pickHit} onEnterDefinition={onEnterDefinition} tool={activeTool} snap={snap} onCommand={onCommand} exactUm={exactUm} onToolError={onToolError} toolMeasurement={toolMeasurement} onToolMeasurementChange={onToolMeasurementChange} onRegisterMeasurementActions={onRegisterMeasurementActions} unitSystem={unitSystem} />}
+    {!editingDefinitionId&&design?.looseObjects.filter(i => !i.hidden).map(item => <InstanceMesh key={`${item.id}-${activeTool}`} item={item} geometry={item.geometry} componentEditMode={editingObjectId===item.id} selected={selectedId === item.id} selectedElement={selectedElement?.objectId===item.id?selectedElement:undefined} onSelect={(event,id,sub)=>selectHit(event,id??item.id,sub)} pickHit={pickHit} onEnterDefinition={onEnterDefinition} tool={activeTool} snap={snap} onCommand={onCommand} exactUm={exactUm} onToolError={onToolError} toolMeasurement={toolMeasurement} onToolMeasurementChange={onToolMeasurementChange} onRegisterMeasurementActions={onRegisterMeasurementActions} unitSystem={unitSystem} />)}
     {!editingDefinitionId&&design?.definitions.filter(def => !placed.has(def.id)).map((definition, index) => <group key={`${definition.id}-${activeTool}`} position={[index * 1.5,0,0]}><InstanceMesh item={{ id: definition.id, definitionId: definition.id, pose: { positionUm: [0,0,0], rotation: [0,0,0,1] }, scalePpm: [1_000_000,1_000_000,1_000_000], hidden: false, locked: false }} geometry={definition.geometry} cutSpec={definition.cutSpec} selected={selectedId === definition.id} selectedElement={selectedElement?.objectId===definition.id?selectedElement:undefined} onSelect={(event,id,sub)=>selectHit(event,id??definition.id,sub)} pickHit={pickHit} onEnterDefinition={onEnterDefinition} baseColor={definition.appearance.color} tool={activeTool} snap={snap} onCommand={onCommand} exactUm={exactUm} onToolError={onToolError} toolMeasurement={toolMeasurement} onToolMeasurementChange={onToolMeasurementChange} onRegisterMeasurementActions={onRegisterMeasurementActions} unitSystem={unitSystem} /></group>)}
   </Canvas>;
 }

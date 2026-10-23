@@ -4,7 +4,7 @@ import type { Project } from '@/lib/planner/model';
 import { DesignWorkspace } from './DesignWorkspace';
 import { rectangleGeometry } from '@/lib/planner/design/geometry';
 
-vi.mock('./DesignViewport', () => ({ DesignViewport: ({ onSelect, onEnterDefinition, editingDefinitionId }: { onSelect: (id?: string) => void; onEnterDefinition?:(id:string)=>void; editingDefinitionId?:string }) => <><button type="button" aria-label="Select sample in model" onClick={() => onSelect('instance-1')}>Sample viewport</button><button type="button" onClick={()=>onEnterDefinition?.('definition-1')}>Enter shared definition</button>{editingDefinitionId&&<span role="status">Editing {editingDefinitionId}</span>}</> }));
+vi.mock('./DesignViewport', () => ({ DesignViewport: ({ onSelect, onEnterDefinition, editingDefinitionId, editingObjectId }: { onSelect: (id?: string) => void; onEnterDefinition?:(id:string)=>void; editingDefinitionId?:string; editingObjectId?:string }) => <><button type="button" aria-label="Select sample in model" onClick={() => onSelect('instance-1')}>Sample viewport</button><button type="button" onClick={()=>onEnterDefinition?.('definition-1')}>Enter shared definition</button><button type="button" onClick={()=>onEnterDefinition?.('loose-1')}>Enter loose shape edit</button>{editingDefinitionId&&<span role="status">Editing {editingDefinitionId}</span>}{editingObjectId&&<span role="status">Editing shape {editingObjectId}</span>}</> }));
 
 const project: Project = {
   schemaVersion: 2, id: 'workspace-test', name: 'Sample bench', unitSystem: 'imperial', kerf: { um: 0 }, trim: { um: 0 }, minOffcutLinear: { um: 0 }, minOffcutSheet: { shortSideUm: 0, longSideUm: 0 }, currency: 'CAD', createdAt: '2026-01-01T00:00:00.000Z', updatedAt: '2026-01-01T00:00:00.000Z', parts: [], materials: [],
@@ -224,11 +224,26 @@ describe('DesignWorkspace', () => {
     const shared={...project,design:{...project.design!,instances:[...project.design!.instances,{...project.design!.instances[0],id:'instance-2'}]}};
     const onCommit=vi.fn();render(<DesignWorkspace project={shared} onCommit={onCommit} />);
     fireEvent.click(document.querySelector('.design-selection-list button')!);
+    const entityInfoTab=screen.getByRole('tab', { name: 'Entity Info' });
+    const drawerExpandedBeforeDoubleClick=entityInfoTab.getAttribute('aria-expanded');
     fireEvent.click(screen.getByRole('button',{name:'Enter shared definition'}));
     expect(screen.getByText('Editing definition-1')).toBeInTheDocument();
+    expect(entityInfoTab).toHaveAttribute('aria-expanded', drawerExpandedBeforeDoubleClick);
+    if(drawerExpandedBeforeDoubleClick==='false')fireEvent.click(entityInfoTab);
+    expect(screen.getByRole('spinbutton', { name: /Length/ })).toBeInTheDocument();
     fireEvent.contextMenu(document.querySelector('.design-viewport')!,{clientX:120,clientY:90});
     fireEvent.click(await screen.findByRole('menuitem',{name:'Make Unique'}));
     expect(onCommit.mock.calls.at(-1)?.[0].design?.definitions).toHaveLength(2);
     expect(onCommit.mock.calls.at(-1)?.[0].design?.instances[0].definitionId).not.toBe('definition-1');
+  });
+
+  it('keeps loose shape dimensions collapsed after double-clicking the shape', async () => {
+    const looseProject:Project={...project,design:{...project.design!,definitions:[],instances:[],looseObjects:[{id:'loose-1',name:'Loose panel',geometry:rectangleGeometry(100_000,80_000,(()=>{let id=0;return prefix=>`loose-${prefix}-${id++}`;})(),20_000),pose:{positionUm:[0,0,0],rotation:[0,0,0,1]},scalePpm:[1_000_000,1_000_000,1_000_000],appearance:{color:'#bd8a56'},hidden:false,locked:false}]}};
+    render(<DesignWorkspace project={looseProject}/>);
+    fireEvent.click(await screen.findByRole('button',{name:'Enter loose shape edit'}));
+    expect(screen.getByRole('tab', { name: 'Entity Info' })).toHaveAttribute('aria-expanded', 'false');
+    expect(screen.queryByRole('tabpanel')).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('tab', { name: 'Entity Info' }));
+    expect(screen.getByRole('spinbutton', { name: /Length/ })).toBeInTheDocument();
   });
 });

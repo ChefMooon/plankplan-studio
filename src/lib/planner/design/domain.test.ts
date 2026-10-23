@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { metersToUm, rectangleGeometry, scaleDimensionUm, scalePoseKeepingLocalPivot, setExtrusionDistance, transformLocalPoint, validateGeometryTopology } from './geometry';
+import { getRectangularProfile, metersToUm, rectangleGeometry, rectangularProfileSide, resizeRectangularProfile, scaleDimensionUm, scalePoseKeepingLocalPivot, setExtrusionDistance, transformLocalPoint, validateGeometryTopology } from './geometry';
 import { applyDesignCommand } from './commands';
 import { beginCommandSession, commitCommandSession, commitSessionCommand, createDesignHistory, redoSession, undoSession, updateCommandSession } from './history';
 import { createApplyIntent, createProjectionPreview, projectEligibleRows } from './projection';
@@ -10,6 +10,19 @@ const empty:Project={schemaVersion:2,id:'p',name:'Project',unitSystem:'metric',k
 const applyReviewed=(project:Project,preview:ReturnType<typeof createProjectionPreview>,editSequence:number,localGeneration:number)=>createApplyIntent(project,preview,Object.fromEntries(preview.changes.map(c=>[c.rowKey,{disposition:'apply' as const,fieldChoices:Object.fromEntries(c.conflicts.map(field=>[field,'design' as const]))}])),{editSequence,localGeneration});
 
 describe('renderer-free design geometry',()=>{
+  it('detects and resizes axis-aligned rectangular profiles while preserving IDs and the anchored opposite edge',()=>{
+    const geometry=rectangleGeometry(100,80,p=>`${p}-${Math.random()}`,20);const ids=geometry.vertices.map(vertex=>vertex.id);const faceId=geometry.faces[0].id;
+    expect(getRectangularProfile(geometry)).toMatchObject({minX:0,maxX:100,minY:0,maxY:80,depthUm:20});
+    expect(rectangularProfileSide(geometry,[0.0001,0.00004,0.01],[1,0,0])).toEqual({axis:'x',side:1});
+    const resized=resizeRectangularProfile(geometry,{lengthUm:120,widthUm:60,depthUm:30},{axis:'x',side:1});
+    expect(resized.vertices.map(vertex=>vertex.id)).toEqual(ids);expect(resized.faces[0].id).toBe(faceId);expect(resized.vertices.map(vertex=>vertex.positionUm)).toContainEqual([0,0,0]);expect(resized.vertices.map(vertex=>vertex.positionUm)).toContainEqual([120,60,0]);expect(resized.extrusions[0].distanceUm).toBe(30);
+    expect(resizeRectangularProfile(geometry,{lengthUm:120,widthUm:80},{axis:'x',side:-1}).vertices.map(vertex=>vertex.positionUm)).toContainEqual([-20,0,0]);
+  });
+  it('rejects non-rectangular profiles and flat-profile depth anchoring',()=>{
+    const geometry=rectangleGeometry(100,80,p=>`${p}-${Math.random()}`);geometry.vertices[2].positionUm[0]=90;
+    expect(getRectangularProfile(geometry)).toBeUndefined();expect(()=>resizeRectangularProfile(geometry,{lengthUm:120,widthUm:80})).toThrow('Unsupported rectangular profile');
+    expect(()=>resizeRectangularProfile(rectangleGeometry(100,80,p=>`${p}-${Math.random()}`),{lengthUm:100,widthUm:80,depthUm:10},{axis:'z',side:1})).toThrow('no opposite extrusion face');
+  });
   it('rounds positive half-micrometers upward and composes scale before pose',()=>{
     expect(scaleDimensionUm(3,500_000)).toBe(2);
     expect(transformLocalPoint([1_000_000,0,0],{positionUm:[10,0,0],rotation:[0,0,0,1]},[2_000_000,1_000_000,1_000_000])).toEqual([2_000_010,0,0]);
@@ -56,6 +69,13 @@ describe('commands and history',()=>{
     expect(resized.project.design!.definitions[0].cutSpec).toMatchObject({lengthUm:120,widthUm:60,thicknessUm:25,confirmation:'confirmed'});
     expect(resized.project.design!.definitions[0].geometry.vertices.map(v=>v.positionUm)).toContainEqual([120,60,0]);
   });
+  it('keeps the opposite box face fixed for each shared instance when resizing a side',()=>{
+    const created=applyDesignCommand(empty,{type:'create-board',id:'i',definitionId:'d',name:'Board',lengthUm:100,widthUm:50,thicknessUm:20});if(!created.ok)throw Error(created.message);
+    const duplicated=applyDesignCommand(created.project,{type:'duplicate-instance',sourceId:'i',id:'i2'});if(!duplicated.ok)throw Error(duplicated.message);
+    const resized=applyDesignCommand(duplicated.project,{type:'set-primitive-dimensions',definitionId:'d',lengthUm:120,widthUm:50,thicknessUm:20,anchor:{axis:'x',side:1}});expect(resized.ok).toBe(true);if(!resized.ok)return;
+    for(const instance of resized.project.design!.instances){const fixedLocal: [number,number,number]=[-60,0,0];const fixedWorld=transformLocalPoint(fixedLocal,instance.pose,instance.scalePpm)[0];expect(fixedWorld).toBe(instance.id==='i'?-50:99_950);}
+    expect(resized.project.design!.definitions[0].cutSpec?.lengthUm).toBe(120);
+  });
   it('erases loose faces with their extrusion and rejects erasing a supporting edge alone',()=>{
     const geometry=rectangleGeometry(30,20,p=>`${p}-${Math.random()}`,10);
     const loose={id:'solid',name:'Solid',geometry,pose:{positionUm:[0,0,0] as [number,number,number],rotation:[0,0,0,1] as [number,number,number,number]},scalePpm:[1_000_000,1_000_000,1_000_000] as [number,number,number],appearance:{color:'#123456'},hidden:false,locked:false};
@@ -72,6 +92,11 @@ describe('commands and history',()=>{
     const pushed=commitSessionCommand(createDesignHistory(),created.project,{type:'set-loose-geometry',objectId:object.id,geometry:pushedGeometry});
     expect(pushed.project.design!.looseObjects[0].geometry.extrusions).toEqual([{id:'push-pull-extrusion',faceId:geometry.faces[0].id,distanceUm:15}]);
     expect(undoSession(pushed.history,pushed.project).project).toBe(created.project);
+  });
+  it('applies anchored loose rectangular side resizing as one undoable geometry command',()=>{
+    const geometry=rectangleGeometry(100,80,p=>`${p}-${Math.random()}`,20);const object={id:'rect-side',name:'Rectangle',geometry,pose:{positionUm:[0,0,0] as [number,number,number],rotation:[0,0,0,1] as [number,number,number,number]},scalePpm:[1_000_000,1_000_000,1_000_000] as [number,number,number],appearance:{color:'#123456'},hidden:false,locked:false};const created=applyDesignCommand(empty,{type:'create-loose',object});if(!created.ok)throw Error(created.message);
+    const resizedGeometry=resizeRectangularProfile(geometry,{lengthUm:130,widthUm:80},{axis:'x',side:1});const resized=commitSessionCommand(createDesignHistory(),created.project,{type:'set-loose-geometry',objectId:object.id,geometry:resizedGeometry});
+    expect(getRectangularProfile(resized.project.design!.looseObjects[0].geometry)?.maxX).toBe(130);expect(undoSession(resized.history,resized.project).project).toBe(created.project);
   });
   it('applies loose-object transforms and appearance through reversible domain commands',()=>{
     const object={id:'loose-paint',name:'Loose',geometry:rectangleGeometry(30,20,p=>`${p}-${Math.random()}`),pose:{positionUm:[0,0,0] as [number,number,number],rotation:[0,0,0,1] as [number,number,number,number]},scalePpm:[1_000_000,1_000_000,1_000_000] as [number,number,number],appearance:{color:'#123456'},hidden:false,locked:false};
