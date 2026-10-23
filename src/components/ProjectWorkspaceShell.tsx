@@ -15,7 +15,7 @@ export function ProjectWorkspaceShell({ projectId }: { projectId: string }) {
   const matches = useMatches();
   const active = matches.some(match => match.routeId.endsWith('/cutlist')) ? 'cutlist' : 'design';
   const context: ShellState = { ...state, setProject, setStatus };
-  return <ProjectShellContext.Provider value={context}><main className={`app-shell workspace ${active === 'design' ? 'design-page' : ''}`}>
+  return <ProjectShellContext.Provider value={context}><main className={`app-shell workspace ${active === 'design' ? 'design-page' : 'cutlist-page'}`}>
     <header className="topbar"><Link to="/" className="brand"><img src="/plankplan-studio-stock-mix-v02.svg" alt="" /><span>PlankPlan <b>Studio</b></span></Link><strong>{state.projectName}</strong><div className="topbar-tools"><span className="local-badge" role="status">{state.status || 'Saved locally'}</span>{state.status.startsWith('Conflict') && <button type="button" onClick={() => window.location.reload()}>Reload project</button>}<ThemeToggle /></div></header>
     <ProjectNavigation projectId={projectId} projectName={state.projectName} active={active} onProjectInfo={state.projectInfo} />
     <Outlet />
