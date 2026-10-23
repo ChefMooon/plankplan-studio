@@ -443,14 +443,16 @@ export function DesignScene({ design, unitSystem, selectedId, selectedCount, sel
   const pickHit=(event:ThreeEvent<MouseEvent>,fallbackId:string)=>{const ids=event.intersections.map(hit=>hit.object.userData.designTargetId).filter((id):id is string=>typeof id==='string');const candidateIds=ids.length?ids:[fallbackId];return hitCycle.current.pick(candidateIds,event.nativeEvent.clientX,event.nativeEvent.clientY)??fallbackId;};
   useEffect(()=>{hitCycle.current.reset();},[activeTool]);
   const selectHit=(event:ThreeEvent<MouseEvent>,targetId:string,subElement?:SubElement)=>{onSelect(targetId,event.shiftKey||event.ctrlKey,event.ctrlKey&&event.shiftKey,event.shiftKey&&!event.ctrlKey);if(subElement)onSubSelect?.(targetId,subElement);};
-  return <Canvas key={projection} className="design-canvas" frameloop="demand" dpr={[1, 1.5]} orthographic={projection === 'orthographic'} shadows camera={{ position: [6, 5, 7], fov: 45, zoom: 1, near: 0.01, far: 200 }} gl={{ antialias: true, powerPreference: 'low-power' }} onPointerMissed={() => onSelect(undefined)}>
+  return <Canvas key={projection} className="design-canvas" frameloop="demand" dpr={[1.5, 2]} orthographic={projection === 'orthographic'} shadows camera={{ position: [6, 5, 7], fov: 45, zoom: 1, near: 0.01, far: 200 }} gl={{ antialias: true, powerPreference: 'low-power' }} onPointerMissed={() => onSelect(undefined)}>
     <color attach="background" args={['#edf3f5']} />
-    <ambientLight intensity={1.25} /><directionalLight position={[4, 8, 5]} intensity={2.1} castShadow />
+    <ambientLight intensity={1.25} />
+    {/* Offset shadow sampling away from each face to prevent self-shadow stripes. */}
+    <directionalLight position={[4, 8, 5]} intensity={2.1} castShadow shadow-mapSize={[2048, 2048]} shadow-normalBias={0.02} shadow-bias={-0.0001} />
     <ContextLifecycle onContextLoss={onContextLoss} onContextRestore={onContextRestore} />
     <CameraSetup preset={preset} design={design} selectedId={selectedId} frameRequest={frameRequest} />
     <OrbitControls makeDefault enableDamping dampingFactor={0.12} minDistance={0.25} maxDistance={80} zoomToCursor mouseButtons={{LEFT:activeTool==='orbit'?THREE.MOUSE.ROTATE:activeTool==='pan'?THREE.MOUSE.PAN:undefined,MIDDLE:THREE.MOUSE.ROTATE,RIGHT:THREE.MOUSE.PAN}} />
     <DrawingPlane key={activeTool} activeTool={activeTool} snap={snap} unitSystem={unitSystem} exactUm={exactUm} pivotMode={pivotMode} axisMode={axisMode} onCommand={onCommand} onMeasure={onMeasure} onSelect={onSelect} onToolError={onToolError} design={design} selectedId={selectedId} selectedCount={selectedCount} editingDefinitionId={editingDefinitionId} toolMeasurement={toolMeasurement} onToolMeasurementChange={onToolMeasurementChange} onRegisterMeasurementActions={onRegisterMeasurementActions} />
-    {grid && <Grid args={[30, 30]} cellSize={0.25} cellThickness={0.5} cellColor="#8297a1" sectionSize={1} sectionThickness={1} sectionColor="#476878" fadeDistance={30} infiniteGrid />}
+    {grid && <Grid args={[30, 30]} cellSize={0.25} cellThickness={0.75} cellColor="#8297a1" sectionSize={1} sectionThickness={1.5} sectionColor="#476878" fadeDistance={30} infiniteGrid />}
     {axes && <axesHelper args={[1]} />}
     {design?.instances.filter(i => !i.hidden && (!editingDefinitionId||i.definitionId===editingDefinitionId)).map(instance => {
       const definition = definitionById.get(instance.definitionId); if (!definition) return null;
