@@ -5,7 +5,7 @@ import type { Project } from './model';
 
 describe('mixed-material plan aggregation', () => {
   it('combines independent linear and sheet totals with display-only tax', () => {
-    const project: Project = { schemaVersion: 1, id: 'mix', name: 'Mixed', unitSystem: 'imperial', kerf: { um: 0 }, trim: { um: 0 }, minOffcutLinear: { um: 0 }, minOffcutSheet: { shortSideUm: 0, longSideUm: 0 }, currency: 'CAD', taxRate: 10, createdAt: '', updatedAt: '', parts: [
+    const project: Project = { schemaVersion: 2, id: 'mix', name: 'Mixed', unitSystem: 'imperial', kerf: { um: 0 }, trim: { um: 0 }, minOffcutLinear: { um: 0 }, minOffcutSheet: { shortSideUm: 0, longSideUm: 0 }, currency: 'CAD', taxRate: 10, createdAt: '', updatedAt: '', parts: [
       { id: 'board-part', name: 'Leg', materialId: 'board', length: { um: umFromInches(24) }, quantity: 1 },
       { id: 'sheet-part', name: 'Top', materialId: 'sheet', length: { um: umFromInches(24) }, width: { um: umFromInches(18) }, quantity: 1 },
     ], materials: [

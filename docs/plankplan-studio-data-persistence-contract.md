@@ -3,7 +3,7 @@
 **Status:** Target contract approved for documentation on 2026-10-22; not implemented.
 **Authority:** Canonical serialized project, identity, validation, migration, and persistence contract. Product concepts and optimizer request types do not override this format.
 
-**Revision:** 2026-10-22 final review resolved: legacy-tab cutover, uncertain mutation reconciliation, retained creation metadata, and bounded snapshots/status reads. Earlier review resolutions remain in force.
+**Revision:** 2026-10-22 final review resolved: legacy-tab cutover, uncertain mutation reconciliation, retained creation metadata, and bounded snapshots/status reads. Earlier review resolutions remain in force. Owner-authorized follow-up closes persistent cut-spec confirmation, durable detach, and canonical document-byte measurement.
 
 ## Scope and delivery boundaries
 
@@ -23,6 +23,11 @@ The following is the normative target schema-v2 cutlist shape. All fields are re
 ```ts
 type Dimension = { um: number }; // positive safe integer, except settings allowing zero
 type Money = { cents: number }; // nonnegative safe integer
+type EditorOrder = {
+  parts?: string[];
+  materials?: string[];
+  stocks?: Record<string, string[]>; // material ID -> stock display IDs
+};
 type Part = {
   id: string;
   name: string;
@@ -67,19 +72,24 @@ type ProjectDocumentV2 = {
   taxRate?: number; // finite percentage in [0, 100], absent means zero
   parts: Part[];
   materials: Material[];
+  editorOrder?: EditorOrder; // portable display ordering; does not reorder canonical arrays
   createdAt: string; // canonical UTC ISO 8601
   updatedAt: string; // canonical UTC ISO 8601; content metadata, never a lock
   design?: DesignDocumentV1;
 };
 ```
 
-`DesignDocumentV1` is an independently versioned renderer-free domain document, defined under the design requirements below. Its exact geometry records must be specified in the Phase 2 plan before v2 implementation; this is the remaining schema gate, not permission to accept arbitrary JSON.
+`DesignDocumentV1` is an independently versioned renderer-free domain document. The owner approved its exact records, geometry rules, transforms and protective limits on 2026-10-22 in [implementation-plan decision D2](plans/3d-workspace/3d-workspace-plan.md#d2-approved-concrete-design-schema). That section is the authoritative detailed design-schema definition extending this contract; do not accept arbitrary JSON or serialize renderer objects. The schema decision is closed; implementation and validation remain pending.
+
+**Owner decision D3-editor-order (2026-10-22):** Retain optional `editorOrder` in v2, preserving the existing display-order behavior across migration, backup, import-as-copy, and restore. It is project content, not device-only metadata. It never changes canonical Part/Material/Stock array order or optimizer meaning. Apply the existing resolver semantics: listed current IDs appear once in supplied order, stale/duplicate display references have no effect, and unlisted current entities append in canonical order. Validate the supported container/string-ID shape and existing project byte/ID limits; ordering references are display hints, not design-link ownership. Preserve valid legacy ordering rather than rejecting the field as unknown. Schema-shape repair still follows the recovery/explicit-repair policy; do not silently discard invalid input.
 
 `label`, `stockOptions`, `maxQty`, and `isOwned` are conceptual/optimizer names, not aliases accepted in v2. `materialChoices`, `pinned`, nominal-size catalogs, inventory references, and price profiles are future extensions requiring explicit versioning. The selected material remains `materialId`. Preset nominal labels may appear in names; actual stock dimensions determine fit.
 
 Persist canonical integer micrometers regardless of display units. Display-unit changes never rescale stored dimensions. Monetary amounts are project-currency minor units. Initial supported currencies must use two minor-unit digits; supporting other currency exponents needs a new contract. Changing currency requires an explicit relabel confirmation and performs no exchange conversion. Board-foot `price.cents` is a rate per board foot; piece pricing is derived with explicit rounding to cents. Sheet stock permits piece pricing only. Missing price is optimization-incomplete; owned stock is consumed at zero acquisition cost without erasing its purchase rate.
 
 Project materials and prices are snapshots. A later account library copies values into a project; changing the library never mutates saved projects silently. `ownedQuantity` is not a reservation against shared inventory.
+
+**Owner decisions D4b/D4c (2026-10-22):** Design/cut dimensions are requested finished cut dimensions; there are no implicit joinery or surfacing allowances. Existing explicit project kerf and trim remain downstream optimizer inputs. Initial sheet planning remains two-dimensional: panel thickness is retained in design, not added as a sheet Part constraint. Length/width placement success never establishes thickness compatibility. Model-linked sheet review and fit feedback must explicitly state that thickness is unverified and requires the user's separate check.
 
 ## Validation and draft readiness
 
@@ -93,6 +103,18 @@ Use a portable, deterministic validator/migrator shared by browser and future Wo
 - New timestamps must round-trip as canonical UTC ISO strings. Cloud receipt/update times are separately server-controlled. Never trust device clock order for concurrency.
 
 Initial protective limits: IDs 128 characters, names/group 256 characters, notes 16,384 characters per field; at most 10,000 part rows, 1,000 materials, 10,000 total stock rows, 10,000 per-row quantity/owned/purchase count, and 100,000 expanded requested pieces. These are safety ceilings, not performance promises; benchmark and impose lower optimizer execution limits independently. Define geometry count/depth limits with the Phase 2 design schema. Limit the complete UTF-8 serialized project to 1,000,000 bytes initially, including design and projection snapshots. Reject oversize writes explicitly while retaining the prior saved version and the unsaved work. Any limit change must be documented and old data retained on incompatibility.
+
+Explicit CutSpec records retain their dimensions/grain and required `confirmation: 'confirmed' | 'requires-confirmation'`. Definition geometry edits invalidate explicit confirmation even without links; save/copy/restore/cloud transfer preserve the warning and values. Unconfirmed specs block projection, not saving. Pending links do not replace definition confirmation. Detach exclusions are portable per-instance state, copied by Duplicate/Make Unique and removed only by explicit re-inclusion or instance deletion. See D2 for atomic lifecycle rules.
+
+## Canonical project serialization and byte measurement
+
+One shared `serializeProjectDocument` specification governs browser and future Worker output. Validate/migrate the supported document first without dropping unknown fields. Recursively serialize object members in ascending UTF-16 code-unit key order (including ID-keyed maps), preserve array order exactly, and use ECMAScript JSON.stringify primitive escaping/number formatting with no indentation, extra whitespace, BOM or trailing newline. Optional fields are absent; null, undefined values, sparse arrays and non-JSON values are not substitutes for valid schema fields. Do not normalize Unicode text or reorder entity arrays. Implement key ordering in the serializer itself, including numeric-looking keys; rebuilding an object and calling JSON.stringify alone does not guarantee this order.
+
+The document budget is the UTF-8 byte length of that canonical string, at most 1,000,000 bytes including design, confirmation, exclusions and snapshots. Local commits, backup exports and future cloud document_json use that exact representation. Import and server validation measure the canonical validated document, never its incoming indentation or JavaScript character count. Equivalent object-key order/whitespace yields identical output. Save -> export -> import -> export must reproduce the same bytes for unchanged supported content. This is deterministic serialization, not a new field or a replacement for schema validation.
+
+Bound untrusted raw input separately: normal single-project imports and Phase 3 mutation bodies have a 2,000,000-byte UTF-8 limit before parsing, measured after transport decompression; a mutation body includes its envelope. Enforce bounded reading, then the independent 1,000,000-byte canonical document limit. Oversized raw input fails explicitly without destination mutation; retain the original file/source for recovery. Exact-byte legacy whole-library recovery remains separate and must never be truncated or forced through this single-project import cap. Supported exports are compact and within the import cap. Recovery downloads preserve original bytes rather than canonicalizing them.
+
+Phase 3 request receipts still hash the exact immutable whole request bytes, including its protocol envelope. Canonical project serialization does not authorize reserializing an already pending request on retry. Persist the complete immutable request once and resend identical bytes.
 
 ## Versions and migration
 
@@ -119,12 +141,12 @@ Legacy-only access means a recovery view and download of the exact original byte
 
 ## Design projection integrity (Phase 2)
 
-The exact geometry record schema remains a Phase 2 prerequisite. Its link lifecycle must distinguish current active references from historical provenance; both are portable inside the design document.
+The exact geometry record schema is approved in implementation-plan decision D2 linked above. Its link lifecycle distinguishes current active references from historical provenance; both are portable inside the design document. Implement and test that contract before enabling design persistence; documentation approval is not proof of current behavior.
 
 - Active links resolve current definition, contributing instance, material, and Part IDs in this project. A contributing live instance can belong to only one active generated row. Validate current dimensions and generated-board cross-sections.
 - Last-applied projection provenance is an immutable bounded snapshot of source IDs and projected fields at the last accepted apply. Historical IDs may reference deleted or replaced sources; they are not required to resolve in current geometry. They cannot act as current material/geometry pointers.
 - Deleting a source changes affected links to `pending-removal`; Make Unique or aggregation changes mark them `pending-reconcile`. The existing Part and last-applied snapshot remain saveable while the review is pending. Marking these states is part of the same local command/transaction as the geometry change.
-- Manual deletion of a generated Part creates a `pending-part-deletion` link state retaining historical provenance, rather than an invalid active dangling Part reference. A preview must not silently recreate the row. Detach explicitly removes active ownership, retains the Part as manual, and retires the link; missing references in active links remain errors.
+- Manual deletion of a generated Part creates a `pending-part-deletion` link state retaining historical provenance, rather than an invalid active dangling Part reference. A preview must not silently recreate the row. Detach explicitly removes active ownership, retains the Part as manual, sets persistent `projectionExcluded: true` on surviving contributing instances and retires the link; excluded instances cannot have current link membership and require explicit re-inclusion before generating new reviewed rows; missing references in active links remain errors.
 - Applying a reviewed projection atomically replaces current Parts and affected links/snapshots; removing a Part retires its link. Keeping manual rows during source deletion detaches them. Historical links are retired/removed once resolved; no unbounded provenance log is required.
 - Every pending state must identify its reason and last-applied source/Part IDs so review can compare the retained Part, current design, and prior projection. Pending inconsistencies are saveable warnings; malformed links are validation errors. A copy preserves this lifecycle within its own project scope.
 
@@ -239,11 +261,11 @@ Refresh on authenticated startup/sign-in, reconnect, window focus, explicit refr
 
 ## Size, assets, and derived data
 
-D1 currently limits a string/BLOB/row to 2,000,000 bytes. The initial 1,000,000-byte document ceiling reserves headroom and applies locally so unsupported cloud uploads are not a surprise. Measure actual UTF-8 bytes, not character count. Avoid base64 assets, meshes, and unbounded undo history in the document. Design snapshots contain only last-applied projection fields needed to detect manual edits.
+D1 currently limits a string/BLOB/row to 2,000,000 bytes. The initial 1,000,000-byte document ceiling reserves headroom and applies locally so unsupported cloud uploads are not a surprise. Measure the canonical project serialization's UTF-8 bytes under the rule above, not character count or incoming formatting. Avoid base64 assets, meshes, and unbounded undo history in the document. Design snapshots contain only last-applied projection fields needed to detect manual edits.
 
 R2 is reserved for future larger immutable content/assets. An R2-backed document mode requires an explicit storage-envelope version, upload validation, immutable keys/checksums, authorization, and orphan cleanup. Publish the D1 pointer only after object upload succeeds; D1 and R2 do not share a transaction. Project backup must still export a complete portable bundle. Do not silently split the Phase 2 embedded design or add R2 implementation before Phase 3.
 
-Optimizer output is a disposable cache outside the authoritative document, keyed by input revision/hash, optimizer version, and options/seed. Drop it on mismatch; authoritative inputs remain sufficient to recompute. Camera/display preferences need an explicit local-versus-portable scope in the Phase 2 plan; renderer objects never enter the schema.
+Optimizer output is a disposable cache outside the authoritative document, keyed by input revision/hash, optimizer version, and options/seed. Drop it on mismatch; authoritative inputs remain sufficient to recompute. Owner decision D6a (2026-10-22) keeps camera/display/snap preferences device-local per namespace/project, outside portable backups and model undo. Copies/imports start with default view preferences; preference writes are independent of project save acknowledgements. D6b keeps measurements transient with no stored guide entities. Renderer objects never enter the schema.
 
 ## Required verification when implemented
 
@@ -254,6 +276,8 @@ Optimizer output is a disposable cache outside the authoritative document, keyed
 - Boundary sizes/counts, invalid references, unsupported currencies, unsafe arithmetic, complete generated-board cross-sections, invalid design topology/link membership, and stale projection snapshots.
 - Phase 3: cross-account denial, repeated upload/mutation, response lost after commit, mismatched reused mutation ID, two saves from one revision, concurrent quota checks, offline stale edits after deletion, account switching, and nonregressing reads.
 - Crash between local commit and dispatch/acknowledgment; expired lease with two tabs; newer edits during upload; stale lease response; same project ID in two accounts; sign-out with unsent work and in-flight responses.
+- Canonical serializer golden fixtures, numeric-looking object keys, Unicode, preserved arrays, byte boundaries and raw-input limits; unchanged save/export/import byte equality. Future Worker must consume the same fixtures.
+- Linked/unlinked explicit cut-spec geometry edits retain dimensions and unconfirmed state after reload/copy/restore; projection blocks until explicit confirmation. Detach survives repeated preview/apply and round trips without duplicate rows; explicit re-inclusion, Duplicate/Make Unique and undo/redo preserve documented semantics.
 - Design autosave after source/Part deletion or Make Unique before projection review; pending-state copy/round-trip; explicit detach and atomic link reconciliation.
 - Every legacy tightening/default above, exact-byte legacy export, receipt replay after schema upgrade, bounded receipt payloads, restore before/after content expiry, and local eviction versus delete-everywhere.
 - Remote writes during paginated snapshot/change reads, missed/expired cursors, unsupported remote versions, remote tombstone with dirty work, and cursor advancement only after durable conflict/application.

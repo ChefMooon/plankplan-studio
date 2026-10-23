@@ -1,10 +1,10 @@
 # PlankPlan Studio 3D Workspace: Initial Features
 
-**Status:** Feature decisions closed; detailed Phase 2 implementation plan remains to be written.
-**Last reviewed:** 2026-10-22
+**Status:** The approved initial feature contract is implemented in the project Design workspace with documented limitations. See the [implementation plan](plans/3d-workspace/3d-workspace-plan.md) and [Phase 7 evidence](plans/3d-workspace/phase-7-evidence.md); required browser, performance and assistive-technology release evidence remains incomplete.
+**Last reviewed:** 2026-10-23
 **Architecture context:** [3D Workspace Guide](plankplan-studio-3d-workspace-guide.md)
 
-This document captures the agreed initial workspace tools and behaviors. The MVP Design area remains a shell; this proposal does not authorize Phase 2 implementation.
+This document captures the agreed initial workspace tools and behaviors. The accompanying implementation plan records the actual delivered subset, verification evidence and remaining limits. This is the feature contract; consult that plan for current implementation status.
 
 ## Architecture decisions recorded
 
@@ -135,7 +135,7 @@ The menu depends on the hit target and current selection:
 
 Initial geometry includes both board/panel primitives and free-form planar edges/faces plus simple Push/Pull solids. Booleans, holes, and self-intersecting geometry are out of scope. Supported-operation and rejection rules belong in the Phase 2 implementation plan; do not assume Three.js alone provides general constructive solid geometry.
 
-Implementation details to define: planar closure tolerance, rejected topology cases, Push/Pull through existing geometry, Eraser granularity, nested components, face/edge conversion UX, exact context menu commands, shortcut conflicts, pointer release outside the canvas, right-click during unfinished operations, measurement persistence, and display preference persistence.
+The approved [implementation-plan D2 contract](plans/3d-workspace/3d-workspace-plan.md#d2-approved-concrete-design-schema) defines geometry tolerance/rejection, extrusion/Eraser rules and single-level components. Its decision register also settles interrupted gestures, temporary measurements and local display preferences. Conversion/menu UI, snap ranking and actual browser shortcut compatibility remain implementation/verification tasks within those approved boundaries.
 
 ## Acceptance criteria
 
@@ -159,3 +159,10 @@ Implementation details to define: planar closure tolerance, rejected topology ca
 ## Persistence contract dependency
 
 The [data and persistence contract](plankplan-studio-data-persistence-contract.md) is authoritative for target v2 serialization, identity operations, validation, migration/recovery, and per-project local repository concurrency. Phase 2 must define the exact design records and enforce link integrity, bounded projection snapshots, the document byte budget, and stale-preview checks before applying cutlist changes. Current code remains v1. Authentication, Cloudflare services, and cloud synchronization remain Phase 3 implementation work.
+
+## Durable review state and portable bytes (2026-10-22 amendment)
+
+- Explicit cut dimensions retain their values and a required confirmed/requires-confirmation state on CutSpec. Definition geometry edits require explicit reconfirmation, including before first projection; saving remains allowed, projection remains blocked. Link pending state cannot substitute for this flag. Primitive specs remain synchronized with primitive dimensions. Move/rotate and instance scale do not invalidate definition confirmation.
+- Detach preserves the manual Part and persistently excludes surviving source instances from projection. Reopening, editing, copying, restoring or transferring through cloud saves must not regenerate those rows. Make Unique and Duplicate preserve exclusion. Only explicit Include in cutlist clears it and permits a new reviewed addition; it never silently reconnects the preserved manual Part. Excluded instances cannot belong to current links. Source deletion removes per-instance exclusion naturally, without an accumulating history.
+- The authoritative [persistence contract](plankplan-studio-data-persistence-contract.md#canonical-project-serialization-and-byte-measurement) defines compact, recursively key-sorted JSON with unchanged array order, encoded as UTF-8. Its bytes alone determine the 1,000,000-byte document budget for local saves, backups and future cloud validation/storage. Separate bounded raw input does not change that budget; exact-byte recovery remains intact. Pending cloud request bytes remain immutable for retries.
+- Acceptance requires save/reopen/export/import/copy/restore fixtures for unconfirmed dimensions and detached sources, repeated projection without duplicates, explicit reconfirm/re-include and undo/redo, plus canonical byte equality and Unicode/near-limit/raw-input boundary cases. These are target requirements, not implemented guarantees.

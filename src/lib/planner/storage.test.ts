@@ -3,7 +3,7 @@ import { exportProject } from './model';
 import { importProjectAsNew } from './storage';
 import type { Project } from './model';
 
-const project: Project = { schemaVersion: 1, id: 'same-id', name: 'Backup', unitSystem: 'imperial', kerf: { um: 0 }, trim: { um: 0 }, minOffcutLinear: { um: 0 }, minOffcutSheet: { shortSideUm: 0, longSideUm: 0 }, currency: 'CAD', createdAt: '', updatedAt: '', parts: [], materials: [] };
+const project: Project = { schemaVersion: 2, id: 'same-id', name: 'Backup', unitSystem: 'imperial', kerf: { um: 0 }, trim: { um: 0 }, minOffcutLinear: { um: 0 }, minOffcutSheet: { shortSideUm: 0, longSideUm: 0 }, currency: 'CAD', createdAt: '2026-10-22T00:00:00.000Z', updatedAt: '2026-10-22T00:00:00.000Z', parts: [], materials: [] };
 
 describe('project backup import', () => {
   it('assigns a fresh id when an imported backup would duplicate a local project', () => {
@@ -13,8 +13,8 @@ describe('project backup import', () => {
     expect(project.id).toBe('same-id');
   });
 
-  it('preserves an id when the backup does not collide', () => {
-    expect(importProjectAsNew(exportProject(project), []).id).toBe(project.id);
+  it('always creates a fresh project identity for an imported copy', () => {
+    expect(importProjectAsNew(exportProject(project), []).id).not.toBe(project.id);
   });
 
   it('does not append an imported duplicate id without changing the original record', () => {

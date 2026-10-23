@@ -16,19 +16,19 @@ Tracked and verified in the separate [MVP implementation plan](plans/plankplan-s
 - Imperial and metric inputs; linear, sheet, and mixed-material optimization.
 - Validated cut plans, diagrams, shopping lists, cost summaries, warnings, and usable offcuts.
 - Local storage, JSON project backup, CSV, print CSS/browser Save as PDF, and mobile-friendly results.
-- The home page and project navigation expose both Design and Cutlist; the MVP includes only a navigable 3D workspace shell and honest empty state.
+- The home page and project navigation expose Design and Cutlist. The optional project Design workspace is implemented; release verification remains partial in the [3D workspace implementation plan](plans/3d-workspace/3d-workspace-plan.md).
 - No accounts, cloud sync, billing, alternative-material optimization, or custom PDF writer in this horizon.
 
 ## Phase 2: 3D Project Design and Model Creation
 
-After the cutlist workflow is solid, expand the core journey so users can create a project design in 3D and turn that design into a parts list and cutlist. This is a major product feature and the main follow-on flow after MVP.
+This horizon adds the local project Design workflow and deliberate 3D-to-cutlist projection. The implementation is present, with Phase 7 browser, accessibility and performance release evidence still incomplete.
 
 - **Rendering technology:** Three.js.
 - **Core outcome:** Create/edit a 3D project model whose dimensions and components can produce or update the project's cutlist inputs.
-- **MVP foundation:** Home-page entry and project-level Design/Cutlist navigation plus a nonfunctional workspace shell are planned in the MVP. Three.js scene rendering and modeling interactions begin in this phase.
+- **MVP foundation:** Home-page entry and project-level Design/Cutlist navigation are present. Project Design renders a Three.js scene and supports the documented initial modeling tools; standalone `/design-preview` remains illustrative and never creates or saves a project.
 - **Planning inputs:** [3D workspace guide](plankplan-studio-3d-workspace-guide.md) and [initial features proposal](plankplan-studio-3d-workspace-initial-features.md) capture the reviewed tool set, component behavior, stock options, interaction rules, and cutlist synchronization safeguards.
-- **Planning status:** The owner resolved design-data storage/migration, free-form geometry scope, model-linked cross-section fit validation, and component-to-cutlist link placement on 2026-10-22. Prepare a separate Phase 2 implementation plan from the linked guide and feature proposal; do not add these tasks to the MVP plan.
-- Follow the [data and persistence contract](plankplan-studio-data-persistence-contract.md) for target v2, explicit copy/restore identities, recoverable local storage, and an asynchronous per-project repository with local concurrency checks. Define exact design records before implementation. Include detection/recovery of old-tab localStorage writes during and after IndexedDB cutover. No accounts or cloud services in Phase 2.
+- **Planning and implementation status:** Owner decisions were closed on 2026-10-22; the sequential implementation plan is in progress. Phases 1-6 delivered contract, schema/repository, geometry/projection, rendering, interactions and Cutlist integration with partial evidence; Phase 7 records remaining release checks. Consult the plan before treating behavior as fully verified.
+- Follow the [data and persistence contract](plankplan-studio-data-persistence-contract.md) for target v2, copy/restore identities, recoverable local storage and per-project IndexedDB operations. Old legacy tabs are not fenced from later localStorage writes; migration retains and rechecks the source but cannot make those tabs stop writing. No accounts or cloud services are included.
 - Keep the cutlist planner useful on its own; 3D design should feed into the existing project/parts/optimizer workflow rather than replace it.
 
 ## After Phase 2: Product Maturity and Cloud Capabilities

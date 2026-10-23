@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { exactLinearCostCents, naiveLinearCostCents, optimizeLinear, validateLinearPlan } from './linear';
 import { umFromInches, type Project } from './model';
-const project: Project = { schemaVersion: 1, id: 'p', name: 'Test', unitSystem: 'imperial', kerf: { um: umFromInches(.125) }, trim: { um: umFromInches(.25) }, minOffcutLinear: { um: umFromInches(12) }, minOffcutSheet: { shortSideUm: 150000, longSideUm: 300000 }, currency: 'CAD', createdAt: '', updatedAt: '', parts: [{ id: 'a', name: 'Rail', materialId: 'm', length: { um: umFromInches(48) }, quantity: 2 }, { id: 'b', name: 'Stile', materialId: 'm', length: { um: umFromInches(24) }, quantity: 2 }], materials: [] };
+const project: Project = { schemaVersion: 2, id: 'p', name: 'Test', unitSystem: 'imperial', kerf: { um: umFromInches(.125) }, trim: { um: umFromInches(.25) }, minOffcutLinear: { um: umFromInches(12) }, minOffcutSheet: { shortSideUm: 150000, longSideUm: 300000 }, currency: 'CAD', createdAt: '', updatedAt: '', parts: [{ id: 'a', name: 'Rail', materialId: 'm', length: { um: umFromInches(48) }, quantity: 2 }, { id: 'b', name: 'Stile', materialId: 'm', length: { um: umFromInches(24) }, quantity: 2 }], materials: [] };
 const material = { id: 'm', name: 'Pine', type: 'linear' as const, stocks: [{ id: 's', name: '8 ft board', length: { um: umFromInches(96) }, price: { cents: 2000 }, widthUm: umFromInches(6), thicknessUm: umFromInches(1), priceBasis: 'board-foot' as const, ownedQuantity: 0 }] };
 describe('linear optimizer contracts', () => {
   it('emits complete, independently valid, kerf and trim aware plans', () => {
@@ -53,6 +53,26 @@ describe('linear optimizer contracts', () => {
     expect(optimizeLinear(boundary, [material]).valid).toBe(true);
     const tooLong = { ...boundary, parts: [{ ...boundary.parts[0], length: { um: umFromInches(95.751) } }] };
     expect(optimizeLinear(tooLong, [material]).valid).toBe(false);
+  });
+  it('checks actual cross sections, including a quarter turn about the board length', () => {
+    const part = { ...project.parts[0], quantity: 1, crossSection: { width: { um: 80_000 }, thickness: { um: 35_000 } } };
+    const turnedStock = { ...material, stocks: [{ ...material.stocks[0], widthUm: 40_000, thicknessUm: 90_000 }] };
+    const result = optimizeLinear({ ...project, parts: [part] }, [turnedStock]);
+    expect(result.valid).toBe(true);
+    expect(validateLinearPlan({ ...project, parts: [part] }, [turnedStock], result.plans)).toEqual([]);
+    const undersized = { ...turnedStock, stocks: [{ ...turnedStock.stocks[0], widthUm: 30_000, thicknessUm: 70_000 }] };
+    expect(optimizeLinear({ ...project, parts: [part] }, [undersized]).warnings.some(w => w.code === 'oversize')).toBe(true);
+    expect(validateLinearPlan({ ...project, parts: [part] }, [undersized], result.plans)).toContain('Stock cross-section undersized: 8 ft board for Rail');
+  });
+  it('marks cross-section fit unverified when stock actual dimensions are missing', () => {
+    const part = { ...project.parts[0], quantity: 1, crossSection: { width: { um: 80_000 }, thickness: { um: 35_000 } } };
+    const noDimensions = { ...material, stocks: [{ ...material.stocks[0], widthUm: undefined, thicknessUm: undefined, priceBasis: 'piece' as const }] };
+    const result = optimizeLinear({ ...project, parts: [part] }, [noDimensions]);
+    expect(result.warnings.some(w => w.code === 'unverified-fit')).toBe(true);
+    expect(result.valid).toBe(false);
+    expect(validateLinearPlan({ ...project, parts: [part] }, [noDimensions], result.plans)).toContain('Stock cross-section unverified: 8 ft board for Rail');
+    const legacy = optimizeLinear({ ...project, parts: [{ ...project.parts[0], quantity: 1 }] }, [noDimensions]);
+    expect(legacy.valid).toBe(true);
   });
   it('explains missing manual prices while allowing owned stock', () => {
     const unpriced = { ...material, stocks: [{ ...material.stocks[0], price: undefined, ownedQuantity: 0 }] };

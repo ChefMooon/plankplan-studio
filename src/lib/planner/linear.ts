@@ -1,13 +1,26 @@
 import type { LinearPlan, LinearResult, Material, Project, StockOption } from './model';
 import { boardFootCents } from './model';
 
-type Unit = { id: string; lengthUm: number };
+type Unit = { id: string; lengthUm: number; crossSection?: { widthUm: number; thicknessUm: number } };
 const priceOf = (stock: StockOption): number | undefined => {
   if (!stock.price || stock.price.cents <= 0) return undefined;
   return stock.priceBasis === 'board-foot' ? boardFootCents(stock) : stock.price.cents;
 };
-const fits = (cuts: Unit[], stock: StockOption, kerf: number, trim: number) => trim + cuts.reduce((n, p) => n + p.lengthUm, 0) + Math.max(0, cuts.length - 1) * kerf <= stock.length.um;
+const fits = (cuts: Unit[], stock: StockOption, kerf: number, trim: number) => trim + cuts.reduce((n, p) => n + p.lengthUm, 0) + Math.max(0, cuts.length - 1) * kerf <= stock.length.um && cuts.every(part => {
+  if (!part.crossSection || stock.widthUm === undefined || stock.thicknessUm === undefined) return true;
+  const { widthUm, thicknessUm } = part.crossSection;
+  return (widthUm <= stock.widthUm && thicknessUm <= stock.thicknessUm) || (thicknessUm <= stock.widthUm && widthUm <= stock.thicknessUm);
+});
 const usedLength = (cuts: Unit[], kerf: number, trim: number) => trim + cuts.reduce((n, p) => n + p.lengthUm, 0) + Math.max(0, cuts.length - 1) * kerf;
+function crossSectionFit(part: Project['parts'][number], stock: StockOption): 'fit' | 'unverified' | 'undersize' {
+  if (!part.crossSection) return 'fit'; // Legacy/manual parts retain length-only behavior.
+  if (stock.widthUm === undefined || stock.thicknessUm === undefined) return 'unverified';
+  const { width, thickness } = part.crossSection;
+  return (width.um <= stock.widthUm && thickness.um <= stock.thicknessUm) ||
+    (thickness.um <= stock.widthUm && width.um <= stock.thicknessUm) ? 'fit' : 'undersize';
+}
+const fitsPart = (part: Project['parts'][number], stock: StockOption, trim: number) =>
+  part.length.um + trim <= stock.length.um && crossSectionFit(part, stock) !== 'undersize';
 
 /** Independent verifier. Checks part/material accounting, stock capacity, limits, ownership and totals. */
 export function validateLinearPlan(project: Project, materials: Material[], plans: LinearPlan[]): string[] {
@@ -27,7 +40,12 @@ export function validateLinearPlan(project: Project, materials: Material[], plan
     for (const cut of plan.cuts) {
       const part = parts.get(cut.partId);
       if (!part || part.materialId !== materialId || cut.lengthUm !== part.length.um) errors.push(`Unexpected part cut: ${cut.partId}`);
-      else seen.set(cut.partId, (seen.get(cut.partId) ?? 0) + 1);
+      else {
+        const fit = crossSectionFit(part, stock);
+        if (fit === 'undersize') errors.push(`Stock cross-section undersized: ${stock.name} for ${part.name}`);
+        if (fit === 'unverified') errors.push(`Stock cross-section unverified: ${stock.name} for ${part.name}`);
+        seen.set(cut.partId, (seen.get(cut.partId) ?? 0) + 1);
+      }
       used += cut.lengthUm;
     }
     used += Math.max(0, plan.cuts.length - 1) * project.kerf.um;
@@ -151,21 +169,25 @@ export function optimizeLinear(project: Project, materials: Material[]): LinearR
     if (material.type === 'sheet') {
       continue;
     }
-    const parts: Unit[] = project.parts.filter(p => p.materialId === material.id).flatMap(p => Array.from({ length: Math.max(0, p.quantity) }, () => ({ id: p.id, lengthUm: p.length.um })));
+    const parts: Unit[] = project.parts.filter(p => p.materialId === material.id).flatMap(p => Array.from({ length: Math.max(0, p.quantity) }, () => ({ id: p.id, lengthUm: p.length.um, ...(p.crossSection ? { crossSection: { widthUm: p.crossSection.width.um, thicknessUm: p.crossSection.thickness.um } } : {}) })));
     if (!parts.length) continue;
     const stocks = material.stocks.filter(s => s.length.um > 0).sort((a, b) => a.id.localeCompare(b.id));
     if (!stocks.length) { warnings.push({ code: 'no-stock', message: `No stock options for ${material.name}` }); continue; }
-    for (const part of project.parts.filter(p => p.materialId === material.id && !stocks.some(s => fits([{ id: p.id, lengthUm: p.length.um }], s, project.kerf.um, project.trim.um)))) warnings.push({ code: 'oversize', message: `${part.name} does not fit available stock`, partId: part.id });
+    for (const part of project.parts.filter(p => p.materialId === material.id && !stocks.some(s => fitsPart(p, s, project.trim.um)))) warnings.push({ code: 'oversize', message: `${part.name} does not fit available stock length or cross-section`, partId: part.id });
     if (warnings.some(w => w.code === 'oversize' && project.parts.find(p => p.id === w.partId)?.materialId === material.id)) continue;
     const selected = selectStockMix(parts, stocks, project.kerf.um, project.trim.um);
     if (!selected) {
       if (stocks.some(s => priceOf(s) === undefined && (s.quantityLimit === undefined || s.quantityLimit > 0))) warnings.push({ code: 'missing-price', message: `${material.name} has stock without a positive manual price. Enter a price or provide enough owned quantity.` });
       warnings.push({ code: 'capacity', message: `Available owned and limited stock quantities are insufficient for ${material.name}` }); continue;
     }
+    const unknownStockIds = new Set(stocks.filter(stock => stock.widthUm === undefined || stock.thicknessUm === undefined).map(stock => stock.id));
+    const unverifiedPartIds = new Set(selected.filter(plan => unknownStockIds.has(plan.stockId)).flatMap(plan => plan.cuts.map(cut => cut.partId)));
+    for (const part of project.parts.filter(p => unverifiedPartIds.has(p.id) && p.crossSection))
+      warnings.push({ code: 'unverified-fit', message: `${part.name} length fits, but selected stock actual cross-section dimensions are missing; fit is unverified.`, partId: part.id });
     plans.push(...selected);
   }
   const totalCostCents = plans.reduce((sum, p) => sum + p.costCents, 0);
   const validation = validateLinearPlan(project, materials, plans);
-  for (const message of validation) warnings.push({ code: 'invalid-plan', message });
-  return { plans, warnings, totalCostCents, valid: validation.length === 0 };
+  for (const message of validation) if (!message.startsWith('Stock cross-section unverified:')) warnings.push({ code: 'invalid-plan', message });
+  return { plans, warnings, totalCostCents, valid: validation.length === 0 && !warnings.some(w => w.code === 'unverified-fit') };
 }

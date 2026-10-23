@@ -8,7 +8,7 @@ const inch = (value: number) => ({ um: umFromInches(value) });
 
 // A small, reproducible shop job: an entry bench frame and two plywood panels.
 const entryBench: Project = {
-  schemaVersion: 1, id: 'entry-bench', name: 'Entry bench', unitSystem: 'imperial',
+  schemaVersion: 2, id: 'entry-bench', name: 'Entry bench', unitSystem: 'imperial',
   kerf: inch(.125), trim: inch(.25), minOffcutLinear: inch(12),
   minOffcutSheet: { shortSideUm: umFromInches(6), longSideUm: umFromInches(12) },
   currency: 'CAD', createdAt: '', updatedAt: '',

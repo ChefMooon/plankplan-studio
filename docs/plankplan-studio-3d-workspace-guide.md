@@ -1,8 +1,8 @@
 # PlankPlan Studio 3D Workspace Guide
 
-**Status:** Phase 2 owner decisions recorded; detailed implementation plan remains to be written.
-**Last reviewed:** 2026-10-22
-**Rendering direction:** Three.js; React Three Fiber/Drei are candidates, not yet an approved dependency decision.
+**Status:** Implemented as a local, optional project Design workspace; see the [implementation plan](plans/3d-workspace/3d-workspace-plan.md) and [Phase 7 evidence](plans/3d-workspace/phase-7-evidence.md). Verification is partial: automated checks and a limited isolated-browser workflow pass, while target Chrome/Edge, cross-tab resilience, performance budgets and assistive-technology validation remain outstanding.
+**Last reviewed:** 2026-10-23
+**Rendering direction:** Three.js with React Three Fiber and selected Drei helpers. Dependency/build compatibility is checked; real-browser GPU and performance evidence is still pending.
 
 This guide reviews the CM Modding Tools collision-box workspace and adapts the useful patterns to PlankPlan Studio. It complements the [initial feature proposal](plankplan-studio-3d-workspace-initial-features.md); it is not an implementation plan. The Phase 2 work must preserve the independent manual cutlist workflow.
 
@@ -13,8 +13,21 @@ Let a woodworker model a project, inspect its assembly, and intentionally derive
 - The 3D model is optional. Manual parts, materials, optimization, and shop outputs remain usable without it.
 - Model edits never silently overwrite user-maintained cutlist data. Show a change preview and require explicit application.
 - Free-form geometry may exist in the model without being cutlist-ready. A component must be converted to a supported board/panel representation or given explicit cut dimensions before it enters optimizer input.
-- The MVP includes only the navigable Design shell. Rendering and editing are Phase 2.
-- The decisions below close the storage, geometry-scope, cross-section, and component-link placement gates. Remaining interaction details are handed to the separate Phase 2 implementation plan.
+- The project Design route now contains the optional 3D workspace. The independent manual Cutlist remains usable without a model.
+- Model-to-cutlist changes are reviewed before applying; generated rows retain links and state in the project document.
+- The standalone `/design-preview` remains an illustrative no-project/no-save page. It is not the modeling workspace.
+- The implementation plan records delivered behavior, known limits and unresolved release evidence; decisions below describe the product contract, not proof of full release readiness.
+
+## Delivered behavior and current limits
+
+- A project may have no design or an optional local design document. Opening Design on a new manual project does not create a model. Project data uses the versioned IndexedDB repository and local recovery path; there are no accounts, cloud synchronization or cross-device saves.
+- The project workspace includes Select, Eraser, Line, Rectangle, Push/Pull, Move, Rotate, Scale, Paint, Orbit, Pan and Tape Measure, plus a semantic component list, entity properties, five information drawers, shortcut help, undo/redo and a keyboard context menu. Camera/display/snap preferences are local UI state; measurements are transient.
+- The implemented gestures are bounded: Line and Rectangle draw on the XY plane; Move uses an XY plane; Rotate is around the selected axis (Z in the current gesture path); Scale supports uniform scaling. The current tool gestures do not provide full arbitrary-plane/3D transform manipulation. Push/Pull operates on a selected face with simple extrusion; general booleans, holes, multi-profile joins and unsupported/self-intersecting geometry remain unavailable.
+- Components support single-level definitions and instances, duplicate, Make Unique, shared-definition editing, rename, hide/show and removal. Nested component assemblies are deferred. Some operations have semantic list/property controls, but canvas selection, face/edge selection, pointer gestures and camera control do not yet have equivalent fully verified keyboard/screen-reader workflows.
+- Modeled board cut dimensions retain the requested size. Stock fit can be verified for known linear cross-sections; missing dimensions are reported as unverified and known undersize is rejected. Panel thickness remains in the model and is explicitly unverified by the 2D sheet optimizer. A reviewed preview is required before modeled parts and their links are applied to Cutlist; manual rows remain independently editable.
+- The standalone `/design-preview` is illustrative, creates no project and saves no model. Use a project's Design tab to create/save a model and review Cutlist changes.
+
+The implementation plan is the source of current evidence, including the remaining Chrome/Edge, multi-tab migration, storage-failure, renderer-resource, performance and assistive-technology gates.
 
 ## Reference review: CM Modding Tools
 
@@ -162,9 +175,16 @@ Active projection links resolve within the same project and reject duplicate liv
 
 ## Deferred implementation details
 
-The separate Phase 2 plan should settle exact regional preset values, conversion UI for free-form geometry, topology error behavior, tool-specific snapping, measurement/display persistence, nested component behavior, context-menu commands, and detailed field-conflict UI. Specify these before their implementation tasks begin.
+The [Phase 2 implementation plan](plans/3d-workspace/3d-workspace-plan.md) now settles schema/topology, single-level components, transient measurements, local view preferences, regional scope and field-conflict semantics. Implement the approved rules; verify exact Canada/US preset values, refine conversion/menu UI and snap target ranking within those rules, and record browser/shortcut/performance evidence before release. These implementation checks do not reopen the settled product decisions.
 
 ## Sources reviewed
 
 - CM Modding Tools Collision Box Builder components and model: `CollisionViewport.tsx`, `ShapesListSidebar.tsx`, `ShapePropertiesPanel.tsx`, `useCollisionBuilderState.ts`, `types.ts`, and `persistence.ts` (reviewed 2026-10-22).
 - PlankPlan Studio: [Product Specification](plankplan-studio-product-spec.md), [MVP](plankplan-studio-mvp.md), [MVP UI/UX Specification](plankplan-studio-mvp-ui-ux-spec.md), [Roadmap](plankplan-studio-roadmap.md), and `src/lib/planner/model.ts`.
+
+## Durable review state and portable bytes (2026-10-22 amendment)
+
+- Explicit cut dimensions retain their values and a required confirmed/requires-confirmation state on CutSpec. Definition geometry edits require explicit reconfirmation, including before first projection; saving remains allowed, projection remains blocked. Link pending state cannot substitute for this flag. Primitive specs remain synchronized with primitive dimensions. Move/rotate and instance scale do not invalidate definition confirmation.
+- Detach preserves the manual Part and persistently excludes surviving source instances from projection. Reopening, editing, copying, restoring or transferring through cloud saves must not regenerate those rows. Make Unique and Duplicate preserve exclusion. Only explicit Include in cutlist clears it and permits a new reviewed addition; it never silently reconnects the preserved manual Part. Excluded instances cannot belong to current links. Source deletion removes per-instance exclusion naturally, without an accumulating history.
+- The authoritative [persistence contract](plankplan-studio-data-persistence-contract.md#canonical-project-serialization-and-byte-measurement) defines compact, recursively key-sorted JSON with unchanged array order, encoded as UTF-8. Its bytes alone determine the 1,000,000-byte document budget for local saves, backups and future cloud validation/storage. Separate bounded raw input does not change that budget; exact-byte recovery remains intact. Pending cloud request bytes remain immutable for retries.
+- Acceptance requires save/reopen/export/import/copy/restore fixtures for unconfirmed dimensions and detached sources, repeated projection without duplicates, explicit reconfirm/re-include and undo/redo, plus canonical byte equality and Unicode/near-limit/raw-input boundary cases. These are target requirements, not implemented guarantees.

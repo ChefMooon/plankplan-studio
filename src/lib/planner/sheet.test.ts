@@ -3,7 +3,7 @@ import { umFromInches } from './model';
 import { naiveSheetCostCents, optimizeSheets, validateSheetPlan } from './sheet';
 import type { Project, Material } from './model';
 
-const project: Project = { schemaVersion: 1, id: 'p', name: 'Sheet test', unitSystem: 'imperial', kerf: { um: umFromInches(.125) }, trim: { um: 0 }, minOffcutLinear: { um: umFromInches(12) }, minOffcutSheet: { shortSideUm: umFromInches(6), longSideUm: umFromInches(12) }, currency: 'CAD', createdAt: '', updatedAt: '', parts: [
+const project: Project = { schemaVersion: 2, id: 'p', name: 'Sheet test', unitSystem: 'imperial', kerf: { um: umFromInches(.125) }, trim: { um: 0 }, minOffcutLinear: { um: umFromInches(12) }, minOffcutSheet: { shortSideUm: umFromInches(6), longSideUm: umFromInches(12) }, currency: 'CAD', createdAt: '', updatedAt: '', parts: [
   { id: 'a', name: 'Top', materialId: 'm', length: { um: umFromInches(30) }, width: { um: umFromInches(18) }, quantity: 1 },
   { id: 'b', name: 'Side', materialId: 'm', length: { um: umFromInches(20) }, width: { um: umFromInches(12) }, quantity: 2, grainLocked: true },
 ], materials: [] };

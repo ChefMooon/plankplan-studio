@@ -1,0 +1,190 @@
+import { fireEvent, render, screen, within, waitFor } from '@testing-library/react';
+import { describe, expect, it, vi } from 'vitest';
+import type { Project } from '@/lib/planner/model';
+import { DesignWorkspace } from './DesignWorkspace';
+import { rectangleGeometry } from '@/lib/planner/design/geometry';
+
+vi.mock('./DesignViewport', () => ({ DesignViewport: ({ onSelect, onEnterDefinition, editingDefinitionId }: { onSelect: (id?: string) => void; onEnterDefinition?:(id:string)=>void; editingDefinitionId?:string }) => <><button type="button" aria-label="Select sample in model" onClick={() => onSelect('instance-1')}>Sample viewport</button><button type="button" onClick={()=>onEnterDefinition?.('definition-1')}>Enter shared definition</button>{editingDefinitionId&&<span role="status">Editing {editingDefinitionId}</span>}</> }));
+
+const project: Project = {
+  schemaVersion: 2, id: 'workspace-test', name: 'Sample bench', unitSystem: 'imperial', kerf: { um: 0 }, trim: { um: 0 }, minOffcutLinear: { um: 0 }, minOffcutSheet: { shortSideUm: 0, longSideUm: 0 }, currency: 'CAD', createdAt: '2026-01-01T00:00:00.000Z', updatedAt: '2026-01-01T00:00:00.000Z', parts: [], materials: [],
+  design: { schemaVersion: 1, definitions: [{ id: 'definition-1', name: 'Side panel', geometry: rectangleGeometry(400_000,300_000,(()=>{let id=0;return p=>`fixture-${p}-${id++}`;})(),18_000), cutSpec: { kind: 'panel', lengthUm: 400_000, widthUm: 300_000, thicknessUm: 18_000, grainAxis: 'length', confirmation: 'confirmed' }, appearance: { color: '#bd8a56' } }], instances: [{ id: 'instance-1', definitionId: 'definition-1', name: 'Left side', pose: { positionUm: [0,0,0], rotation: [0,0,0,1] }, scalePpm: [1_000_000,1_000_000,1_000_000], hidden: false, locked: false }], looseObjects: [], partLinks: {} },
+};
+
+describe('DesignWorkspace', () => {
+  it('keeps tools and camera controls accessible and synchronizes model/list selection', async () => {
+    render(<DesignWorkspace project={project} />);
+    expect(screen.getByRole('button', { name: 'Select (Space)' })).toBeEnabled();
+    expect(screen.getByRole('button', { name: 'Rectangle (R)' })).toBeEnabled();
+    expect(screen.getByRole('button', { name: 'Top' })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('tab', { name: 'Components' }));
+    const panel = screen.getByRole('tabpanel');
+    fireEvent.click(within(panel).getByRole('button', { name: /Left side/ }));
+    fireEvent.click(screen.getByRole('tab', { name: 'Entity Info' }));
+    const info = within(screen.getByRole('tabpanel'));
+    expect(info.getByRole('textbox', { name: 'Entity name' })).toHaveValue('Left side');
+    expect(info.getByText('Length').parentElement).toHaveTextContent('400,000 µm');
+  });
+
+  it('does not create or persist a design while the workspace is visited', () => {
+    const manualProject = { ...project, design: undefined };
+    render(<DesignWorkspace project={manualProject} />);
+    fireEvent.click(screen.getByRole('tab', { name: 'Model Info' }));
+    expect(screen.getByText('Not created')).toBeInTheDocument();
+    expect(window.localStorage.length).toBe(0);
+    fireEvent.click(screen.getByRole('tab', { name: 'Components' }));
+    expect(screen.getByText(/does not create one/i)).toBeInTheDocument();
+  });
+
+  it('shows independent material and paint controls and applies reviewed cutlist links atomically', async () => {
+    const withMaterial = { ...project, materials: [{ id: 'sheet-material', name: 'Birch plywood', type: 'sheet' as const, stocks: [{ id: 'sheet-stock', name: '4 × 8', length: { um: 2_438_400 }, widthUm: 1_219_200, price: { cents: 5000 }, ownedQuantity: 0 }] }], design: { ...project.design!, definitions: project.design!.definitions.map(definition => ({ ...definition, materialId: 'sheet-material' })) } };
+    const onCommit = vi.fn();
+    render(<DesignWorkspace project={withMaterial} onCommit={onCommit} />);
+    fireEvent.click(screen.getByRole('button', { name: /Left side/ }));
+    fireEvent.click(screen.getByRole('tab', { name: 'Materials' }));
+    expect(screen.getByText(/Paint controls visual appearance/)).toBeInTheDocument();
+    expect(screen.getByRole('combobox', { name: 'Cutlist material' })).toHaveTextContent('Birch plywood');
+    fireEvent.click(screen.getByRole('tab', { name: 'Model Info' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Review cutlist changes' }));
+    const decision = await screen.findByRole('combobox', { name: 'Decision for Side panel' });
+    fireEvent.change(decision, { target: { value: 'apply' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Apply reviewed changes' }));
+    await waitFor(() => expect(onCommit).toHaveBeenCalledOnce());
+    expect(onCommit.mock.calls[0][0].parts).toHaveLength(1);
+    expect(Object.keys(onCommit.mock.calls[0][0].design.partLinks)).toHaveLength(1);
+  });
+
+  it('rejects a cutlist preview after the repository generation changes', async () => {
+    const withMaterial = { ...project, materials: [{ id: 'sheet-material', name: 'Birch plywood', type: 'sheet' as const, stocks: [{ id: 'sheet-stock', name: '4 × 8', length: { um: 2_438_400 }, widthUm: 1_219_200, price: { cents: 5000 }, ownedQuantity: 0 }] }], design: { ...project.design!, definitions: project.design!.definitions.map(definition => ({ ...definition, materialId: 'sheet-material' })) } };
+    const onCommit = vi.fn();
+    const view = render(<DesignWorkspace project={withMaterial} onCommit={onCommit} localGeneration={4} />);
+    fireEvent.click(screen.getByRole('tab', { name: 'Model Info' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Review cutlist changes' }));
+    fireEvent.change(await screen.findByRole('combobox', { name: 'Decision for Side panel' }), { target: { value: 'apply' } });
+    view.rerender(<DesignWorkspace project={withMaterial} onCommit={onCommit} localGeneration={5} />);
+    expect(screen.getByRole('alert')).toHaveTextContent(/preview is stale/i);
+    expect(screen.getByRole('button', { name: 'Apply reviewed changes' })).toBeDisabled();
+    expect(onCommit).not.toHaveBeenCalled();
+  });
+
+  it('keeps the review open and reports a failed atomic apply for retry', async () => {
+    const withMaterial = { ...project, materials: [{ id: 'sheet-material', name: 'Birch plywood', type: 'sheet' as const, stocks: [{ id: 'sheet-stock', name: '4 × 8', length: { um: 2_438_400 }, widthUm: 1_219_200, price: { cents: 5000 }, ownedQuantity: 0 }] }], design: { ...project.design!, definitions: project.design!.definitions.map(definition => ({ ...definition, materialId: 'sheet-material' })) } };
+    const onCommit = vi.fn().mockResolvedValue(false);
+    render(<DesignWorkspace project={withMaterial} onCommit={onCommit} />);
+    fireEvent.click(screen.getByRole('tab', { name: 'Model Info' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Review cutlist changes' }));
+    fireEvent.change(await screen.findByRole('combobox', { name: 'Decision for Side panel' }), { target: { value: 'apply' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Apply reviewed changes' }));
+    expect(await screen.findByText(/cutlist changes were not saved/i)).toBeInTheDocument();
+    expect(screen.getByRole('region', { name: 'Cutlist review' })).toBeInTheDocument();
+    expect(onCommit).toHaveBeenCalledOnce();
+  });
+
+  it('creates a board through a domain command and exposes undo/redo', () => {
+    const onCommit = vi.fn();
+    render(<DesignWorkspace project={{ ...project, design: undefined }} onCommit={onCommit} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Create board' }));
+    expect(onCommit).toHaveBeenCalledOnce();
+    expect(onCommit.mock.calls[0][0].design?.instances).toHaveLength(1);
+    screen.getByRole('button',{name:'Create board'}).focus();
+    fireEvent.keyDown(screen.getByRole('button',{name:'Create board'}),{key:'z',ctrlKey:true});
+    expect(onCommit.mock.calls[1][0].design?.instances).toHaveLength(0);
+    fireEvent.keyDown(screen.getByRole('button',{name:'Create board'}),{key:'z',ctrlKey:true,shiftKey:true});
+    expect(onCommit.mock.calls[2][0].design?.instances).toHaveLength(1);
+    fireEvent.click(screen.getByRole('tab', { name: 'Model Info' }));
+    expect(within(screen.getByRole('tabpanel')).getByText('Components').parentElement).toHaveTextContent('1');
+  });
+
+  it('applies exact values from the keyboard through a single design command', () => {
+    const onCommit=vi.fn();
+    render(<DesignWorkspace project={project} onCommit={onCommit} />);
+    fireEvent.click(screen.getByRole('button', { name: /Left side/ }));
+    const exact=screen.getByRole('spinbutton', { name: 'Exact value' });
+    fireEvent.change(exact,{target:{value:'610000'}});
+    fireEvent.click(screen.getByRole('button',{name:'Apply exact value'}));
+    expect(onCommit).toHaveBeenCalledOnce();
+    expect(onCommit.mock.calls[0][0].design?.definitions[0].cutSpec?.lengthUm).toBe(610_000);
+  });
+
+  it('guards shortcuts in editable fields and scopes tool shortcuts to workspace focus', () => {
+    render(<DesignWorkspace project={project} />);
+    fireEvent.click(screen.getByRole('tab',{name:'Components'}));
+    const search=screen.getByRole('textbox',{name:'Search components'});
+    fireEvent.keyDown(search,{key:'r'});
+    expect(document.querySelector('[aria-label="Rectangle (R)"]')).toHaveAttribute('aria-pressed','false');
+    fireEvent.click(screen.getByRole('button',{name:'Select (Space)'}));
+    screen.getByRole('button',{name:'Select (Space)'}).focus();
+    fireEvent.keyDown(screen.getByRole('button',{name:'Select (Space)' }),{key:'r'});
+    expect(screen.getByRole('button',{name:'Rectangle (R)'})).toHaveAttribute('aria-pressed','true');
+  });
+
+  it('cancels the selected tool on Escape and window blur', () => {
+    render(<DesignWorkspace project={project} />);
+    const line=screen.getByRole('button',{name:'Line (L)'});
+    fireEvent.click(line);
+    line.focus();
+    expect(line).toHaveAttribute('aria-pressed','true');
+    fireEvent.keyDown(line,{key:'Escape'});
+    expect(screen.getByRole('button',{name:'Select (Space)'})).toHaveAttribute('aria-pressed','true');
+    fireEvent.click(screen.getByRole('button',{name:'Line (L)'}));
+    fireEvent.blur(window);
+    expect(screen.getByRole('button',{name:'Select (Space)'})).toHaveAttribute('aria-pressed','true');
+  });
+
+  it('opens shortcut help with a searchable, keyboard-dismissable dialog', () => {
+    render(<DesignWorkspace project={project} />);
+    fireEvent.click(screen.getByRole('button',{name:'Keyboard shortcuts'}));
+    expect(screen.getByRole('dialog',{name:'Workspace shortcuts'})).toBeInTheDocument();
+    fireEvent.change(screen.getByRole('textbox',{name:'Search shortcuts'}),{target:{value:'Rectangle'}});
+    expect(within(screen.getByRole('dialog')).getByText('Rectangle')).toBeInTheDocument();
+    screen.getByRole('button',{name:'Close'}).focus();
+    fireEvent.keyDown(screen.getByRole('button',{name:'Close'}),{key:'Tab'});
+    expect(document.activeElement).toBe(screen.getByRole('textbox',{name:'Search shortcuts'}));
+    fireEvent.keyDown(screen.getByRole('dialog'),{key:'Escape'});
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    expect(document.activeElement).toBe(screen.getByRole('button',{name:'Keyboard shortcuts'}));
+  });
+
+  it('opens a bounded Radix context menu, cancels the active tool, and returns focus', async () => {
+    render(<DesignWorkspace project={project} />);
+    fireEvent.click(screen.getByRole('button',{name:'Rectangle (R)'}));
+    const viewport=document.querySelector('.design-viewport')!;
+    fireEvent.contextMenu(viewport,{clientX:1400,clientY:850});
+    expect(document.querySelector('[aria-label="Rectangle (R)"]')).toHaveAttribute('aria-pressed','false');
+    const item=await screen.findByRole('menuitem',{name:'Frame model'});
+    const menuItems=screen.getAllByRole('menuitem');
+    menuItems[0].focus();
+    fireEvent.keyDown(menuItems[0],{key:'ArrowDown'});
+    await waitFor(()=>expect(document.activeElement).toBe(menuItems[1]));
+    fireEvent.keyDown(item,{key:'Escape'});
+    await waitFor(()=>expect(document.activeElement).toBe(viewport));
+  });
+
+  it('exposes eligible object actions and focuses the name field for contextual rename', async () => {
+    const onCommit=vi.fn();render(<DesignWorkspace project={project} onCommit={onCommit} />);
+    fireEvent.click(document.querySelector('.design-selection-list button')!);
+    const viewport=document.querySelector('.design-viewport')!;fireEvent.contextMenu(viewport,{clientX:120,clientY:90});
+    expect(await screen.findByRole('menuitem',{name:'Edit Component'})).toBeInTheDocument();
+    expect(screen.getByRole('menuitem',{name:'Duplicate'})).toBeInTheDocument();
+    expect(screen.getByRole('menuitem',{name:'Hide'})).toBeInTheDocument();
+    expect(screen.getByRole('menuitem',{name:'Erase'})).toBeInTheDocument();
+    expect(screen.queryByRole('menuitem',{name:'Make Unique'})).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('menuitem',{name:'Rename'}));
+    const name=await screen.findByRole('textbox',{name:'Entity name'});
+    await waitFor(()=>expect(document.activeElement).toBe(name));
+    fireEvent.change(name,{target:{value:'Renamed panel'}});fireEvent.keyDown(name,{key:'Enter'});
+    expect(onCommit.mock.calls.at(-1)?.[0].design?.instances[0].name).toBe('Renamed panel');
+  });
+
+  it('offers Make Unique only for shared instances and keeps the edit target as the definition', async () => {
+    const shared={...project,design:{...project.design!,instances:[...project.design!.instances,{...project.design!.instances[0],id:'instance-2'}]}};
+    const onCommit=vi.fn();render(<DesignWorkspace project={shared} onCommit={onCommit} />);
+    fireEvent.click(document.querySelector('.design-selection-list button')!);
+    fireEvent.click(screen.getByRole('button',{name:'Enter shared definition'}));
+    expect(screen.getByText('Editing definition-1')).toBeInTheDocument();
+    fireEvent.contextMenu(document.querySelector('.design-viewport')!,{clientX:120,clientY:90});
+    fireEvent.click(await screen.findByRole('menuitem',{name:'Make Unique'}));
+    expect(onCommit.mock.calls.at(-1)?.[0].design?.definitions).toHaveLength(2);
+    expect(onCommit.mock.calls.at(-1)?.[0].design?.instances[0].definitionId).not.toBe('definition-1');
+  });
+});
