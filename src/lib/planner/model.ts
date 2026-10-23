@@ -5,7 +5,8 @@ export type Part = { id: string; name: string; materialId: string; length: Dimen
 export type StockOption = { id: string; name: string; length: Dimension; price?: Money; quantityLimit?: number; ownedQuantity: number; widthUm?: number; thicknessUm?: number; priceBasis?: 'piece' | 'board-foot' };
 export type MaterialKind = 'linear' | 'sheet';
 export type Material = { id: string; name: string; type: MaterialKind; stocks: StockOption[] };
-export type Project = { schemaVersion: 1; id: string; name: string; notes?: string; unitSystem: UnitSystem; kerf: Dimension; trim: Dimension; minOffcutLinear: Dimension; minOffcutSheet: { shortSideUm: number; longSideUm: number }; sheetLayout?: 'cheapest' | 'simplestCuts'; currency: string; taxRate?: number; parts: Part[]; materials: Material[]; createdAt: string; updatedAt: string };
+export type EditorOrder = { parts?: string[]; materials?: string[]; stocks?: Record<string, string[]> };
+export type Project = { schemaVersion: 1; id: string; name: string; notes?: string; unitSystem: UnitSystem; kerf: Dimension; trim: Dimension; minOffcutLinear: Dimension; minOffcutSheet: { shortSideUm: number; longSideUm: number }; sheetLayout?: 'cheapest' | 'simplestCuts'; currency: string; taxRate?: number; parts: Part[]; materials: Material[]; editorOrder?: EditorOrder; createdAt: string; updatedAt: string };
 export type LinearPlan = { cuts: { partId: string; lengthUm: number }[]; stockId: string; stockCount: number; usedUm: number; wasteUm: number; costCents: number; ownedUsed: number };
 export type PlanWarning = { code: string; message: string; partId?: string };
 export type LinearResult = { plans: LinearPlan[]; warnings: PlanWarning[]; totalCostCents: number; valid: boolean };
@@ -59,6 +60,16 @@ export function importProject(json: string): Project {
   project.minOffcutLinear ??= { um: umFromInches(12) };
   project.minOffcutSheet ??= { shortSideUm: umFromMillimeters(150), longSideUm: umFromMillimeters(300) };
   project.materials.forEach(material => { material.type ??= 'linear'; });
+  if (project.editorOrder !== undefined) {
+    const rawOrder: unknown = project.editorOrder;
+    const stringIds = (value: unknown) => Array.isArray(value) ? value.filter((id): id is string => typeof id === 'string') : undefined;
+    const rawStocks = isRecord(rawOrder) && isRecord(rawOrder.stocks) ? rawOrder.stocks : {};
+    const stocks = Object.fromEntries(Object.entries(rawStocks).flatMap(([materialId, ids]) => {
+      const validIds = stringIds(ids);
+      return validIds ? [[materialId, validIds]] : [];
+    }));
+    project.editorOrder = isRecord(rawOrder) ? { parts: stringIds(rawOrder.parts), materials: stringIds(rawOrder.materials), stocks } : {};
+  }
   if (typeof project.createdAt !== 'string' || typeof project.currency !== 'string' || !project.currency.trim()) throw new Error('Invalid project currency or creation date');
   if (project.taxRate !== undefined && (typeof project.taxRate !== 'number' || !Number.isFinite(project.taxRate) || project.taxRate < 0 || project.taxRate > 100)) throw new Error('Tax rate must be between 0 and 100 percent');
   if (!isDimension(project.minOffcutLinear, true) || !isRecord(project.minOffcutSheet) || !isCount(project.minOffcutSheet.shortSideUm, true) || !isCount(project.minOffcutSheet.longSideUm, true)) throw new Error('Invalid minimum offcut settings');
