@@ -48,6 +48,7 @@ describe('local project workflow', () => {
     await user.upload(screen.getByLabelText(/import project/i), file);
     await screen.findByText('Imported bench');
     await user.click(within(screen.getByText('Imported bench').closest('article')!).getByRole('link', { name: /open design/i }));
+    await user.click(await screen.findByRole('tab', { name: 'Entity Info' }));
     expect(await screen.findByRole('heading', { name: 'Model workspace' })).toBeInTheDocument();
     // Canvas mounting is covered by browser smoke checks; jsdom verifies route composition and navigation.
     expect(screen.getByRole('link', { name: 'Cutlist' })).toBeInTheDocument();

@@ -45,7 +45,7 @@ function Design() {
   };
   return <main className="app-shell workspace design-page">
     <header className="topbar"><Link to="/" className="brand"><img src="/plankplan-studio-stock-mix-v02.svg" alt="" /><span>PlankPlan <b>Studio</b></span></Link><strong>{project.name}</strong><div className="topbar-tools"><span className="local-badge" role="status">{message || 'Saved locally'}</span>{message.startsWith('Conflict')&&<button type="button" onClick={()=>window.location.reload()}>Reload project</button>}<ThemeToggle /></div></header>
-    <div className="workspace-head"><div><Link className="back-link" to="/">← All projects</Link><h1>{project.name}</h1></div><nav className="tabs" aria-label="Project areas"><Link to="/projects/$projectId/design" params={{ projectId }} aria-current="page" className="tab active">Design</Link><Link to="/projects/$projectId/cutlist" params={{ projectId }} className="tab">Cutlist</Link></nav></div>
+    <div className="workspace-head"><div><Link className="back-link" to="/">← All projects</Link><h1>{project.name}</h1></div><div className="design-project-actions"><nav className="tabs" aria-label="Project areas"><Link to="/projects/$projectId/design" params={{ projectId }} aria-current="page" className="tab active">Design</Link><Link to="/projects/$projectId/cutlist" params={{ projectId }} className="tab">Cutlist</Link></nav><div id="design-project-info-action" /></div></div>
     <DesignWorkspace key={project.id} project={project} localGeneration={localGeneration} saveStatus={message || 'Saved locally'} onCommit={commit} />
   </main>;
 }

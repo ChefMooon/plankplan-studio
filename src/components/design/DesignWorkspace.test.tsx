@@ -43,6 +43,31 @@ describe('DesignWorkspace', () => {
     expect(info.getByText('Length').parentElement).toHaveTextContent('15.748 in');
   });
 
+  it('opens and closes the canvas panel drawer with vertical tab keyboard controls', () => {
+    render(<DesignWorkspace project={project} />);
+    const tabs = screen.getByRole('tablist', { name: 'Workspace panels' });
+    const drawer = document.querySelector('.design-drawer-content')!;
+    expect(tabs).toHaveAttribute('aria-orientation', 'vertical');
+    expect(drawer).toHaveAttribute('aria-hidden', 'true');
+    expect(drawer).toHaveAttribute('inert');
+    expect(screen.getByRole('tab', { name: 'Entity Info' })).toHaveAttribute('aria-expanded', 'false');
+    fireEvent.keyDown(screen.getByRole('tab', { name: 'Entity Info' }), { key: 'ArrowDown' });
+    const materialsTab = screen.getByRole('tab', { name: 'Materials' });
+    expect(materialsTab).toHaveFocus();
+    expect(materialsTab).toHaveAttribute('aria-selected', 'true');
+    expect(screen.getByRole('tabpanel')).toBeVisible();
+    expect(drawer).toHaveAttribute('aria-hidden', 'false');
+    expect(drawer).not.toHaveAttribute('inert');
+    fireEvent.keyDown(materialsTab, { key: 'Escape' });
+    expect(materialsTab).toHaveFocus();
+    expect(materialsTab).toHaveAttribute('aria-expanded', 'false');
+    fireEvent.click(materialsTab);
+    expect(screen.getByRole('tabpanel')).toBeVisible();
+    fireEvent.click(screen.getByRole('button', { name: 'Close panel' }));
+    expect(materialsTab).toHaveFocus();
+    expect(screen.queryByRole('tabpanel')).not.toBeInTheDocument();
+  });
+
   it('does not create or persist a design while the workspace is visited', () => {
     const manualProject = { ...project, design: undefined };
     render(<DesignWorkspace project={manualProject} />);
@@ -57,6 +82,7 @@ describe('DesignWorkspace', () => {
     const withMaterial = { ...project, materials: [{ id: 'sheet-material', name: 'Birch plywood', type: 'sheet' as const, stocks: [{ id: 'sheet-stock', name: '4 × 8', length: { um: 2_438_400 }, widthUm: 1_219_200, price: { cents: 5000 }, ownedQuantity: 0 }] }], design: { ...project.design!, definitions: project.design!.definitions.map(definition => ({ ...definition, materialId: 'sheet-material' })) } };
     const onCommit = vi.fn();
     render(<DesignWorkspace project={withMaterial} onCommit={onCommit} />);
+    fireEvent.click(screen.getByRole('tab', { name: 'Entity Info' }));
     fireEvent.click(screen.getByRole('button', { name: /Left side/ }));
     fireEvent.click(screen.getByRole('tab', { name: 'Materials' }));
     expect(screen.getByText(/Paint controls visual appearance/)).toBeInTheDocument();
@@ -115,6 +141,7 @@ describe('DesignWorkspace', () => {
   it('applies exact values from the keyboard through a single design command', () => {
     const onCommit=vi.fn();
     render(<DesignWorkspace project={project} onCommit={onCommit} />);
+    fireEvent.click(screen.getByRole('tab', { name: 'Entity Info' }));
     fireEvent.click(screen.getByRole('button', { name: /Left side/ }));
     const exact=screen.getByRole('spinbutton', { name: 'Exact value' });
     fireEvent.change(exact,{target:{value:'24.015748'}});
