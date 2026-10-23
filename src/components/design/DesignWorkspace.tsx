@@ -12,16 +12,17 @@ import type { SubElement } from './sub-selection';
 import type { ToolMeasurementSession } from './tool-measurements';
 import { ToolMeasurementBox } from './ToolMeasurementBox';
 import { Select } from '@/components/ui/select';
+import { DesignToolIcon, type DesignToolIconName } from './DesignToolIcon';
 const Viewport = lazy(() => import('./DesignViewport').then(module => ({ default: module.DesignViewport })));
 
 const tools = [
-  { id: 'select', label: 'Select', glyph: '↖', key: 'Space' }, { id: 'line', label: 'Line', glyph: '╱', key: 'l' }, { id: 'rectangle', label: 'Rectangle', glyph: '▱', key: 'r' },
-  { id: 'push-pull', label: 'Push / Pull', glyph: '↥', key: 'p' }, { id: 'erase', label: 'Eraser', glyph: '⌫', key: 'e' },
-  { id: 'move', label: 'Move', glyph: '✣', key: 'm' }, { id: 'rotate', label: 'Rotate', glyph: '⟳', key: 'q' },
-  { id: 'scale', label: 'Scale', glyph: '↗', key: 's' }, { id: 'paint', label: 'Paint', glyph: '◒', key: 'b' },
-  { id: 'orbit', label: 'Orbit', glyph: '◉', key: 'o' }, { id: 'pan', label: 'Pan', glyph: '✋', key: 'h' },
-  { id: 'measure', label: 'Tape Measure', glyph: '↔', key: 't' },
-];
+  { id: 'select', label: 'Select', icon: 'select', key: 'Space' }, { id: 'line', label: 'Line', icon: 'line', key: 'l' }, { id: 'rectangle', label: 'Rectangle', icon: 'rectangle', key: 'r' },
+  { id: 'push-pull', label: 'Push / Pull', icon: 'push-pull', key: 'p' }, { id: 'erase', label: 'Eraser', icon: 'erase', key: 'e' },
+  { id: 'move', label: 'Move', icon: 'move', key: 'm' }, { id: 'rotate', label: 'Rotate', icon: 'rotate', key: 'q' },
+  { id: 'scale', label: 'Scale', icon: 'scale', key: 's' }, { id: 'paint', label: 'Paint', icon: 'paint', key: 'b' },
+  { id: 'orbit', label: 'Orbit', icon: 'orbit', key: 'o' }, { id: 'pan', label: 'Pan', icon: 'pan', key: 'h' },
+  { id: 'measure', label: 'Tape Measure', icon: 'measure', key: 't' },
+] satisfies Array<{ id: string; label: string; icon: DesignToolIconName; key: string }>;
 const drawers = ['Entity Info', 'Materials', 'Components', 'Display', 'Model Info'] as const;
 const keyLabel=(key:string)=>key==='Space'?'Space':key.toUpperCase();
 const formatProjectLength=(project:Project,um:number)=>project.unitSystem==='imperial'?`${inchesFromUm(um).toFixed(3)} in`:`${millimetersFromUm(um).toFixed(1)} mm`;
@@ -217,7 +218,7 @@ export function DesignWorkspace({ project, onCommit, localGeneration = 0, saveSt
   };
 
   return <section ref={workspaceRef} className="design-workspace" aria-label="Design workspace" tabIndex={-1}>
-    <aside className="design-tool-rail" aria-label="Design tools"><div className="design-tool-heading">TOOLS</div>{tools.map(tool => <button key={tool.id} type="button" className={`design-tool ${activeTool === tool.id ? 'is-active' : ''}`} aria-label={`${tool.label} (${keyLabel(tool.key)})`} aria-pressed={activeTool === tool.id} title={`${tool.label} · ${keyLabel(tool.key)}`} onClick={() => { measurementActions.current?.cancel(); setActiveTool(tool.id); setToolMeasurement(undefined); setMeasurement(undefined);setNumeric('');setContext(undefined);setNotice(tool.id==='rectangle'?'Rectangle tool · click the first corner, move to preview, then click the second corner':tool.id==='line'?(selectionIds.length>1?'Line tool · joining multiple selected profiles is unsupported': 'Line tool · click an endpoint on the selected profile to append; otherwise starts a separate segment'):`${tool.label} tool · ${keyLabel(tool.key)}`); }}><span aria-hidden="true">{tool.glyph}</span><small>{tool.label}</small></button>)}<button type="button" className="design-tool" onClick={createBoard} aria-label="Create board">＋<small>Board</small></button><button type="button" className="design-tool" aria-label="Keyboard shortcuts" onClick={event=>{helpReturnFocus.current=event.currentTarget;setHelpOpen(true)}}>?<small>Help</small></button></aside>
+    <aside className="design-tool-rail" aria-label="Design tools"><div className="design-tool-heading">TOOLS</div>{tools.map(tool => <button key={tool.id} type="button" className={`design-tool ${activeTool === tool.id ? 'is-active' : ''}`} aria-label={`${tool.label} (${keyLabel(tool.key)})`} aria-pressed={activeTool === tool.id} title={`${tool.label} · ${keyLabel(tool.key)}`} onClick={() => { measurementActions.current?.cancel(); setActiveTool(tool.id); setToolMeasurement(undefined); setMeasurement(undefined);setNumeric('');setContext(undefined);setNotice(tool.id==='rectangle'?'Rectangle tool · click the first corner, move to preview, then click the second corner':tool.id==='line'?(selectionIds.length>1?'Line tool · joining multiple selected profiles is unsupported': 'Line tool · click an endpoint on the selected profile to append; otherwise starts a separate segment'):`${tool.label} tool · ${keyLabel(tool.key)}`); }}><DesignToolIcon name={tool.icon} /><small>{tool.label}</small></button>)}<button type="button" className="design-tool" onClick={createBoard} aria-label="Create board">＋<small>Board</small></button><button type="button" className="design-tool" aria-label="Keyboard shortcuts" onClick={event=>{helpReturnFocus.current=event.currentTarget;setHelpOpen(true)}}>?<small>Help</small></button></aside>
     <section className="design-canvas-panel" aria-label="Model view">
       <div className="design-view-controls" aria-label="Camera controls">
         {([['iso','Isometric'],['top','Top'],['front','Front'],['right','Right']] as const).map(([id,label]) => <button key={id} type="button" aria-pressed={view.preset === id} onClick={() => updateView({ preset: id })}>{label}</button>)}

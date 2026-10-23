@@ -637,7 +637,8 @@ button,a,input,select { outline-offset:3px; }
 .design-tool-rail { display: flex; flex-direction: column; align-items: stretch; padding: 8px 5px; gap: 4px; }
 .design-tool-heading { padding: 7px 2px; color: var(--pp-muted); text-align: center; font-size: 9px; font-weight: 750; letter-spacing: .8px; }
 .design-tool { display: grid; justify-items: center; align-content: center; gap: 3px; min-height: 53px; padding: 5px 2px; border: 1px solid transparent; border-radius: 7px; background: transparent; color: var(--pp-muted); cursor: pointer; }
-.design-tool span { font-size: 18px; line-height: 1; }
+.design-tool-icon { display: grid; place-items: center; width: 24px; height: 24px; color: currentColor; }
+.design-tool-icon svg { display: block; width: 20px; height: 20px; overflow: visible; color: inherit; }
 .design-tool small { font-size: 9px; line-height: 1.15; text-align: center; }
 .design-tool.is-active,.design-tool:hover { border-color: var(--pp-border); background: var(--pp-raised); color: var(--pp-navy); }
 .design-tool:disabled { opacity: .46; cursor: not-allowed; }

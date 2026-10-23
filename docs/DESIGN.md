@@ -18,6 +18,8 @@ This is the initial MVP design direction, not a claim that the whole application
 
 ## Brand mark and iconography
 
+The Design workspace tool icon inventory and authoring rules are documented in [`design-tool-icons.md`](design-tool-icons.md).
+
 The initial app icon is the **Stock Mix** SVG, preserved as an editable, versioned source at [`src/assets/plankplan-studio-stock-mix-v02.svg`](../src/assets/plankplan-studio-stock-mix-v02.svg). It represents a sheet panel and two boards in a simple, flat geometric style. The original warm-color version remains preserved as [`v01`](../src/assets/plankplan-studio-stock-mix-v01.svg).
 
 - Use the mark in the app identity and browser favicon without adding a wordmark inside the artwork.
