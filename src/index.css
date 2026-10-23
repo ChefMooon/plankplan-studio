@@ -522,7 +522,7 @@ button,a,input,select { outline-offset:3px; }
 
 /* Cutlist header is intentionally arranged as three rows: identity, project tools, then notes. */
 .cutlist-workspace-head{display:grid;grid-template-columns:minmax(0,1fr);align-items:stretch;gap:12px;padding-bottom:16px}
-.cutlist-title-row{display:flex;align-items:center;gap:18px;min-width:0}
+.cutlist-title-row{display:flex;align-items:flex-start;flex-direction:column;gap:6px;min-width:0}
 .cutlist-title-row .project-name{width:min(480px,100%)}
 .cutlist-action-row{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px}
 .cutlist-action-row .tabs{width:auto}
