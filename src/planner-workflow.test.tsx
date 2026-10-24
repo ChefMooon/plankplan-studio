@@ -79,6 +79,28 @@ describe('local project workflow', () => {
     expect(screen.queryByRole('checkbox', { name: 'Grain locked Part 1' })).not.toBeInTheDocument();
   });
 
+  it('collapses materials and stock options independently', async () => {
+    const user = userEvent.setup(); await renderApp();
+    await startCutlistProject(user, 'Collapsible stock');
+    await user.click(screen.getByRole('button', { name: /create material/i }));
+
+    const materialToggle = await screen.findByRole('button', { name: 'Collapse material Material 1' });
+    const materialRegion = document.getElementById(materialToggle.getAttribute('aria-controls')!);
+    expect(materialRegion).toHaveAttribute('aria-hidden', 'false');
+    await user.click(materialToggle);
+    expect(materialToggle).toHaveAttribute('aria-expanded', 'false');
+    expect(materialRegion).toHaveAttribute('aria-hidden', 'true');
+    await user.click(screen.getByRole('button', { name: 'Expand material Material 1' }));
+
+    const stockToggle = screen.getByRole('button', { name: /^Collapse stock option/ });
+    const stockRegion = document.getElementById(stockToggle.getAttribute('aria-controls')!);
+    await user.click(stockToggle);
+    expect(stockToggle).toHaveAttribute('aria-expanded', 'false');
+    expect(stockRegion).toHaveAttribute('aria-hidden', 'true');
+    await user.click(screen.getByRole('button', { name: /^Expand stock option/ }));
+    expect(stockRegion).toHaveAttribute('aria-hidden', 'false');
+  });
+
   it('saves part-owned lumber presets and custom dimensions independently from stock', async () => {
     const user = userEvent.setup(); await renderApp();
     await startCutlistProject(user, 'Lumber sizes');

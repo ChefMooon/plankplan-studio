@@ -1017,3 +1017,25 @@ button,a,input,select { outline-offset:3px; }
  .part-main-row,.part-details{--part-handle-width:20px;--part-field-gap:6px}
  .part-row .part-main-row>.reorder-handle{align-self:start;margin:0}
 }
+
+.material-card-content,.stock-editor-content{display:grid;grid-template-rows:auto 1fr;min-width:0}
+.material-heading{display:grid;grid-template-columns:auto minmax(0,1fr) auto auto;align-items:end;gap:8px 10px}
+.material-heading > .material-collapse-toggle{grid-column:1;grid-row:1}
+.material-heading > label{grid-column:2;grid-row:1;width:auto;min-width:0;max-width:none}
+.material-heading > .stock-type-fieldset{grid-column:3;grid-row:1}
+.material-heading > .quick-actions-trigger{grid-column:4;grid-row:1}
+.collapse-toggle{display:flex;align-items:center;gap:6px;min-width:32px;min-height:36px;padding:5px 8px;border:1px solid var(--pp-border);border-radius:6px;background:var(--pp-surface);color:var(--pp-text);font:inherit;font-size:11px;cursor:pointer}
+.collapse-toggle:hover{border-color:var(--pp-focus);background:var(--pp-raised)}
+.collapse-toggle:focus-visible{outline:2px solid var(--pp-focus);outline-offset:2px}
+.collapse-toggle svg{width:16px;height:16px;flex:none;transition:rotate 160ms ease-out}
+.collapse-toggle[aria-expanded="false"] svg{rotate:-90deg}
+.material-collapse-toggle{align-self:end;flex:none}
+.stock-collapse-toggle{border:0;padding:3px 5px;background:transparent;font-size:12px;font-weight:700}
+.stock-collapse-toggle svg{color:var(--pp-blue)}
+.stock-editor:has(.stock-collapse-toggle[aria-expanded="false"]){align-items:center}
+.stock-editor:has(.stock-collapse-toggle[aria-expanded="false"]) .stock-editor-head{margin-bottom:0}
+.stock-collapsed-name{overflow:hidden;color:var(--pp-muted);font-size:11px;font-weight:400;text-overflow:ellipsis;white-space:nowrap}
+.collapsible-region{display:grid;grid-template-rows:1fr;min-height:0;opacity:1;transition:grid-template-rows 220ms ease-out,opacity 160ms ease-out}
+.collapsible-region-inner{min-height:0;overflow:hidden}
+.collapsible-region.is-collapsed{grid-template-rows:0fr;opacity:0}
+@media(prefers-reduced-motion:reduce){.collapse-toggle svg{transition:none}.collapsible-region{transition:opacity 100ms ease-out}}
