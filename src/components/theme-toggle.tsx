@@ -1,5 +1,6 @@
 import { Monitor, Moon, Sun } from '@phosphor-icons/react'
 import { useTheme, type Theme } from '@/components/theme-context'
+import { SegmentedControl } from '@/components/ui/segmented-control'
 
 const themeOptions: { value: Theme; label: string; icon: typeof Monitor }[] = [
   { value: 'system', label: 'System', icon: Monitor },
@@ -11,20 +12,17 @@ export function ThemeToggle() {
   const { theme, setTheme } = useTheme()
 
   return (
-    <div className="theme-picker" role="group" aria-label="Color theme">
-      {themeOptions.map(({ value, label, icon: Icon }) => (
-        <button
-          key={value}
-          type="button"
-          className="theme-picker-option"
-          aria-label={`${label} theme`}
-          aria-pressed={theme === value}
-          title={`${label} theme`}
-          onClick={() => setTheme(value)}
-        >
-          <Icon aria-hidden="true" weight="regular" />
-        </button>
-      ))}
-    </div>
+    <SegmentedControl<Theme>
+      className="theme-picker"
+      aria-label="Color theme"
+      value={theme}
+      onValueChange={setTheme}
+      iconOnly
+      options={themeOptions.map(({ value, label, icon: Icon }) => ({
+        value,
+        label: `${label} theme`,
+        icon: <Icon aria-hidden="true" weight="regular" />,
+      }))}
+    />
   )
 }
