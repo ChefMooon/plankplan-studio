@@ -1,6 +1,7 @@
 import { useMemo, useState, type FormEvent } from 'react';
+import { Ruler, Stack } from '@phosphor-icons/react';
 import { parseFractionalInches, umFromMillimeters, type MaterialKind, type StockOption, type UnitSystem } from '@/lib/planner/model';
-import { copyStockPreset, presetsFor, type StockRegion } from '@/lib/planner/stock-presets';
+import { copyStockPreset, presetsForUnit } from '@/lib/planner/stock-presets';
 import { Select } from '@/components/ui/select';
 import { Tooltip } from '@/components/ui/tooltip';
 
@@ -37,9 +38,8 @@ export function MaterialTypeToggle({ value, onChange, disabled = false, groupLab
 
 export function StockCreationForm({ mode, unitSystem, fixedKind, defaultMaterialName = '', onCancel, onCreate }: Props) {
   const [kind, setKind] = useState<MaterialKind>(fixedKind ?? 'linear');
-  const [region, setRegion] = useState<StockRegion>('CA');
   const [source, setSource] = useState<'preset' | 'custom'>('preset');
-  const presets = useMemo(() => presetsFor(region, unitSystem, kind), [region, unitSystem, kind]);
+  const presets = useMemo(() => presetsForUnit(unitSystem, kind), [unitSystem, kind]);
   const [presetId, setPresetId] = useState('');
   const preset = presets.find(item => item.id === presetId) ?? presets[0];
   const [materialName, setMaterialName] = useState(defaultMaterialName);
@@ -89,19 +89,22 @@ export function StockCreationForm({ mode, unitSystem, fixedKind, defaultMaterial
       <label>Material name<input aria-label="New material name" value={materialName} onChange={event => setMaterialName(event.target.value)} maxLength={256}/></label>
       {!fixedKind && <MaterialTypeToggle value={kind} groupLabel="New material type" onChange={value => { setKind(value); setPresetId(''); }}/ >}
     </div>}
-    <div className="stock-creation-controls">
-      <label>Stock source<Select aria-label="Stock source" value={source} onValueChange={value => { setSource(value as 'preset' | 'custom'); setError(''); }} options={[{ value: 'preset', label: 'Common preset' }, { value: 'custom', label: 'Custom dimensions' }]}/></label>
-      {source === 'preset' ? <>
-        <label>Region<Select aria-label="Stock preset region" value={region} onValueChange={value => { setRegion(value as StockRegion); setPresetId(''); }} options={[{ value: 'CA', label: 'Canada' }, { value: 'US', label: 'United States' }]}/></label>
-        <label className="stock-creation-preset">Preset<Select aria-label="Stock preset" value={preset?.id ?? ''} onValueChange={setPresetId} options={presets.map(item => ({ value: item.id, label: item.label }))}/></label>
-      </> : <>
+    <div className={`stock-creation-controls ${source === 'preset' ? 'stock-creation-controls-preset' : ''}`}>
+      <fieldset className="stock-type-fieldset stock-source-fieldset">
+        <legend>Stock source</legend>
+        <div className="stock-source-toggle">
+          <button type="button" aria-pressed={source === 'preset'} onClick={() => { setSource('preset'); setError(''); }}><Stack aria-hidden="true"/>Preset</button>
+          <button type="button" aria-pressed={source === 'custom'} onClick={() => { setSource('custom'); setError(''); }}><Ruler aria-hidden="true"/>Custom</button>
+        </div>
+      </fieldset>
+      {source === 'preset' ? <label className="stock-creation-preset stock-source-detail" key="preset">Preset<Select aria-label="Stock preset" value={preset?.id ?? ''} onValueChange={setPresetId} options={presets.map(item => ({ value: item.id, label: item.label }))}/></label> : <div className="stock-source-custom-fields stock-source-detail" key="custom">
         <label>Stock name<input aria-label="Custom stock name" value={customName} onChange={event => setCustomName(event.target.value)} maxLength={256}/></label>
         <div className="stock-creation-dimensions">
           <label>{kind === 'sheet' ? 'Sheet length' : 'Length'} ({unit})<input aria-label={kind === 'sheet' ? 'Custom sheet length' : 'Custom stock length'} inputMode="decimal" value={length} onChange={event => setLength(event.target.value)} aria-invalid={Boolean(error)}/></label>
           <label>{kind === 'sheet' ? 'Sheet width' : 'Board width'} ({unit})<input aria-label={kind === 'sheet' ? 'Custom sheet width' : 'Custom board width'} inputMode="decimal" value={width} onChange={event => setWidth(event.target.value)} aria-invalid={Boolean(error)}/></label>
           {kind === 'linear' && <label>Thickness ({unit})<input aria-label="Custom stock thickness" inputMode="decimal" value={thickness} onChange={event => setThickness(event.target.value)} aria-invalid={Boolean(error)}/></label>}
         </div>
-      </>}
+      </div>}
     </div>
     {error && <p className="field-error" role="alert">{error}</p>}
     <button className="secondary compact" type="submit">＋ {mode === 'material' ? 'Create material' : 'Add stock'}</button>

@@ -171,8 +171,8 @@ describe('local project workflow', () => {
     await waitFor(() => expect(dialog).not.toBeInTheDocument());
     await waitFor(async () => expect(await savedProject('Fractional workflow')).toMatchObject({ unitSystem: 'metric', parts: [expect.objectContaining({ length: { um: 60325 } })] }));
     await user.click(screen.getByRole('combobox', { name: 'Stock preset' }));
-    await user.click(await screen.findByRole('option', { name: 'CA 1×4 · 19 × 89 mm · 2438.4 mm' }));
+    await user.click(await screen.findByRole('option', { name: '1×4 · 19.05 × 88.9 mm · 2438.4 mm' }));
     await user.click(screen.getByRole('button', { name: /create material/i }));
-    await waitFor(async () => expect((await savedProject('Fractional workflow'))?.materials.at(-1)?.stocks[0]).toMatchObject({ length: { um: 2_438_400 }, widthUm: 89_000, thicknessUm: 19_000 }));
+    await waitFor(async () => expect((await savedProject('Fractional workflow'))?.materials.at(-1)?.stocks[0]).toMatchObject({ length: { um: 2_438_400 }, widthUm: 88_900, thicknessUm: 19_050 }));
   });
 });

@@ -144,6 +144,21 @@ export function presetsFor(region: StockRegion, unitSystem: UnitSystem, kind: Ma
   });
 }
 
+/** Presets for the unit-neutral picker: one shared lumber catalog and distinct sheet footprints. */
+export function presetsForUnit(unitSystem: UnitSystem, kind: MaterialKind = 'linear'): StockPreset[] {
+  const catalog = kind === 'linear'
+    ? STOCK_PRESETS.filter(preset => preset.kind === kind && preset.region === 'US')
+    : STOCK_PRESETS.filter(preset => preset.kind === kind);
+  return catalog.map(preset => {
+    const display = presetsFor(preset.region, unitSystem, kind).find(item => item.id === preset.id)!;
+    if (kind === 'linear') {
+      const label = display.label.replace(/^US /, '');
+      return { ...display, label, name: label };
+    }
+    return { ...display, name: display.label };
+  });
+}
+
 /** Returns a fresh project-owned value; editing it cannot mutate the catalog. */
 export function copyStockPreset(preset: StockPreset, id: string, priceCents?: number): StockOption {
   return {
