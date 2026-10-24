@@ -15,6 +15,7 @@ import type { SubElement } from './sub-selection';
 import type { ToolMeasurementSession } from './tool-measurements';
 import { ToolMeasurementBox } from './ToolMeasurementBox';
 import { Select } from '@/components/ui/select';
+import { SegmentedControl } from '@/components/ui/segmented-control';
 import { Tooltip } from '@/components/ui/tooltip';
 import { DesignToolIcon, type DesignToolIconName } from './DesignToolIcon';
 import { DesignPanelIcon, type DesignPanelIconName } from './DesignPanelIcon';
@@ -250,7 +251,10 @@ export function DesignWorkspace({ project, onCommit, localGeneration = 0, saveSt
         {([['iso','Isometric'],['top','Top'],['front','Front'],['right','Right']] as const).map(([id,label]) => <button key={id} type="button" aria-pressed={view.preset === id} onClick={() => updateView({ preset: id })}>{label}</button>)}
         {activeTool==='rectangle'&&<RectangleControls axis={rectangleAxis} direction={rectangleDirection} onAxisChange={changeRectangleAxis} onDirectionChange={setRectangleDirection} />}
         <span className="design-control-separator" />
-        <button type="button" aria-pressed={view.projection === 'perspective'} onClick={() => updateView({ projection: 'perspective' })}>Perspective</button><button type="button" aria-pressed={view.projection === 'orthographic'} onClick={() => updateView({ projection: 'orthographic' })}>Orthographic</button>
+        <SegmentedControl<DesignViewPreferences['projection']> aria-label="Camera projection" value={view.projection} onValueChange={projection => updateView({ projection })} options={[
+          { value: 'perspective', label: 'Perspective' },
+          { value: 'orthographic', label: 'Orthographic' },
+        ]}/>
         <button type="button" onClick={() => { setSelectedId(undefined); updateView({ preset: 'iso' }); setFrameRequest(value => value + 1); }}>Frame model</button>
         <button type="button" disabled={!selection} onClick={() => setFrameRequest(value => value + 1)}>Frame selection</button>
       </div>

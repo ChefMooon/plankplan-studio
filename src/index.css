@@ -689,9 +689,9 @@ button,a,input,select { outline-offset:3px; }
 .design-tool:disabled { opacity: .46; cursor: not-allowed; }
 .design-canvas-panel { display: grid; grid-template-rows: auto minmax(0,1fr) auto; width: 100%; height: 100%; min-width: 0; min-height: 0; overflow: hidden; border: 1px solid var(--pp-border); border-radius: 10px; background: var(--pp-surface); }
 .design-view-controls { display: flex; flex-wrap: wrap; align-items: center; gap: 5px; padding: 8px; border-bottom: 1px solid var(--pp-border); }
-.design-view-controls button { min-height: 30px; padding: 5px 8px; border: 1px solid var(--pp-border); border-radius: 6px; background: var(--pp-surface); color: var(--pp-text); font: inherit; font-size: 10px; cursor: pointer; }
-.design-view-controls button[aria-pressed="true"] { border-color: var(--pp-blue); background: var(--pp-raised); color: var(--pp-navy); }
-.design-view-controls button:focus-visible,.design-tool:focus-visible,.design-info-rail button:focus-visible { outline: 2px solid var(--pp-blue); outline-offset: 2px; }
+.design-view-controls > button { min-height: 30px; padding: 5px 8px; border: 1px solid var(--pp-border); border-radius: 6px; background: var(--pp-surface); color: var(--pp-text); font: inherit; font-size: 10px; cursor: pointer; }
+.design-view-controls > button[aria-pressed="true"] { border-color: var(--pp-blue); background: var(--pp-raised); color: var(--pp-navy); }
+.design-view-controls > button:focus-visible,.design-tool:focus-visible,.design-info-rail button:focus-visible { outline: 2px solid var(--pp-blue); outline-offset: 2px; }
 .design-control-separator { width: 1px; height: 20px; margin: 0 2px; background: var(--pp-border); }
 .design-viewport { position: relative; display: block; width: 100%; height: 100%; min-height: 0; overflow: hidden; border: 0; border-radius: 0; background: #edf3f5; }
 .design-viewport-canvas,.design-canvas { position: absolute!important; inset: 0; width: 100%!important; height: 100%!important; }
@@ -753,7 +753,7 @@ button,a,input,select { outline-offset:3px; }
 .dark .design-measurement-input-wrap input { border-color:#4d6572; background:#17252d; color:#eff6f8; }
 .dark .design-canvas-alert { border-color: #9f7841; background: #3b3020; color: #f1d9a8; }
 @media (max-width: 1050px) { .design-workspace { grid-template-columns: minmax(0,1fr); } .design-info-rail { grid-column: 1/-1; display: grid; grid-template-columns: minmax(0,1fr) minmax(0,1.4fr); gap: 0 16px; } .design-info-title,.design-drawer-tabs { grid-column: 1/-1; } .design-info-panel,.design-selection-list { min-width: 0; } }
-@media (max-width: 650px) { .design-workspace { grid-template-columns: 1fr; min-height: 0; } .design-tool-rail { top: 8px; left: 8px; width: 50px; max-height: calc(100% - 16px); } .design-tool { flex-basis: 32px; width: 32px; min-height: 32px; } .design-canvas-panel { min-height: 0; } .design-info-rail { display: flex; } .design-view-controls { gap: 4px; } .design-view-controls button { flex: 1 0 auto; } .design-status span:nth-child(2) { display: none; } .design-measurement-box { margin-left:auto; flex-wrap:wrap; } .design-measurement-input-wrap input { width:74px; } }
+@media (max-width: 650px) { .design-workspace { grid-template-columns: 1fr; min-height: 0; } .design-tool-rail { top: 8px; left: 8px; width: 50px; max-height: calc(100% - 16px); } .design-tool { flex-basis: 32px; width: 32px; min-height: 32px; } .design-canvas-panel { min-height: 0; } .design-info-rail { display: flex; } .design-view-controls { gap: 4px; } .design-view-controls > button { flex: 1 0 auto; } .design-status span:nth-child(2) { display: none; } .design-measurement-box { margin-left:auto; flex-wrap:wrap; } .design-measurement-input-wrap input { width:74px; } }
 .design-renderer-fallback { position: absolute; z-index: 4; inset: 12px; display: grid; align-content: center; justify-items: center; gap: 10px; padding: 20px; border: 1px solid var(--pp-border); border-radius: 8px; background: var(--pp-surface); color: var(--pp-text); text-align: center; font-size: 12px; }
 .design-renderer-fallback span { max-width: 320px; color: var(--pp-muted); line-height: 1.5; }
 .design-renderer-fallback a { color: var(--pp-blue); font-weight: 650; }

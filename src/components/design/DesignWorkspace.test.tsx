@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from 'vitest';
 import type { Project } from '@/lib/planner/model';
 import { DesignWorkspace } from './DesignWorkspace';
 import { rectangleGeometry } from '@/lib/planner/design/geometry';
+import { readDesignViewPreferences } from '@/lib/planner/design/view-preferences';
 
 vi.mock('./DesignViewport', () => ({ DesignViewport: ({ onSelect, onEnterDefinition, editingDefinitionId, editingObjectId }: { onSelect: (id?: string) => void; onEnterDefinition?:(id:string)=>void; editingDefinitionId?:string; editingObjectId?:string }) => <><button type="button" aria-label="Select sample in model" onClick={() => onSelect('instance-1')}>Sample viewport</button><button type="button" onClick={()=>onEnterDefinition?.('definition-1')}>Enter shared definition</button><button type="button" onClick={()=>onEnterDefinition?.('loose-1')}>Enter loose shape edit</button>{editingDefinitionId&&<span role="status">Editing {editingDefinitionId}</span>}{editingObjectId&&<span role="status">Editing shape {editingObjectId}</span>}</> }));
 
@@ -12,6 +13,21 @@ const project: Project = {
 };
 
 describe('DesignWorkspace', () => {
+  it('switches camera projection with the shared control and restores the saved choice', () => {
+    const fixture = { ...project, id: 'projection-toggle-test' };
+    const { unmount } = render(<DesignWorkspace project={fixture}/>);
+    const group = screen.getByRole('radiogroup', { name: 'Camera projection' });
+    expect(within(group).getByRole('radio', { name: 'Perspective' })).toBeChecked();
+    fireEvent.click(within(group).getByRole('radio', { name: 'Orthographic' }));
+    expect(within(group).getByRole('radio', { name: 'Orthographic' })).toBeChecked();
+    expect(readDesignViewPreferences(fixture.id).projection).toBe('orthographic');
+    unmount();
+    render(<DesignWorkspace project={fixture}/>);
+    expect(screen.getByRole('radio', { name: 'Orthographic' })).toBeChecked();
+    fireEvent.click(screen.getByRole('radio', { name: 'Perspective' }));
+    expect(readDesignViewPreferences(fixture.id).projection).toBe('perspective');
+  });
+
   it('switches rectangle planes with X/Y/Z without intercepting undo or text input', () => {
     render(<DesignWorkspace project={project} />);
     const rectangle = screen.getByRole('button', { name: 'Rectangle (R)' });
