@@ -13,6 +13,23 @@ const project: Project = {
 };
 
 describe('DesignWorkspace', () => {
+  it('persists camera view choices and synchronizes Frame model with the shared control', () => {
+    const fixture = { ...project, id: 'camera-view-toggle-test' };
+    const { unmount } = render(<DesignWorkspace project={fixture}/>);
+    const group = screen.getByRole('radiogroup', { name: 'Camera view' });
+    expect(within(group).getByRole('radio', { name: 'Isometric' })).toBeChecked();
+    for (const [label, preset] of [['Top', 'top'], ['Front', 'front'], ['Right', 'right']] as const) {
+      fireEvent.click(within(group).getByRole('radio', { name: label }));
+      expect(readDesignViewPreferences(fixture.id).preset).toBe(preset);
+    }
+    unmount();
+    render(<DesignWorkspace project={fixture}/>);
+    expect(screen.getByRole('radio', { name: 'Right' })).toBeChecked();
+    fireEvent.click(screen.getByRole('button', { name: 'Frame model' }));
+    expect(screen.getByRole('radio', { name: 'Isometric' })).toBeChecked();
+    expect(readDesignViewPreferences(fixture.id).preset).toBe('iso');
+  });
+
   it('renders the shared Project Info trigger in the navigation slot and opens its dialog', () => {
     const slot = document.createElement('div');
     slot.id = 'design-project-info-action';
@@ -84,7 +101,7 @@ describe('DesignWorkspace', () => {
     render(<DesignWorkspace project={project} />);
     expect(screen.getByRole('button', { name: 'Select (Space)' })).toBeEnabled();
     expect(screen.getByRole('button', { name: 'Rectangle (R)' })).toBeEnabled();
-    expect(screen.getByRole('button', { name: 'Top' })).toBeInTheDocument();
+    expect(screen.getByRole('radio', { name: 'Top' })).toBeInTheDocument();
     fireEvent.click(screen.getByRole('tab', { name: 'Components' }));
     const panel = screen.getByRole('tabpanel');
     fireEvent.click(within(panel).getByRole('button', { name: /Left side/ }));

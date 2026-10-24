@@ -249,7 +249,12 @@ export function DesignWorkspace({ project, onCommit, localGeneration = 0, saveSt
   return <section ref={workspaceRef} className="design-workspace" aria-label="Design workspace" tabIndex={-1}>
     <section className="design-canvas-panel" aria-label="Model view">
       <div className="design-view-controls" aria-label="Camera controls">
-        {([['iso','Isometric'],['top','Top'],['front','Front'],['right','Right']] as const).map(([id,label]) => <button key={id} type="button" aria-pressed={view.preset === id} onClick={() => updateView({ preset: id })}>{label}</button>)}
+        <SegmentedControl<DesignViewPreferences['preset']> aria-label="Camera view" value={view.preset} onValueChange={preset => updateView({ preset })} options={[
+          { value: 'iso', label: 'Isometric' },
+          { value: 'top', label: 'Top' },
+          { value: 'front', label: 'Front' },
+          { value: 'right', label: 'Right' },
+        ]}/>
         {activeTool==='rectangle'&&<RectangleControls axis={rectangleAxis} direction={rectangleDirection} onAxisChange={changeRectangleAxis} onDirectionChange={setRectangleDirection} />}
         <span className="design-control-separator" />
         <SegmentedControl<DesignViewPreferences['projection']> aria-label="Camera projection" value={view.projection} onValueChange={projection => updateView({ projection })} options={[
