@@ -36,3 +36,24 @@ export function removeEditorId(ids: string[], id: string): string[] {
 export function withEditorOrder(order: EditorOrder | undefined, updates: Partial<EditorOrder>): EditorOrder {
   return { ...order, ...updates };
 }
+
+export type EditorDropIntent = 'before' | 'swap' | 'after';
+
+export function getEditorDropIntent(clientY: number, top: number, height: number): EditorDropIntent {
+  const ratio = height > 0 ? (clientY - top) / height : 0.5;
+  return ratio < 0.25 ? 'before' : ratio >= 0.75 ? 'after' : 'swap';
+}
+
+/** Apply a drop to display order only, preserving relative order for insertions. */
+export function dropEditorItem(ids: string[], sourceId: string, targetId: string, intent: EditorDropIntent): string[] {
+  const from = ids.indexOf(sourceId);
+  const to = ids.indexOf(targetId);
+  if (from < 0 || to < 0 || from === to) return ids;
+  const result = [...ids];
+  if (intent === 'swap') [result[from], result[to]] = [result[to], result[from]];
+  else {
+    result.splice(from, 1);
+    result.splice(result.indexOf(targetId) + (intent === 'after' ? 1 : 0), 0, sourceId);
+  }
+  return result;
+}

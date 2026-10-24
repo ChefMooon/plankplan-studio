@@ -1039,3 +1039,19 @@ button,a,input,select { outline-offset:3px; }
 .collapsible-region-inner{min-height:0;overflow:hidden}
 .collapsible-region.is-collapsed{grid-template-rows:0fr;opacity:0}
 @media(prefers-reduced-motion:reduce){.collapse-toggle svg{transition:none}.collapsible-region{transition:opacity 100ms ease-out}}
+
+/* Drag feedback preserves row geometry and drop-zone boundaries. */
+.reorderable-row[data-drop-intent="before"]::before,
+.reorderable-row[data-drop-intent="after"]::before{content:"";position:absolute;left:0;right:0;height:3px;background:var(--pp-focus);border-radius:2px;pointer-events:none;z-index:3}
+.reorderable-row[data-drop-intent="before"]::before{top:-3px}
+.reorderable-row[data-drop-intent="after"]::before{bottom:-3px}
+.reorderable-row[data-drop-intent="swap"],.reorderable-row[data-swap-source]{outline:2px dashed var(--pp-focus);outline-offset:1px;background:var(--pp-raised)}
+.reorderable-row[data-drop-intent="swap"]::after{content:"Swap";position:absolute;right:8px;top:4px;z-index:3;padding:2px 7px;border:1px solid var(--pp-focus);border-radius:4px;background:var(--pp-surface);color:var(--pp-text);font-size:11px;font-weight:600;pointer-events:none}
+
+/* Insertion markers trace each card edge with short curved returns. */
+.reorderable-row{--drop-marker-radius:8px}
+.part-row.reorderable-row{--drop-marker-radius:9px}
+.reorderable-row[data-drop-intent="before"]::before,
+.reorderable-row[data-drop-intent="after"]::before{left:-1px;right:-1px;height:12px;background:transparent;border:3px solid var(--pp-focus)}
+.reorderable-row[data-drop-intent="before"]::before{top:-1px;border-bottom:0;border-radius:var(--drop-marker-radius) var(--drop-marker-radius) 0 0}
+.reorderable-row[data-drop-intent="after"]::before{bottom:-1px;border-top:0;border-radius:0 0 var(--drop-marker-radius) var(--drop-marker-radius)}
