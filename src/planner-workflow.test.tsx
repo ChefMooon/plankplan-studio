@@ -55,6 +55,47 @@ describe('local project workflow', () => {
     vi.unstubAllGlobals();
   });
 
+  it('adds unassigned parts without stock and remembers the selected material for new parts', async () => {
+    const user = userEvent.setup(); await renderApp();
+    await startCutlistProject(user, 'Material picker');
+    await user.click(screen.getByRole('button', { name: /add part/i }));
+    await waitFor(async () => expect(await savedProject('Material picker')).toMatchObject({ materials: [], parts: [expect.objectContaining({ materialId: '' })] }));
+    expect(await screen.findByText(/Generic linear stock uses/)).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: /create material/i }));
+    await user.click(screen.getByRole('combobox', { name: 'Stock for new parts' }));
+    await user.click(await screen.findByRole('option', { name: /Material 1 ·/ }));
+    await user.click(screen.getByRole('button', { name: /add part/i }));
+    await user.click(screen.getByRole('button', { name: /add part/i }));
+    await waitFor(async () => {
+      const project = await savedProject('Material picker');
+      expect(project?.parts.map(part => part.materialId)).toEqual(['', project?.materials[0].id, project?.materials[0].id]);
+    });
+    await user.click(screen.getByRole('button', { name: 'Expand details for Part 1' }));
+    await user.click(screen.getByRole('combobox', { name: 'Part stock option' }));
+    await user.click(await screen.findByRole('option', { name: /Material 1 ·/ }));
+    expect(screen.queryByRole('checkbox', { name: 'Grain locked Part 1' })).not.toBeInTheDocument();
+    await user.click(screen.getByRole('combobox', { name: 'Part stock option' }));
+    await user.click(await screen.findByRole('option', { name: 'Generic / unassigned' }));
+    expect(screen.queryByRole('checkbox', { name: 'Grain locked Part 1' })).not.toBeInTheDocument();
+  });
+
+  it('saves part-owned lumber presets and custom dimensions independently from stock', async () => {
+    const user = userEvent.setup(); await renderApp();
+    await startCutlistProject(user, 'Lumber sizes');
+    await user.click(screen.getByRole('button', { name: /add part/i }));
+    await user.click(screen.getByRole('combobox', { name: 'Lumber size for Part 1' }));
+    await user.click(await screen.findByRole('option', { name: /2×4 ·/ }));
+    await waitFor(async () => expect((await savedProject('Lumber sizes'))?.parts[0]).toMatchObject({ kind: 'linear', lumberPreset: '2×4', crossSection: { width: { um: 88900 }, thickness: { um: 38100 } } }));
+    await user.click(screen.getByRole('combobox', { name: 'Lumber size for Part 1' }));
+    await user.click(await screen.findByRole('option', { name: 'Custom size' }));
+    await user.click(screen.getByRole('button', { name: 'Expand details for Part 1' }));
+    fireEvent.change(screen.getByRole('spinbutton', { name: 'Part cross-section width' }), { target: { value: '4' } });
+    await waitFor(async () => expect((await savedProject('Lumber sizes'))?.parts[0].crossSection?.width.um).toBe(101600));
+    await user.click(within(screen.getByRole('group', { name: 'Part type for Part 1' })).getByRole('button', { name: 'Sheet material' }));
+    expect(screen.getByRole('textbox', { name: 'Part width' })).toBeInTheDocument();
+    await waitFor(async () => expect((await savedProject('Lumber sizes'))?.parts[0]).toMatchObject({ kind: 'sheet', crossSection: { width: { um: 101600 } } }));
+  });
+
   it('imports a versioned project and navigates between Design and Cutlist', async () => {
     const user = userEvent.setup(); await renderApp();
     const project = createProject('Imported bench');
@@ -84,6 +125,9 @@ describe('local project workflow', () => {
   it('lets users maintain a manual stock price and shows plan, diagram, and offcut outputs', async () => {
     const user = userEvent.setup(); await renderApp();
     await startCutlistProject(user, 'Stock workflow');
+    await user.click(screen.getByRole('button', { name: /create material/i }));
+    await user.click(screen.getByRole('combobox', { name: 'Stock for new parts' }));
+    await user.click(await screen.findByRole('option', { name: /Material 1 ·/ }));
     await user.click(await screen.findByRole('button', { name: /add part/i }));
     fireEvent.change(screen.getByRole('spinbutton', { name: 'Stock price' }), { target: { value: '12.50' } });
     fireEvent.change(screen.getByRole('spinbutton', { name: 'Owned stock quantity' }), { target: { value: '1' } });
