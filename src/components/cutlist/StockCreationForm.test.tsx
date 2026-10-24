@@ -6,7 +6,7 @@ describe('StockCreationForm', () => {
   it('keeps invalid custom dimensions draft-only, then creates a fractional-inch stock', async () => {
     const onCreate = vi.fn();
     render(<StockCreationForm mode="stock" fixedKind="linear" unitSystem="imperial" onCancel={vi.fn()} onCreate={onCreate}/>);
-    fireEvent.click(screen.getByRole('button', { name: 'Custom' }));
+    fireEvent.click(screen.getByRole('radio', { name: 'Custom' }));
     fireEvent.change(screen.getByRole('textbox', { name: 'Custom stock length' }), { target: { value: '' } });
     fireEvent.change(screen.getByRole('textbox', { name: 'Custom board width' }), { target: { value: '3 1/2' } });
     fireEvent.change(screen.getByRole('textbox', { name: 'Custom stock thickness' }), { target: { value: '1 1/2' } });

@@ -3,6 +3,7 @@ import { Ruler, Stack } from '@phosphor-icons/react';
 import { parseFractionalInches, umFromMillimeters, type MaterialKind, type StockOption, type UnitSystem } from '@/lib/planner/model';
 import { copyStockPreset, presetsForUnit } from '@/lib/planner/stock-presets';
 import { Select } from '@/components/ui/select';
+import { SegmentedControl } from '@/components/ui/segmented-control';
 import { Tooltip } from '@/components/ui/tooltip';
 
 type Props = {
@@ -92,10 +93,10 @@ export function StockCreationForm({ mode, unitSystem, fixedKind, defaultMaterial
     <div className={`stock-creation-controls ${source === 'preset' ? 'stock-creation-controls-preset' : ''}`}>
       <fieldset className="stock-type-fieldset stock-source-fieldset">
         <legend>Stock source</legend>
-        <div className="stock-source-toggle">
-          <button type="button" aria-pressed={source === 'preset'} onClick={() => { setSource('preset'); setError(''); }}><Stack aria-hidden="true"/>Preset</button>
-          <button type="button" aria-pressed={source === 'custom'} onClick={() => { setSource('custom'); setError(''); }}><Ruler aria-hidden="true"/>Custom</button>
-        </div>
+        <SegmentedControl<'preset' | 'custom'> aria-label="Stock source" value={source} onValueChange={value => { setSource(value); setError(''); }} options={[
+          { value: 'preset', label: 'Preset', icon: <Stack/> },
+          { value: 'custom', label: 'Custom', icon: <Ruler/> },
+        ]}/>
       </fieldset>
       {source === 'preset' ? <label className="stock-creation-preset stock-source-detail" key="preset">Preset<Select aria-label="Stock preset" value={preset?.id ?? ''} onValueChange={setPresetId} options={presets.map(item => ({ value: item.id, label: item.label }))}/></label> : <div className="stock-source-custom-fields stock-source-detail" key="custom">
         <label>Stock name<input aria-label="Custom stock name" value={customName} onChange={event => setCustomName(event.target.value)} maxLength={256}/></label>

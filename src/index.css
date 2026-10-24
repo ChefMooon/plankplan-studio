@@ -635,12 +635,12 @@ button,a,input,select { outline-offset:3px; }
 .stock-type-fieldset { min-width: 0; margin: 0; padding: 0; border: 0; }
 .stock-type-fieldset legend { margin-bottom: 6px; color: var(--pp-muted); font-size: 11px; }
 .stock-source-fieldset { min-width: 0; align-self: start; }
-.stock-source-toggle { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); min-height: 36px; overflow: hidden; border: 1px solid var(--pp-border); border-radius: 6px; background: var(--pp-surface); }
-.stock-source-toggle button { display: flex; align-items: center; justify-content: center; gap: 6px; min-width: 0; padding: 6px 8px; border: 0; background: transparent; color: var(--pp-muted); font: inherit; font-size: 11px; cursor: pointer; }
-.stock-source-toggle button + button { border-left: 1px solid var(--pp-border); }
-.stock-source-toggle button[aria-pressed="true"] { background: var(--pp-raised); color: var(--pp-text); box-shadow: inset 0 0 0 1px var(--pp-focus); }
-.stock-source-toggle button:focus-visible { position: relative; z-index: 1; outline: 2px solid var(--pp-focus); outline-offset: -2px; }
-.stock-source-toggle svg { width: 15px; height: 15px; flex: none; }
+.segmented-control { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); min-height: 36px; overflow: hidden; border: 1px solid var(--pp-border); border-radius: 6px; background: var(--pp-surface); }
+.segmented-control button { display: flex; align-items: center; justify-content: center; gap: 6px; min-width: 0; padding: 6px 8px; border: 0; background: transparent; color: var(--pp-muted); font: inherit; font-size: 11px; cursor: pointer; }
+.segmented-control-option ~ .segmented-control-option { border-left: 1px solid var(--pp-border); }
+.segmented-control button[data-state="checked"] { background: var(--pp-raised); color: var(--pp-text); box-shadow: inset 0 0 0 1px var(--pp-focus); }
+.segmented-control button:focus-visible { position: relative; z-index: 1; outline: 2px solid var(--pp-focus); outline-offset: -2px; }
+.segmented-control svg { width: 15px; height: 15px; flex: none; }
 .material-heading .stock-type-fieldset legend { margin-bottom: 4px; }
 .stock-type-toggle { display: flex; gap: 6px; }
 .stock-type-toggle button { display: grid; place-items: center; width: 42px; height: 38px; padding: 7px; border: 1px solid var(--pp-border); border-radius: 7px; background: var(--pp-surface); color: var(--pp-text); cursor: pointer; }
@@ -1055,3 +1055,6 @@ button,a,input,select { outline-offset:3px; }
 .reorderable-row[data-drop-intent="after"]::before{left:-1px;right:-1px;height:12px;background:transparent;border:3px solid var(--pp-focus)}
 .reorderable-row[data-drop-intent="before"]::before{top:-1px;border-bottom:0;border-radius:var(--drop-marker-radius) var(--drop-marker-radius) 0 0}
 .reorderable-row[data-drop-intent="after"]::before{bottom:-1px;border-top:0;border-radius:0 0 var(--drop-marker-radius) var(--drop-marker-radius)}
+
+.segmented-control button:disabled { cursor: not-allowed; opacity: .5; }
+.segmented-control-icon { display: inline-flex; flex: none; }
