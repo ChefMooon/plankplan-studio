@@ -1,8 +1,13 @@
 import { Link } from '@tanstack/react-router';
+import { Tooltip } from '@/components/ui/tooltip';
 
 export function ProjectNavigation({ projectId, projectName, active, onProjectInfo }: { projectId: string; projectName: string; active: 'design' | 'cutlist'; onProjectInfo?: () => void }) {
   return <nav className="project-navigation" aria-label="Project navigation">
-    <Link className="project-navigation-back" to="/">← <span>All projects</span></Link>
+    <Tooltip content="All projects" side="bottom">
+      <Link className="project-navigation-back" to="/" aria-label="All projects">
+        <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M19 12H5m7-7-7 7 7 7" /></svg>
+      </Link>
+    </Tooltip>
     <strong className="project-navigation-title" title={projectName}>{projectName}</strong>
     <div id="design-project-info-action" className="project-navigation-info">{onProjectInfo && <button type="button" className="secondary compact project-info-icon" aria-label="Project Info" title="Project Info" onClick={onProjectInfo}>i</button>}</div>
     <div className="project-navigation-tabs" role="group" aria-label="Project areas">
