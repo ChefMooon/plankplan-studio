@@ -767,6 +767,7 @@ button,a,input,select { outline-offset:3px; }
 .design-canvas-alert,.design-renderer-fallback { z-index: 10; }
 @media (max-width: 650px) { .design-axis-label { left: 58px; } }
 
+.design-page > .topbar,.cutlist-page > .topbar{border-bottom:0}
 .project-navigation{box-sizing:border-box;display:flex;align-items:center;gap:10px;min-width:0;width:100%;margin:0 0 18px;padding:10px 12px;border:1px solid var(--pp-border);border-radius:10px;background:var(--pp-surface)}
 .project-navigation-back{display:flex;flex:0 0 auto;align-items:center;gap:5px;min-height:38px;padding:0 8px;color:var(--pp-blue);font-size:13px;font-weight:650;text-decoration:none;white-space:nowrap}
 .project-navigation-title{flex:1 1 auto;min-width:0;overflow:hidden;color:var(--pp-navy);font-size:18px;font-weight:750;text-overflow:ellipsis;white-space:nowrap}
