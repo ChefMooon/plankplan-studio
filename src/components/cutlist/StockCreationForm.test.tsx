@@ -23,10 +23,10 @@ describe('StockCreationForm', () => {
   it('lets a new material use a common sheet preset without adding a price', async () => {
     const onCreate = vi.fn();
     render(<StockCreationForm mode="material" unitSystem="metric" defaultMaterialName="Plywood" onCancel={vi.fn()} onCreate={onCreate}/>);
-    expect(screen.getByRole('group', { name: 'New material type' })).toBeVisible();
-    expect(screen.getByRole('button', { name: 'Linear material' })).toHaveAttribute('aria-pressed', 'true');
-    fireEvent.click(screen.getByRole('button', { name: 'Sheet material' }));
-    expect(screen.getByRole('button', { name: 'Sheet material' })).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.getByRole('radiogroup', { name: 'New material type' })).toBeVisible();
+    expect(screen.getByRole('radio', { name: 'Linear material' })).toBeChecked();
+    fireEvent.click(screen.getByRole('radio', { name: 'Sheet material' }));
+    expect(screen.getByRole('radio', { name: 'Sheet material' })).toBeChecked();
     fireEvent.click(screen.getByRole('button', { name: /Create material/ }));
     await waitFor(() => expect(onCreate).toHaveBeenCalledOnce());
     expect(onCreate.mock.calls[0][0]).toMatchObject({ name: 'CA 1220 mm × 2440 mm', length: { um: 2_440_000 }, widthUm: 1_220_000, ownedQuantity: 0 });

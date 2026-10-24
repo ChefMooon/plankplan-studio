@@ -1,4 +1,4 @@
-import { MaterialTypeToggle } from '@/components/cutlist/StockCreationForm';
+import { MaterialTypeToggle } from '@/components/cutlist/MaterialTypeToggle';
 import { flushSync } from 'react-dom';
 import { Select } from '@/components/ui/select';
 import { NumberStepper } from '@/components/ui/number-stepper';

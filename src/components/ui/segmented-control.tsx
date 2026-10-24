@@ -1,5 +1,6 @@
 import { RadioGroup } from 'radix-ui';
 import type { ReactNode } from 'react';
+import { Tooltip } from '@/components/ui/tooltip';
 
 export type SegmentedControlOption<T extends string = string> = {
   value: T;
@@ -10,18 +11,21 @@ export type SegmentedControlOption<T extends string = string> = {
 
 type SegmentedControlProps<T extends string> = {
   'aria-label': string;
+  'aria-describedby'?: string;
   value: T;
   onValueChange: (value: T) => void;
   options: readonly SegmentedControlOption<T>[];
   disabled?: boolean;
   className?: string;
+  iconOnly?: boolean;
 };
 
 /** A controlled, single-choice group with equal-width segments. */
-export function SegmentedControl<T extends string>({ 'aria-label': ariaLabel, value, onValueChange, options, disabled, className }: SegmentedControlProps<T>) {
+export function SegmentedControl<T extends string>({ 'aria-label': ariaLabel, 'aria-describedby': describedBy, value, onValueChange, options, disabled, className, iconOnly = false }: SegmentedControlProps<T>) {
   return <RadioGroup.Root
     aria-label={ariaLabel}
-    className={`segmented-control${className ? ` ${className}` : ''}`}
+    aria-describedby={describedBy}
+    className={`segmented-control${iconOnly ? ' segmented-control-icon-only' : ''}${className ? ` ${className}` : ''}`}
     orientation="horizontal"
     value={value}
     disabled={disabled}
@@ -30,9 +34,12 @@ export function SegmentedControl<T extends string>({ 'aria-label': ariaLabel, va
       if (option) onValueChange(option.value);
     }}
   >
-    {options.map(option => <RadioGroup.Item key={option.value} value={option.value} disabled={option.disabled} className="segmented-control-option">
-      {option.icon && <span className="segmented-control-icon" aria-hidden="true">{option.icon}</span>}
-      <span>{option.label}</span>
-    </RadioGroup.Item>)}
+    {options.map(option => {
+      const item = <RadioGroup.Item key={option.value} value={option.value} disabled={option.disabled} className="segmented-control-option">
+        {option.icon && <span className="segmented-control-icon" aria-hidden="true">{option.icon}</span>}
+        <span className={iconOnly && option.icon ? 'sr-only' : undefined}>{option.label}</span>
+      </RadioGroup.Item>;
+      return iconOnly ? <Tooltip key={option.value} content={option.label} side="top">{item}</Tooltip> : item;
+    })}
   </RadioGroup.Root>;
 }

@@ -19,7 +19,8 @@ import { partKind } from '@/lib/planner/part-stock';
 import { PartDisclosure } from '@/components/cutlist/PartDisclosure';
 import { NumberStepper } from '@/components/ui/number-stepper';
 import { dropEditorItem, getEditorDropIntent, type EditorDropIntent, insertEditorCopy, moveEditorItem, removeEditorId, resolveEditorOrder, withEditorOrder } from '@/lib/planner/editor-order';
-import { MaterialTypeToggle, StockCreationForm } from '@/components/cutlist/StockCreationForm';
+import { StockCreationForm } from '@/components/cutlist/StockCreationForm';
+import { MaterialTypeToggle } from '@/components/cutlist/MaterialTypeToggle';
 
 export const Route = createFileRoute('/projects/$projectId/cutlist')({ component: Cutlist });
 

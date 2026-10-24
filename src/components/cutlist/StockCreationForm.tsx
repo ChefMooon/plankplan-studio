@@ -4,7 +4,7 @@ import { parseFractionalInches, umFromMillimeters, type MaterialKind, type Stock
 import { copyStockPreset, presetsForUnit } from '@/lib/planner/stock-presets';
 import { Select } from '@/components/ui/select';
 import { SegmentedControl } from '@/components/ui/segmented-control';
-import { Tooltip } from '@/components/ui/tooltip';
+import { MaterialTypeToggle } from './MaterialTypeToggle';
 
 type Props = {
   mode: 'material' | 'stock';
@@ -14,28 +14,6 @@ type Props = {
   onCancel: () => void;
   onCreate: (stock: StockOption, kind: MaterialKind, materialName?: string) => void;
 };
-
-export function MaterialTypeToggle({ value, onChange, disabled = false, groupLabel = 'Material type', legend = 'Material type', lockDescriptionId }: {
-  value: MaterialKind;
-  onChange: (value: MaterialKind) => void;
-  disabled?: boolean;
-  groupLabel?: string;
-  legend?: string;
-  lockDescriptionId?: string;
-}) {
-  return <fieldset className="stock-type-fieldset" disabled={disabled} aria-describedby={disabled ? lockDescriptionId : undefined}>
-    <legend>{legend}</legend>
-    <div className="stock-type-toggle" role="group" aria-label={groupLabel}>
-      <Tooltip content="Linear material" side="top"><button type="button" aria-label={disabled ? 'Linear material (fixed)' : 'Linear material'} title={disabled ? 'Material type is fixed after stock is added.' : undefined} aria-pressed={value === 'linear'} onClick={() => onChange('linear')}>
-        <svg aria-hidden="true" viewBox="0 0 24 24" fill="none"><path d="m3 8 12-4 6 3-12 4-6-3Z"/><path d="M3 8v8l6 4v-9M9 20l12-4V7"/><path d="m6 9 12-4"/></svg>
-      </button></Tooltip>
-      <Tooltip content="Sheet material" side="top"><button type="button" aria-label={disabled ? 'Sheet material (fixed)' : 'Sheet material'} title={disabled ? 'Material type is fixed after stock is added.' : undefined} aria-pressed={value === 'sheet'} onClick={() => onChange('sheet')}>
-        <svg aria-hidden="true" viewBox="0 0 24 24" fill="none"><path d="m4 6 12-2 4 3v12l-12 2-4-3V6Z"/><path d="m4 6 4 3v12M8 9l12-2M10 5l4 3"/></svg>
-      </button></Tooltip>
-    </div>
-    {disabled && <small id={lockDescriptionId} className="sr-only">Material type is fixed after stock is added.</small>}
-  </fieldset>;
-}
 
 export function StockCreationForm({ mode, unitSystem, fixedKind, defaultMaterialName = '', onCancel, onCreate }: Props) {
   const [kind, setKind] = useState<MaterialKind>(fixedKind ?? 'linear');

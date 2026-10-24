@@ -113,7 +113,7 @@ describe('local project workflow', () => {
     await user.click(screen.getByRole('button', { name: 'Expand details for Part 1' }));
     fireEvent.change(screen.getByRole('spinbutton', { name: 'Part cross-section width' }), { target: { value: '4' } });
     await waitFor(async () => expect((await savedProject('Lumber sizes'))?.parts[0].crossSection?.width.um).toBe(101600));
-    await user.click(within(screen.getByRole('group', { name: 'Part type for Part 1' })).getByRole('button', { name: 'Sheet material' }));
+    await user.click(within(screen.getByRole('radiogroup', { name: 'Part type for Part 1' })).getByRole('radio', { name: 'Sheet material' }));
     expect(screen.getByRole('textbox', { name: 'Part width' })).toBeInTheDocument();
     await waitFor(async () => expect((await savedProject('Lumber sizes'))?.parts[0]).toMatchObject({ kind: 'sheet', crossSection: { width: { um: 101600 } } }));
   });

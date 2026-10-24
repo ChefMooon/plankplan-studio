@@ -638,17 +638,24 @@ button,a,input,select { outline-offset:3px; }
 .segmented-control { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); min-height: 36px; overflow: hidden; border: 1px solid var(--pp-border); border-radius: 6px; background: var(--pp-surface); }
 .segmented-control button { display: flex; align-items: center; justify-content: center; gap: 6px; min-width: 0; padding: 6px 8px; border: 0; background: transparent; color: var(--pp-muted); font: inherit; font-size: 11px; cursor: pointer; }
 .segmented-control-option ~ .segmented-control-option { border-left: 1px solid var(--pp-border); }
-.segmented-control button[data-state="checked"] { background: var(--pp-raised); color: var(--pp-text); box-shadow: inset 0 0 0 1px var(--pp-focus); }
+.segmented-control button[aria-checked="true"] { background: var(--pp-raised); color: var(--pp-text); box-shadow: inset 0 0 0 1px var(--pp-focus); }
 .segmented-control button:focus-visible { position: relative; z-index: 1; outline: 2px solid var(--pp-focus); outline-offset: -2px; }
 .segmented-control svg { width: 15px; height: 15px; flex: none; }
 .material-heading .stock-type-fieldset legend { margin-bottom: 4px; }
-.stock-type-toggle { display: flex; gap: 6px; }
-.stock-type-toggle button { display: grid; place-items: center; width: 42px; height: 38px; padding: 7px; border: 1px solid var(--pp-border); border-radius: 7px; background: var(--pp-surface); color: var(--pp-text); cursor: pointer; }
-.stock-type-toggle button[aria-pressed="true"] { border-color: var(--pp-focus); background: var(--pp-raised); color: var(--pp-navy); box-shadow: inset 0 0 0 1px var(--pp-focus); }
-.stock-type-toggle button:disabled { opacity: 1; cursor: not-allowed; color: var(--pp-muted); }
-.stock-type-toggle button:disabled[aria-pressed="true"] { border-color: var(--pp-border); background: var(--pp-raised); color: var(--pp-navy); box-shadow: inset 0 0 0 1px var(--pp-border); }
-.stock-type-toggle button:focus-visible { outline: 2px solid var(--pp-focus); outline-offset: 2px; }
-.stock-type-toggle svg { width: 21px; height: 21px; flex: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
+.segmented-control-icon-only { width: max-content; }
+.segmented-control-icon-only button { width: 42px; height: 36px; padding: 6px; }
+.segmented-control-icon-only svg { width: 23px; height: 23px; }
+.material-type-toggle button[aria-checked="true"] .material-type-icon-face { fill: currentColor; fill-opacity: .16; }
+.material-type-fieldset[data-disabled] .material-type-toggle { border-style: dashed; }
+.material-type-fieldset[data-disabled] .material-type-toggle button { opacity: 1; color: var(--pp-muted); cursor: not-allowed; }
+.material-type-fieldset[data-disabled] .material-type-toggle button[aria-checked="true"] { background: var(--pp-raised); color: var(--pp-text); box-shadow: inset 0 0 0 1px var(--pp-border); }
+.material-type-fieldset[data-disabled] .material-type-toggle button[aria-checked="false"] svg { opacity: .45; }
+.material-type-lock { display: inline-flex; margin-left: 5px; vertical-align: middle; color: var(--pp-muted); cursor: help; border-radius: 2px; }
+.material-type-lock svg { width: 12px; height: 12px; }
+.material-type-lock:focus-visible { outline: 2px solid var(--pp-focus); outline-offset: 2px; }
+@media (forced-colors: active) {
+  .segmented-control button[aria-checked="true"] { outline: 2px solid Highlight; outline-offset: -3px; }
+}
 .stock-creation-controls { display: grid; grid-template-columns: minmax(130px, .8fr) minmax(130px, .8fr) minmax(220px, 1.5fr); gap: 8px; align-items: end; transition: grid-template-columns 200ms ease; }
 .stock-creation-controls-preset { grid-template-columns: minmax(0, 1fr) minmax(0, 2fr); }
 .stock-creation-preset { grid-column: auto; }
@@ -971,8 +978,8 @@ button,a,input,select { outline-offset:3px; }
 .part-main-row>.part-type-field{min-width:76px;flex:0 0 76px}
 .part-type-field .stock-type-fieldset{margin:0;padding:0;min-width:0}
 .part-type-field .stock-type-fieldset>legend{font-size:11px}
-.part-type-field .stock-type-toggle{gap:4px}
-.part-type-field .stock-type-toggle button{width:36px;min-width:36px;height:36px;padding:6px}
+.part-type-field .material-type-toggle{width:74px}
+.part-type-field .material-type-toggle button{width:36px;min-width:36px;height:36px;padding:6px}
 .part-main-row>.part-quantity-field{flex:0 0 70px;min-width:0;max-width:70px;justify-self:start;width:70px}
 .part-quantity-field .number-stepper-grip{display:none}
 .part-quantity-field .number-stepper>input{padding-inline:6px}
