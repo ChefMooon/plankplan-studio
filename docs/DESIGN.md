@@ -78,6 +78,23 @@ These are candidate values. Before production use, verify text, controls, focus 
 - Keep focus predictable when switching project areas or returning to the dashboard.
 - Keep status and availability labels explicit, such as “MVP workflow” or “Planned · Phase 2.”
 
+### Shared controls
+
+Reuse the following controls when adding matching interactions. Their source modules define the current API; global styles live in `src/index.css`.
+
+| Component | Use | Existing consumers |
+| --- | --- | --- |
+| [`SegmentedControl`](../src/components/ui/segmented-control.tsx) | A compact group of mutually exclusive choices, with text, optional icons, or `iconOnly` presentation | Cutlist Preset/Custom stock source; Design Perspective/Orthographic camera projection |
+| [`MaterialTypeToggle`](../src/components/cutlist/MaterialTypeToggle.tsx) | Icon-only linear/sheet choices with a visible group legend and an optional locked state | Part type, new material creation, and existing material type |
+| [`MaterialTypeIcon`](../src/components/cutlist/MaterialTypeIcon.tsx) | Matching SVG artwork for a long board and a broad, thin sheet | Material type choices across the Cutlist editor |
+
+- `SegmentedControl` is controlled through `value`, `onValueChange`, and `options`. Each option has a unique `value`, a text `label`, an optional `icon`, and an optional `disabled` state. Supply an accessible group name with `aria-label`; use `aria-describedby` for supporting explanations.
+- Keep one selected value. The shared radio-group behavior provides arrow-key selection, a single tab stop, and disabled-option handling. Use this pattern for choosing a value; use tabs for switching associated content panels and buttons for independent actions.
+- Icon-only choices retain their text labels for assistive technology and expose tooltips. Reuse the material icons with `currentColor` instead of drawing separate variants for each screen or state.
+- Locked material types remain readable: preserve the selected icon, show the dashed boundary and lock indicator, and retain the keyboard-accessible explanation that material type is fixed after stock is added.
+- Selection styles use `aria-checked`, so tooltip state attributes cannot overwrite their visual state. Preserve visible keyboard focus and forced-colors selection cues.
+- Scope toolbar and form button styles to their intended elements rather than all descendant buttons. Check rendered widths inside fixed grid columns: the material toggle is 86px wide by default and 74px in compact part rows, with 36px-tall buttons. Keep a visible gap before adjacent fields and verify narrow layouts.
+
 ## Voice and accessibility
 
 Use concise, practical language that helps people act in the shop. Prefer specific action labels (“Start a cutlist project”) over generic labels (“Continue”). Use semantic headings and landmarks, accessible names, visible keyboard focus, and non-color status cues. Verify contrast and keyboard behavior during implementation; this guide does not assert a completed accessibility audit.

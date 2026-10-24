@@ -21,6 +21,12 @@ Use TypeScript/TSX and follow the existing two-space indentation and semicolon s
 
 ## Modularity & Maintainability
 
+### Reuse existing controls
+
+Consult [the shared controls guidance](docs/DESIGN.md#shared-controls) before adding a new control pattern. Reuse `SegmentedControl` from `src/components/ui/segmented-control.tsx` for compact, mutually exclusive choices, including text, icon-and-text, and icon-only options. For linear/sheet material choices, use `MaterialTypeToggle` from `src/components/cutlist/MaterialTypeToggle.tsx` and its shared `MaterialTypeIcon` artwork. Extend these components when appropriate instead of duplicating their markup, icons, keyboard behavior, or state styling. Keep consumer CSS scoped so it does not override shared controls unintentionally, and verify that fixed-width columns accommodate their rendered bounds.
+
+### Module boundaries
+
 Keep modules cohesive and small, with clear ownership and typed interfaces. In the React frontend, use function components and hooks; separate reusable UI, stateful behavior, and data access rather than mixing them into large route components. Keep components focused, lift shared logic into hooks or `src/lib/`, and avoid duplicate implementations. Follow React's rules of hooks and prefer composition over complex component inheritance or implicit shared state. Keep routing and navigation within TanStack Router's typed APIs.
 
 There is no backend in this repository today. If one is added, keep it in a distinct server-side area and follow that framework's conventions for routing, validation, business logic, persistence, and error handling. Keep transport handlers thin, validate inputs at system boundaries, and isolate persistence behind focused modules. Do not import server-only code into the browser bundle or share code across client/server boundaries without checking that it is safe in both environments.
