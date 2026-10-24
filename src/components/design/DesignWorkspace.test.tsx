@@ -13,6 +13,25 @@ const project: Project = {
 };
 
 describe('DesignWorkspace', () => {
+  it('renders the shared Project Info trigger in the navigation slot and opens its dialog', () => {
+    const slot = document.createElement('div');
+    slot.id = 'design-project-info-action';
+    document.body.appendChild(slot);
+    const { unmount } = render(<DesignWorkspace project={project}/>);
+    try {
+      const trigger = within(slot).getByRole('button', { name: 'Project Info' });
+      expect(screen.getAllByRole('button', { name: 'Project Info' })).toHaveLength(1);
+      expect(trigger.querySelector('svg circle')).toBeInTheDocument();
+      expect(trigger).toHaveClass('project-info-icon');
+      expect(trigger).not.toHaveClass('secondary');
+      fireEvent.click(trigger);
+      expect(screen.getByRole('dialog', { name: 'Project Info' })).toBeVisible();
+    } finally {
+      unmount();
+      slot.remove();
+    }
+  });
+
   it('switches camera projection with the shared control and restores the saved choice', () => {
     const fixture = { ...project, id: 'projection-toggle-test' };
     const { unmount } = render(<DesignWorkspace project={fixture}/>);

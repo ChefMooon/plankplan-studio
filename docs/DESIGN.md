@@ -87,6 +87,7 @@ Reuse the following controls when adding matching interactions. Their source mod
 | [`SegmentedControl`](../src/components/ui/segmented-control.tsx) | A compact group of mutually exclusive choices, with text, optional icons, or `iconOnly` presentation | Cutlist Preset/Custom stock source; Design Perspective/Orthographic camera projection |
 | [`MaterialTypeToggle`](../src/components/cutlist/MaterialTypeToggle.tsx) | Icon-only linear/sheet choices with a visible group legend and an optional locked state | Part type, new material creation, and existing material type |
 | [`MaterialTypeIcon`](../src/components/cutlist/MaterialTypeIcon.tsx) | Matching SVG artwork for a long board and a broad, thin sheet | Material type choices across the Cutlist editor |
+| [`ProjectInfoButton`](../src/components/ProjectInfoButton.tsx) | Consistent SVG info icon, tooltip, and accessible trigger for the shared Project Info dialog | Project navigation in Cutlist and the Design navigation portal |
 
 - `SegmentedControl` is controlled through `value`, `onValueChange`, and `options`. Each option has a unique `value`, a text `label`, an optional `icon`, and an optional `disabled` state. Supply an accessible group name with `aria-label`; use `aria-describedby` for supporting explanations.
 - Keep one selected value. The shared radio-group behavior provides arrow-key selection, a single tab stop, and disabled-option handling. Use this pattern for choosing a value; use tabs for switching associated content panels and buttons for independent actions.
