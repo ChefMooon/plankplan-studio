@@ -8,16 +8,20 @@ import { ThemeProvider } from './components/theme-provider';
 
 it.each(['parts', 'materials', 'stocks'] as const)('shows drop feedback and persists insertions and swaps for %s', async kind => {
   const project = createProject(`Drag ${kind}`);
-  project.parts = [0, 1, 2].map(i => ({ id: crypto.randomUUID(), name: `Part ${i}`, materialId: '', length: { um: 100000 }, quantity: 1 }));
-  project.materials = [0, 1, 2].map(i => ({ id: crypto.randomUUID(), name: `Material ${i}`, type: 'linear', stocks: [0, 1, 2].map(j => ({ id: crypto.randomUUID(), name: `Stock ${i}-${j}`, length: { um: 1000000 }, ownedQuantity: 1 })) }));
+  project.parts = (kind === 'parts' ? [0, 1, 2] : []).map(i => ({ id: crypto.randomUUID(), name: `Part ${i}`, materialId: '', length: { um: 100000 }, quantity: 1 }));
+  project.materials = (kind === 'parts' ? [] : kind === 'materials' ? [0, 1, 2] : [0, 1]).map(i => ({ id: crypto.randomUUID(), name: `Material ${i}`, type: 'linear', stocks: (kind === 'stocks' && i === 0 ? [0, 1, 2] : [0]).map(j => ({ id: crypto.randomUUID(), name: `Stock ${i}-${j}`, length: { um: 1000000 }, ownedQuantity: 1 })) }));
   expect((await projectRepository.create('local', project)).ok).toBe(true);
   const router = createRouter({ routeTree, history: createMemoryHistory({ initialEntries: [`/projects/${project.id}/cutlist`] }) });
   await router.load();
   render(<ThemeProvider><RouterProvider router={router}/></ThemeProvider>);
   await screen.findByRole('heading', { name: 'What are you making?' });
   const items = kind === 'parts' ? project.parts : kind === 'materials' ? project.materials : project.materials[0].stocks;
-  const handle = (i: number) => screen.getByRole('button', { name: `Reorder ${items[i].name}` });
-  const row = (i: number) => handle(i).closest('.reorderable-row') as HTMLElement;
+  // Resolve accessible handles once. React preserves these keyed rows across reorders;
+  // repeated whole-page role queries otherwise scan every stock form on each hover.
+  const handles = screen.getAllByRole('button', { name: /^Reorder / });
+  const handle = (i: number) => handles.find(element => element.getAttribute('aria-label') === `Reorder ${items[i].name}`)!;
+  const rows = items.map((_, i) => handle(i).closest('.reorderable-row') as HTMLElement);
+  const row = (i: number) => rows[i];
   const transfer = { effectAllowed: '', dropEffect: '', setData: vi.fn() };
   const hover = (element: HTMLElement, y: number, type: 'dragOver' | 'drop' = 'dragOver') => {
     vi.spyOn(element, 'getBoundingClientRect').mockReturnValue({ top: 100, height: 100 } as DOMRect);
