@@ -176,6 +176,7 @@ export function DesignWorkspace({ project, onCommit, localGeneration = 0, saveSt
       if (event.key === 'Escape' && drawerOpen) { event.preventDefault(); setDrawerOpen(false); (drawerReturnFocus.current ?? document.getElementById(`design-tab-${drawer.replaceAll(' ', '-')}`))?.focus(); return; }
       if (event.target instanceof Element && event.target.closest('.design-info-rail')) return;
       if (editable(event.target)) return;
+      if (event.key === ' ' && event.target instanceof Element && event.target.closest('[role="radiogroup"]')) return;
       if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'z') { event.preventDefault(); if (event.shiftKey) redo(); else undo(); return; }
       if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'y') { event.preventDefault(); redo(); return; }
       if ((event.ctrlKey || event.metaKey) && event.shiftKey && event.key.toLowerCase() === 'd' && selectedId) { event.preventDefault(); const item=working.design?.instances.find(x=>x.id===selectedId); if(item)run({type:'duplicate-instance',sourceId:item.id,id:newId()}); return; }

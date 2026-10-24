@@ -6,6 +6,7 @@ export type SegmentedControlOption<T extends string = string> = {
   value: T;
   label: string;
   ariaLabel?: string;
+  keyShortcuts?: string;
   icon?: ReactNode;
   disabled?: boolean;
 };
@@ -36,7 +37,7 @@ export function SegmentedControl<T extends string>({ 'aria-label': ariaLabel, 'a
     }}
   >
     {options.map(option => {
-      const item = <RadioGroup.Item key={option.value} value={option.value} aria-label={option.ariaLabel} disabled={option.disabled} className="segmented-control-option">
+      const item = <RadioGroup.Item key={option.value} value={option.value} aria-label={option.ariaLabel} aria-keyshortcuts={option.keyShortcuts} disabled={option.disabled} className="segmented-control-option">
         {option.icon && <span className="segmented-control-icon" aria-hidden="true">{option.icon}</span>}
         <span className={iconOnly && option.icon ? 'sr-only' : undefined}>{option.label}</span>
       </RadioGroup.Item>;

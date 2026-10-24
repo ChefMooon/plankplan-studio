@@ -84,13 +84,14 @@ Reuse the following controls when adding matching interactions. Their source mod
 
 | Component | Use | Existing consumers |
 | --- | --- | --- |
-| [`SegmentedControl`](../src/components/ui/segmented-control.tsx) | A compact group of mutually exclusive choices, with text, optional icons, or `iconOnly` presentation | Cutlist Preset/Custom stock source; Design camera view, projection, and rotation axis; System/Light/Dark theme picker |
+| [`SegmentedControl`](../src/components/ui/segmented-control.tsx) | A compact group of mutually exclusive choices, with text, optional icons, or `iconOnly` presentation | Cutlist Preset/Custom stock source; Design camera view, projection, rotation axis, and rectangle drawing plane; System/Light/Dark theme picker |
 | [`MaterialTypeToggle`](../src/components/cutlist/MaterialTypeToggle.tsx) | Icon-only linear/sheet choices with a visible group legend and an optional locked state | Part type, new material creation, and existing material type |
 | [`MaterialTypeIcon`](../src/components/cutlist/MaterialTypeIcon.tsx) | Matching SVG artwork for a long board and a broad, thin sheet | Material type choices across the Cutlist editor |
 | [`ProjectInfoButton`](../src/components/ProjectInfoButton.tsx) | Consistent SVG info icon, tooltip, and accessible trigger for the shared Project Info dialog | Project navigation in Cutlist and the Design navigation portal |
 
 - `SegmentedControl` is controlled through `value`, `onValueChange`, and `options`. Each option has a unique `value`, a text `label`, an optional `icon`, and an optional `disabled` state. Supply an accessible group name with `aria-label`; use `aria-describedby` for supporting explanations. An option's optional `ariaLabel` expands short visible labels, such as X to “Rotate around X axis.”
 - Keep one selected value. The shared radio-group behavior provides arrow-key selection, a single tab stop, and disabled-option handling. Use this pattern for choosing a value; use tabs for switching associated content panels and buttons for independent actions.
+- Options may declare `keyShortcuts` to expose existing shortcuts through `aria-keyshortcuts`; the owning workspace implements the shortcut behavior. Preserve X/Y/Z drawing-plane shortcuts and allow Space to activate focused radios without invoking the workspace's Select-tool shortcut.
 - Icon-only choices retain their text labels for assistive technology and expose tooltips. Reuse the material icons with `currentColor` instead of drawing separate variants for each screen or state.
 - Locked material types remain readable: preserve the selected icon, show the dashed boundary and lock indicator, and retain the keyboard-accessible explanation that material type is fixed after stock is added.
 - Selection styles use `aria-checked`, so tooltip state attributes cannot overwrite their visual state. Preserve visible keyboard focus and forced-colors selection cues.

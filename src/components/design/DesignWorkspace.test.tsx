@@ -4,6 +4,7 @@ import type { Project } from '@/lib/planner/model';
 import { DesignWorkspace } from './DesignWorkspace';
 import { rectangleGeometry } from '@/lib/planner/design/geometry';
 import { readDesignViewPreferences } from '@/lib/planner/design/view-preferences';
+import userEvent from '@testing-library/user-event';
 
 vi.mock('./DesignViewport', () => ({ DesignViewport: ({ onSelect, onEnterDefinition, editingDefinitionId, editingObjectId }: { onSelect: (id?: string) => void; onEnterDefinition?:(id:string)=>void; editingDefinitionId?:string; editingObjectId?:string }) => <><button type="button" aria-label="Select sample in model" onClick={() => onSelect('instance-1')}>Sample viewport</button><button type="button" onClick={()=>onEnterDefinition?.('definition-1')}>Enter shared definition</button><button type="button" onClick={()=>onEnterDefinition?.('loose-1')}>Enter loose shape edit</button>{editingDefinitionId&&<span role="status">Editing {editingDefinitionId}</span>}{editingObjectId&&<span role="status">Editing shape {editingObjectId}</span>}</> }));
 
@@ -13,6 +14,21 @@ const project: Project = {
 };
 
 describe('DesignWorkspace', () => {
+  it('supports plane radio keyboard selection without triggering the Space tool shortcut', async () => {
+    const user = userEvent.setup();
+    render(<DesignWorkspace project={project}/>);
+    await user.click(screen.getByRole('button', { name: 'Rectangle (R)' }));
+    const x = screen.getByRole('radio', { name: 'X · YZ' });
+    expect(x).toHaveAttribute('aria-keyshortcuts', 'X');
+    await user.click(x);
+    await user.keyboard('{ArrowRight>}');
+    await waitFor(() => expect(screen.getByRole('radio', { name: 'Y · XZ' })).toBeChecked());
+    await user.keyboard('{/ArrowRight}');
+    await user.keyboard(' ');
+    expect(screen.getByRole('button', { name: 'Rectangle (R)' })).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.getByRole('radiogroup', { name: 'Rectangle drawing plane' })).toBeVisible();
+  });
+
   it('persists camera view choices and synchronizes Frame model with the shared control', () => {
     const fixture = { ...project, id: 'camera-view-toggle-test' };
     const { unmount } = render(<DesignWorkspace project={fixture}/>);
@@ -69,13 +85,13 @@ describe('DesignWorkspace', () => {
     const rectangle = screen.getByRole('button', { name: 'Rectangle (R)' });
     fireEvent.click(rectangle); rectangle.focus();
     fireEvent.keyDown(rectangle, { key: 'x' });
-    expect(screen.getByRole('button', { name: 'X · YZ' })).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.getByRole('radio', { name: 'X · YZ' })).toBeChecked();
     fireEvent.keyDown(rectangle, { key: 'Z' });
-    expect(screen.getByRole('button', { name: 'Z · XY' })).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.getByRole('radio', { name: 'Z · XY' })).toBeChecked();
     fireEvent.keyDown(rectangle, { key: 'y', ctrlKey: true });
-    expect(screen.getByRole('button', { name: 'Z · XY' })).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.getByRole('radio', { name: 'Z · XY' })).toBeChecked();
     fireEvent.keyDown(rectangle, { key: 'y' });
-    expect(screen.getByRole('button', { name: 'Y · XZ' })).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.getByRole('radio', { name: 'Y · XZ' })).toBeChecked();
     fireEvent.click(screen.getByRole('combobox', { name: 'Rectangle direction' }));
     expect(screen.getByRole('option', { name: '+X, -Z' })).toBeInTheDocument();
   });
