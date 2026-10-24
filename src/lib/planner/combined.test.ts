@@ -6,15 +6,21 @@ import { createProject } from './storage';
 import { exportProject, importProject } from './model';
 
 describe('mixed-material plan aggregation', () => {
-  it('round trips unassigned parts and warns rather than silently completing their plan', () => {
+  it('round trips unassigned panels and plans them on generic sheets without thickness or cost', () => {
     const project = createProject();
     project.parts.push({ kind: 'sheet', id: 'unassigned', name: 'Top', materialId: '', length: { um: 600000 }, width: { um: 300000 }, quantity: 1 });
     expect(importProject(exportProject(project))).toEqual(project);
     const result = optimizeMixedProject(project);
-    expect(result.valid).toBe(false);
-    expect(result.warnings).toContainEqual(expect.objectContaining({ code: 'stock-needed', partId: 'unassigned' }));
+    expect(result.valid).toBe(true);
+    expect(result.unresolved).toEqual([]);
     expect(result.linear.plans).toEqual([]);
-    expect(result.sheets.plans).toEqual([]);
+    expect(result.sheets.plans).toHaveLength(1);
+    expect(result.sheets.plans[0].placements[0].partId).toBe('unassigned');
+    expect(result.sheets.plans[0].costCents).toBe(0);
+    expect(result.totalCents).toBe(0);
+    expect(result.planningProject.materials[0].stocks[0]).toMatchObject({ widthUm: umFromInches(48), length: { um: umFromInches(96) } });
+    expect(result.planningProject.materials[0].stocks[0].thicknessUm).toBeUndefined();
+    expect(project.materials).toEqual([]);
   });
   it('combines independent linear and sheet totals with display-only tax', () => {
     const project: Project = { schemaVersion: 2, id: 'mix', name: 'Mixed', unitSystem: 'imperial', kerf: { um: 0 }, trim: { um: 0 }, minOffcutLinear: { um: 0 }, minOffcutSheet: { shortSideUm: 0, longSideUm: 0 }, currency: 'CAD', taxRate: 10, createdAt: '', updatedAt: '', parts: [

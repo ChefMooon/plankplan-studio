@@ -31,13 +31,14 @@ export function optimizeMixedProject(project: Project) {
       used.set(plan.stockId, { owned: consumed.owned + plan.ownedUsed, purchased: consumed.purchased + plan.stockCount - plan.ownedUsed });
     }
   }
-  sheets.totalCostCents = sheets.plans.reduce((total, plan) => total + plan.costCents, 0);
   if (prepared.unresolved.length) {
     linear.valid = false;
     linear.warnings.push(...prepared.unresolved.map(part => ({ code: 'stock-needed', message: `${part.name} needs a compatible stock option for panel placement or its selected dimensions.`, partId: part.id })));
   }
   for (const plan of linear.plans) if (prepared.genericStockIds.has(plan.stockId)) plan.costCents = 0;
+  for (const plan of sheets.plans) if (prepared.genericStockIds.has(plan.stockId)) plan.costCents = 0;
   linear.totalCostCents = linear.plans.reduce((total, plan) => total + plan.costCents, 0);
+  sheets.totalCostCents = sheets.plans.reduce((total, plan) => total + plan.costCents, 0);
   const subtotalCents = linear.totalCostCents + sheets.totalCostCents;
   const taxCents = Math.round(subtotalCents * (project.taxRate ?? 0) / 100);
   return {

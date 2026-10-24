@@ -38,6 +38,20 @@ it('reports generic parts longer than 96 inches instead of dropping them', () =>
   expect(result.warnings.some(warning => warning.partId === 'p')).toBe(true);
 });
 
+it('reports oversized generic panels and exports fitting generic panels with unspecified prices', () => {
+  const project = createProject();
+  project.parts = [{ id: 'panel', name: 'Panel', kind: 'sheet', materialId: '', length: { um: umFromInches(24) }, width: { um: umFromInches(18) }, grainLocked: true, quantity: 2 }];
+  const result = optimizeMixedProject(project);
+  expect(result.valid).toBe(true);
+  expect(result.sheets.plans.flatMap(plan => plan.placements)).toHaveLength(2);
+  expect(result.sheets.plans.flatMap(plan => plan.placements).every(placement => !placement.rotated)).toBe(true);
+  expect(exportCutCsv(project, [], result.sheets.plans)).toContain('Unspecified');
+  project.parts[0].width = { um: umFromInches(50) };
+  const oversized = optimizeMixedProject(project);
+  expect(oversized.valid).toBe(false);
+  expect(oversized.warnings).toContainEqual(expect.objectContaining({ code: 'oversize', partId: 'panel' }));
+});
+
 it('shares owned inventory between specific stock assignments and legacy material assignments', () => {
   const project = createProject();
   project.materials = [{ id: 'm', name: 'Pine', type: 'linear', stocks: [{ id: 'only', name: 'Owned board', length: { um: umFromInches(96) }, ownedQuantity: 1, quantityLimit: 0 }] }];

@@ -61,6 +61,7 @@ describe('sheet guillotine optimizer', () => {
   it('warns when a sheet part lacks width or cannot fit the available stock', () => {
     const result = optimizeSheets({ ...project, parts: [{ ...project.parts[0], width: undefined }] }, [material]);
     expect(result.warnings.some(w => w.code === 'missing-width')).toBe(true);
+    expect(result.warnings.some(w => w.code === 'invalid-plan' && w.message.includes('Part quantity mismatch'))).toBe(false);
     const tiny = { ...material, stocks: [{ ...material.stocks[0], widthUm: umFromInches(8), length: { um: umFromInches(8) } }] };
     expect(optimizeSheets(project, [tiny]).warnings.some(w => w.code === 'capacity')).toBe(true);
   });

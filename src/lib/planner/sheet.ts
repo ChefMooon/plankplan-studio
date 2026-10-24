@@ -130,7 +130,10 @@ function replaceTree(root: SheetCutTree, target: SheetCutTree, replacement: Shee
 export function validateSheetPlan(project: Project, material: Material, plans: SheetPlan[]): string[] {
   const errors: string[] = [];
   const stockMap = new Map(material.stocks.map(stock => [stock.id, stock]));
-  const parts = new Map(project.parts.filter(p => p.materialId === material.id).map(part => [part.id, part]));
+  // Parts without a width are reported as missing-width by the optimizer and
+  // cannot be placed. Exclude them from placement-count validation so the
+  // validator does not add a misleading quantity-mismatch error.
+  const parts = new Map(project.parts.filter(p => p.materialId === material.id && p.width?.um).map(part => [part.id, part]));
   const seen = new Map<string, number>();
   const use = new Map<string, { bought: number; owned: number }>();
   for (const plan of plans) {

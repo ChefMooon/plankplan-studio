@@ -20,7 +20,13 @@ export function preparePlanningProject(project: Project) {
       groups.set(id, { ...assigned.material, id, stocks: [assigned.stock] });
       return { ...part, materialId: id };
     }
-    if (kind === 'sheet') { unresolved.push(part); return { ...part, materialId: '' }; }
+    if (kind === 'sheet') {
+      const id = 'generic:sheet';
+      const name = 'Generic panel · unspecified thickness';
+      groups.set(id, { id, name, type: 'sheet', stocks: [{ id, name: `${name} · 48″ × 96″ · price unspecified`, length: { um: umFromInches(96) }, widthUm: umFromInches(48), price: { cents: 1 }, ownedQuantity: 0 }] });
+      genericStockIds.add(id);
+      return { ...part, materialId: id };
+    }
     const section = part.crossSection;
     const key = section ? `${section.width.um}x${section.thickness.um}` : 'unspecified';
     const id = `generic:${key}`;

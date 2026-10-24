@@ -60,7 +60,7 @@ describe('local project workflow', () => {
     await startCutlistProject(user, 'Material picker');
     await user.click(screen.getByRole('button', { name: /add part/i }));
     await waitFor(async () => expect(await savedProject('Material picker')).toMatchObject({ materials: [], parts: [expect.objectContaining({ materialId: '' })] }));
-    expect(await screen.findByText(/Generic linear stock uses/)).toBeInTheDocument();
+    expect(await screen.findByText(/Generic stock uses/)).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: /create material/i }));
     await user.click(screen.getByRole('combobox', { name: 'Stock for new parts' }));
     await user.click(await screen.findByRole('option', { name: /Material 1 ·/ }));
