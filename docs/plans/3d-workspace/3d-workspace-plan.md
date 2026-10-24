@@ -13,6 +13,12 @@ last_updated: 2026-10-23
 - **Total Phases Executed:** 7 / 7 (Phase 1 COMPLETE; Phases 2–7 PARTIAL against release evidence gates)
 - **Summary of Outcome:** Contract closure (Phase 1) is complete. Phases 2-6 delivered the optional local 3D workspace, persistence/recovery, modeling and reviewed cutlist integration, with acceptance evidence recorded per phase. Phase 7 automated test/build checks pass, lint passes after removing an unused non-component export, and an isolated in-app-browser smoke journey exposed and fixed initial camera over-zoom. The overall implementation and release verification remain PARTIAL: target Chrome/Edge, adversarial multi-tab/storage failure, performance-budget and actual assistive-technology evidence are outstanding. See [Phase 7 evidence](phase-7-evidence.md). These seven execution phases together deliver product-roadmap Phase 2; they do not refer to the roadmap's cloud phase.
 
+## Rectangle follow-up (2026-10-23)
+
+The Phase 5 result ledger below records the original delivery and its evidence. Subsequent rectangle work supersedes its floor/XY-only gesture description: the current tool supports world-aligned X/Y/Z plane controls and shortcuts, elevated starting corners, explicit world-axis direction choices, exact width/height entry, and vertex selection. Both rectangle corners snap to compatible existing vertices; the second stays on the active plane and respects typed dimensions and direction. Alt temporarily bypasses snapping. Plane changes preserve the anchor and dimensions.
+
+See the [current rectangle usage and limits](../../plankplan-studio-3d-workspace-guide.md#rectangle-tool-current-usage) for operational guidance. This follow-up does not change phase completion or release-verification status, and the original browser-evidence statements below remain historical records.
+
 # Specification & Overview
 
 ### 1. Scope & Objective

@@ -22,12 +22,40 @@ Let a woodworker model a project, inspect its assembly, and intentionally derive
 
 - A project may have no design or an optional local design document. Opening Design on a new manual project does not create a model. Project data uses the versioned IndexedDB repository and local recovery path; there are no accounts, cloud synchronization or cross-device saves.
 - The project workspace includes Select, Eraser, Line, Rectangle, Push/Pull, Move, Rotate, Scale, Paint, Orbit, Pan and Tape Measure, plus a semantic component list, entity properties, five information drawers, shortcut help, undo/redo and a keyboard context menu. Camera/display/snap preferences are local UI state; measurements are transient.
-- The implemented gestures are bounded: Line and Rectangle draw on the XY plane; Move uses an XY plane; Rotate is around the selected axis (Z in the current gesture path); Scale supports uniform scaling. The current tool gestures do not provide full arbitrary-plane/3D transform manipulation. Push/Pull operates on a selected face with simple extrusion; general booleans, holes, multi-profile joins and unsupported/self-intersecting geometry remain unavailable.
-- Components support single-level definitions and instances, duplicate, Make Unique, shared-definition editing, rename, hide/show and removal. Nested component assemblies are deferred. Some operations have semantic list/property controls, but canvas selection, face/edge selection, pointer gestures and camera control do not yet have equivalent fully verified keyboard/screen-reader workflows.
+- The implemented gestures are bounded: Line draws on the XY plane; Rectangle draws on the selected world-aligned YZ, XZ or XY plane, including an offset through an elevated starting corner; Move uses an XY plane; Rotate is around the selected axis (Z in the current gesture path); Scale supports uniform scaling. The current tool gestures do not provide full arbitrary-plane/3D transform manipulation. Push/Pull operates on a selected face with simple extrusion; general booleans, holes, multi-profile joins and unsupported/self-intersecting geometry remain unavailable.
+- Components support single-level definitions and instances, duplicate, Make Unique, shared-definition editing, rename, hide/show and removal. Nested component assemblies are deferred. Some operations have semantic list/property controls, but canvas selection, vertex/face/edge selection, pointer gestures and camera control do not yet have equivalent fully verified keyboard/screen-reader workflows.
 - Modeled board cut dimensions retain the requested size. Stock fit can be verified for known linear cross-sections; missing dimensions are reported as unverified and known undersize is rejected. Panel thickness remains in the model and is explicitly unverified by the 2D sheet optimizer. A reviewed preview is required before modeled parts and their links are applied to Cutlist; manual rows remain independently editable.
 - The standalone `/design-preview` is illustrative, creates no project and saves no model. Use a project's Design tab to create/save a model and review Cutlist changes.
 
 The implementation plan is the source of current evidence, including the remaining Chrome/Edge, multi-tab migration, storage-failure, renderer-resource, performance and assistive-technology gates.
+
+## Rectangle tool: current usage
+
+1. Activate **Rectangle** (`R`) in a project's Design workspace.
+2. Choose a drawing plane with the Plane buttons or press `X`, `Y` or `Z` while the workspace has focus. The letter identifies the axis perpendicular to the plane:
+
+   | Control / key | Drawing plane | Dimension axes |
+   |---|---|---|
+   | `X` | YZ (vertical) | Width along Z; height along Y |
+   | `Y` | XZ (ground orientation; default) | Width along X; height along Z |
+   | `Z` | XY (vertical) | Width along X; height along Y |
+
+3. Click the first corner. With Snap enabled, a nearby existing vertex is highlighted and its exact position takes priority over the 10 mm grid. An elevated vertex offsets the selected plane through that point; it does not move the corner down to the ground.
+4. Move the pointer to preview the opposite corner, or enter positive **Width** and **Height** values in the project's units. The field labels show their world axes. Choose **Follow pointer** to control the extension by pointer position, or use **Direction** to select positive/negative world-axis directions, such as `+X, -Y` on the Z plane. The preview shows a translucent face and colored axis guides.
+5. Click the opposite corner to place the rectangle, or press `Enter` from a valid dimension field. Press `Escape` to cancel the preview. Each completed rectangle creates one undoable loose object.
+
+Changing planes during a preview keeps the first corner and the two in-plane dimensions. Plane and direction controls change the preview without creating a model-history entry. Single-letter shortcuts do not fire while typing in an input, select, editable control or dialog, and do not replace modified shortcuts such as Ctrl/Cmd+Z.
+
+### Snapping and selection
+
+- Both rectangle corners can snap to existing vertices, including corners of extruded profiles and transformed board/panel instances. Hidden objects are excluded; targets follow the current component-edit scope.
+- Vertex acquisition uses a 12 CSS-pixel screen-space radius so it remains usable across zoom levels. The highlighted target is the corner that will be used.
+- The first corner can acquire a vertex at any elevation. The second corner must lie on the current plane through the first corner (within 1 µm tolerance). It must also be reachable with any explicit Direction choice and exact typed dimensions; incompatible vertices are skipped rather than changing those constraints or projecting an off-plane vertex onto the rectangle.
+- Hold `Alt` during pointer movement or a corner click to bypass vertex and grid snapping temporarily. Turning Snap off disables both. Exact typed dimensions retain priority.
+- In **Select** mode, click near a corner to select its vertex; a marker and the status text identify the selection. This is selection only: individual vertex dragging/deletion is not implemented. Alt-click face/edge selection remains available.
+- Rectangles remain aligned with the three world planes. Drawing on an arbitrary angled face is not supported. If a plane is edge-on to the camera, orbit or choose another view/plane to place corners reliably.
+
+Implementation: [rectangle geometry and targets](../src/components/design/rectangle-plane.ts), [canvas gesture handling](../src/components/design/scene/VertexDrawing.tsx), and [plane/direction controls](../src/components/design/RectangleControls.tsx). Geometry and gesture tests cover elevated planes, plane switching, direction choices, both-corner snapping, Alt bypass, disabled snapping and off-plane rejection. These checks do not close the broader browser/performance/accessibility release gates above.
 
 ## Reference review: CM Modding Tools
 

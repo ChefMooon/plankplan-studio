@@ -63,10 +63,11 @@ export function VertexDrawing(props: Props) {
   });
   useEffect(() => {
     const canvas = gl.domElement;
-    const pick = (event: PointerEvent) => {
+    const pick = (event: PointerEvent, eligible: (target: VertexTarget) => boolean = () => true) => {
       const rect = canvas.getBoundingClientRect();
       let best: VertexTarget | undefined; let distance = 12;
       for (const target of candidates) {
+        if (!eligible(target)) continue;
         const projected = new Vector3(...target.point).project(camera);
         if (projected.z < -1 || projected.z > 1) continue;
         const d = Math.hypot(rect.left + (projected.x + 1) * rect.width / 2 - event.clientX, rect.top + (1 - projected.y) * rect.height / 2 - event.clientY);
@@ -76,7 +77,21 @@ export function VertexDrawing(props: Props) {
     };
     const point = (event: PointerEvent): [number, number, number] | undefined => {
       const p = current.current, g = gestureRef.current;
-      const candidate = p.snap && !event.altKey && !g ? pick(event) : undefined;
+      const candidate = p.snap && !event.altKey ? pick(event, target => {
+        if (!g) return true;
+        const end = target.point.map(n => Math.round(n * 1_000_000));
+        const a = planeCoordinates(g.start, p.axis), b = planeCoordinates(end, p.axis);
+        if (Math.abs(a[2] - b[2]) > 1) return false;
+        // Only advertise a snap when direction and typed dimensions can reach it.
+        const directed = directRectangleEnd(g.start, end, p.axis, p.direction);
+        if (directed.some((value, index) => Math.abs(value - end[index]) > 1)) return false;
+        const fields = p.toolMeasurement?.id === g.id ? p.toolMeasurement.fields : [];
+        return fields.every((field, index) => {
+          if (!field.exact) return true;
+          const value = parseMeasurement(field.value, 0.001);
+          return value !== undefined && Math.abs(Math.round(value * (p.unitSystem === 'imperial' ? 25400 : 1000)) - Math.abs(b[index] - a[index])) <= 1;
+        });
+      }) : undefined;
       setHover(candidate); invalidate();
       if (candidate) return candidate.point.map(n => Math.round(n * 1_000_000)) as [number, number, number];
       const rect = canvas.getBoundingClientRect(), ray = new Raycaster();

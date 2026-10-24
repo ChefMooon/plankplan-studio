@@ -37,10 +37,10 @@ Drawers must be keyboard reachable, manage focus predictably, and not make the v
 
 | Tool | Behavior | Shortcut |
 |---|---|---|
-| Select | Select whole component/object by default; Alt-click or repeated clicks reach faces/edges. | `Space` |
+| Select | Select a vertex near a corner, or the whole component/object elsewhere; Alt-click reaches faces/edges and repeated clicks cycle overlapping objects. | `Space` |
 | Eraser | Remove selected geometry/instance; removal is undoable. Distinguish deleting an instance from deleting a definition. | `E` |
 | Line | Draw planar edges; edges can bound planar faces. Snap to endpoints, midpoints, axes, and grid when enabled. | `L` |
-| Rectangle | Draw a planar rectangular face, with exact width/height entry. | `R` |
+| Rectangle | Draw a world-aligned face on YZ, XZ or XY, including elevated planes; exact width/height, explicit direction and vertex snapping at both corners. | `R` |
 | Push/Pull | Extrude or recess a planar face into a solid, with live and exact distance. Geometry not mapped to board/panel dimensions is not cutlist-ready. | `P` |
 | Move | Move along axis/plane/free plane; show displacement and accept exact values. | `M` |
 | Rotate | Rotate around selected/inferred pivot and constrained axis; show/accept exact angle. | `Q` |
@@ -52,17 +52,20 @@ Drawers must be keyboard reachable, manage focus predictably, and not make the v
 
 Tools show active state and contextual prompts. `Escape` cancels the current transaction; `Enter` commits only a valid active operation. Exact typed dimensions take precedence over snapping. Model operations create one undo command per completed gesture; camera movement/drawer changes do not.
 
+For the delivered Rectangle workflow, plane mappings, Direction choices and snapping constraints, see [Rectangle tool: current usage](plankplan-studio-3d-workspace-guide.md#rectangle-tool-current-usage). The second corner snaps only to vertices on the active plane that match any exact dimensions and explicit direction. Arbitrary angled-face drawing and individual vertex editing are outside the current implementation.
+
 ### Shortcut actions
 
 | Action | Shortcut | Behavior |
 |---|---|---|
+| Rectangle drawing plane | `X` / `Y` / `Z` while Rectangle is active | Select YZ / XZ / XY respectively; keep the starting corner and dimensions during a preview. |
 | Undo | `Ctrl+Z` / `Cmd+Z` | Undo model commands. |
 | Redo | `Ctrl+Shift+Z` / `Cmd+Shift+Z`; support `Ctrl+Y` / `Cmd+Y` where expected | Redo model commands. |
 | Duplicate selected component/object | `Ctrl+Shift+D` / `Cmd+Shift+D` | Avoid plain `Ctrl+D` (browser bookmark). |
 | Make Component | `G` | Available only for eligible selection. |
 | Delete selection | `Delete` / `Backspace` | Ignore while typing in editable controls; undo where possible. |
 | Open context menu | `Shift+F10` / Menu key | Same contextual menu as right-click. |
-| Toggle snap temporarily | `Alt` while dragging | Pending platform conflict check; persistent snap state remains visible. |
+| Bypass rectangle snapping temporarily | Hold `Alt` while moving or clicking a corner | Disable vertex and grid snapping for that pointer action; persistent snap state stays unchanged. |
 
 Single-key shortcuts work only when the workspace has focus and focus is not in a text input, select, editable control, or dialog. Do not override browser/system shortcuts. Show shortcuts in tooltips and a searchable help dialog. Check conflicts before release; provide pointer and keyboard paths independently.
 
@@ -70,7 +73,7 @@ Single-key shortcuts work only when the workspace has focus and focus is not in 
 
 | Input | Behavior |
 |---|---|
-| Left click | Use active tool; in Select mode, select the whole object/component by default. |
+| Left click | Use active tool; in Select mode, select a vertex near a corner or the whole object/component elsewhere. |
 | Alt + left click | Select a face/edge. |
 | Repeated left clicks | Cycle overlapping geometry beneath the pointer. |
 | Shift + left click | Add an unselected entity; subtract it if already selected. |
