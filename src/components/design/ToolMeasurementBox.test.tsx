@@ -1,4 +1,6 @@
-import { fireEvent, render, screen } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { useState } from 'react';
+import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 import { ToolMeasurementBox } from './ToolMeasurementBox';
 import type { ToolMeasurementSession } from './tool-measurements';
@@ -25,16 +27,25 @@ describe('ToolMeasurementBox', () => {
     expect(onCancel).toHaveBeenCalledOnce();
   });
 
-  it('offers accessible rotation axes and does not commit when an axis is activated by keyboard', () => {
+  it('switches rotation axes with pointer and arrow keys without committing the gesture', async () => {
+    const user = userEvent.setup();
     const onChange=vi.fn();const onCommit=vi.fn();
-    render(<ToolMeasurementBox session={{...session,tool:'Rotate',rotationAxis:'z'}} onChange={onChange} onCommit={onCommit} onCancel={vi.fn()} />);
-    const x=screen.getByRole('button',{name:'Rotate around X axis'});
-    expect(x).toHaveAttribute('aria-pressed','false');
-    fireEvent.keyDown(x,{key:'Enter'});
+    function Example() {
+      const [current, setCurrent] = useState<ToolMeasurementSession>({...session,tool:'Rotate',rotationAxis:'z'});
+      return <ToolMeasurementBox session={current} onChange={next => { setCurrent(next); onChange(next); }} onCommit={onCommit} onCancel={vi.fn()}/>;
+    }
+    render(<Example/>);
+    const x=screen.getByRole('radio',{name:'Rotate around X axis'});
+    expect(screen.getByRole('radiogroup',{name:'Rotation axis'})).toBeVisible();
+    expect(x).not.toBeChecked();
+    await user.click(x);
     expect(onChange).toHaveBeenCalledWith(expect.objectContaining({rotationAxis:'x'}));
-    expect(onCommit).not.toHaveBeenCalled();
-    fireEvent.click(x);
-    expect(onChange).toHaveBeenCalledWith(expect.objectContaining({rotationAxis:'x'}));
+    expect(x).toBeChecked();
+    await user.keyboard('{ArrowRight>}');
+    await waitFor(() => expect(screen.getByRole('radio',{name:'Rotate around Y axis'})).toBeChecked());
+    await user.keyboard('{/ArrowRight}');
+    await user.keyboard('{Enter}');
+    await user.keyboard(' ');
     expect(onCommit).not.toHaveBeenCalled();
   });
 });

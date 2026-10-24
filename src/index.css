@@ -697,16 +697,16 @@ button,a,input,select { outline-offset:3px; }
 .design-viewport { position: relative; display: block; width: 100%; height: 100%; min-height: 0; overflow: hidden; border: 0; border-radius: 0; background: #edf3f5; }
 .design-viewport-canvas,.design-canvas { position: absolute!important; inset: 0; width: 100%!important; height: 100%!important; }
 .design-measurement-box { position:static; display:flex; align-items:center; gap:8px; margin-left:auto; padding:0; border:0; background:transparent; color:var(--pp-text); box-shadow:none; }
-.design-rotation-axis { display:flex; gap:2px; }
-.design-rotation-axis button { min-width:25px; height:25px; padding:2px 5px; border:1px solid var(--pp-border); border-radius:4px; background:var(--pp-surface); color:var(--pp-muted); font:inherit; font-size:10px; font-weight:700; cursor:pointer; }
-.design-rotation-axis button[aria-pressed="true"] { border-color:var(--pp-blue); background:var(--pp-raised); color:var(--pp-navy); }
-.design-rotation-axis button[data-axis="x"] { border-color:#ee6666; }
-.design-rotation-axis button[data-axis="y"] { border-color:#65c886; }
-.design-rotation-axis button[data-axis="z"] { border-color:#64b5f6; }
-.design-rotation-axis button[data-axis="x"][aria-pressed="true"] { background:#ee6666; color:#fff; }
-.design-rotation-axis button[data-axis="y"][aria-pressed="true"] { background:#3f9f60; color:#fff; }
-.design-rotation-axis button[data-axis="z"][aria-pressed="true"] { background:#367cad; color:#fff; }
-.design-rotation-axis button:focus-visible { outline:2px solid var(--pp-blue); outline-offset:2px; }
+.segmented-control.design-rotation-axis { min-height:25px; }
+.design-rotation-axis button { min-width:25px; height:25px; min-height:25px; padding:2px 5px; border:1px solid var(--pp-border); border-radius:0; background:var(--pp-surface); color:var(--pp-muted); font:inherit; font-size:10px; font-weight:700; cursor:pointer; }
+.design-rotation-axis button[aria-checked="true"] { border-color:var(--pp-blue); background:var(--pp-raised); color:var(--pp-navy); box-shadow:none; }
+.design-rotation-axis button[value="x"] { border-color:#ee6666; }
+.design-rotation-axis button[value="y"] { border-color:#65c886; }
+.design-rotation-axis button[value="z"] { border-color:#64b5f6; }
+.design-rotation-axis button[value="x"][aria-checked="true"] { background:#ee6666; color:#fff; }
+.design-rotation-axis button[value="y"][aria-checked="true"] { background:#3f9f60; color:#fff; }
+.design-rotation-axis button[value="z"][aria-checked="true"] { background:#367cad; color:#fff; }
+.design-rotation-axis button:focus-visible { outline:2px solid var(--pp-blue); outline-offset:-2px; }
 .design-measurement-box label { display:flex; align-items:center; gap:5px; font-size:10px; font-weight:700; }
 .design-measurement-input-wrap { display:flex; align-items:center; gap:4px; }
 .design-measurement-input-wrap input { box-sizing:border-box; width:82px; height:26px; border:1px solid var(--pp-border); border-radius:4px; padding:3px 6px; background:var(--pp-surface); color:var(--pp-text); font-size:11px; font-weight:600; font-family:inherit; font-variant-numeric:tabular-nums; }
