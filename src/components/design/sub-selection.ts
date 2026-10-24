@@ -1,7 +1,7 @@
 import type { Geometry } from '@/lib/planner/design/schema';
 import { umToMeters } from '@/lib/planner/design/geometry';
 
-export type SubElement = { type: 'face'|'edge'; id: string };
+export type SubElement = { type: 'face'|'edge'|'vertex'; id: string };
 export function resolveSubElement(geometry:Geometry, point:readonly [number,number,number], edgeToleranceM=0.008):SubElement|undefined {
   const vertices=new Map(geometry.vertices.map(vertex=>[vertex.id,vertex.positionUm.map(umToMeters) as [number,number,number]]));
   let nearestEdge:{id:string;distance:number}|undefined;

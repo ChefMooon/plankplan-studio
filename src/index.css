@@ -874,3 +874,10 @@ button,a,input,select { outline-offset:3px; }
 @media(hover:hover){.home-info-button:hover,.home-popover-close:hover{background:var(--pp-raised);color:var(--pp-navy)}.home-text-button:hover{text-decoration:underline}}
 @media(prefers-reduced-motion:no-preference){.home-info-button,.home-popover-close{transition:scale 150ms ease-out}.home-info-button:not(:disabled):active,.home-popover-close:not(:disabled):active{scale:.96}}
 @media(max-width:520px){.home-projects{padding-top:26px}.home-project-heading{align-items:flex-start;flex-wrap:wrap;gap:18px;margin-bottom:20px}.home-title h2{font-size:27px}.home-project-actions{width:100%;display:grid;grid-template-columns:auto 1fr 1fr}.home-project-actions>.primary{grid-column:3;grid-row:1}.home-project-actions:not(:has(.home-recovery-button)){grid-template-columns:1fr 1fr}.home-project-actions:not(:has(.home-recovery-button))>.primary{grid-column:2}.home-page .brand{font-size:16px;gap:7px}.home-page .brand img{width:28px;height:28px}.home-page .topbar{gap:8px}.home-page .topbar-tools{gap:4px}.home-recovery-notice{flex-wrap:wrap;gap:4px 7px}}
+
+.rectangle-controls, .rectangle-plane-controls, .rectangle-direction-control { display: flex; align-items: center; gap: 5px; flex-wrap: wrap; }
+.rectangle-controls { gap: 10px; max-width: 100%; }
+.rectangle-controls span { font-size: 11px; }
+.rectangle-controls .rectangle-direction-control { display: flex; flex-direction: row; align-items: center; gap: 5px; min-width: 0; margin: 0; }
+.rectangle-direction-control .pp-select-trigger { width: 130px; min-width: 130px; }
+.rectangle-plane-hint { color: var(--pp-muted); }

@@ -12,6 +12,22 @@ const project: Project = {
 };
 
 describe('DesignWorkspace', () => {
+  it('switches rectangle planes with X/Y/Z without intercepting undo or text input', () => {
+    render(<DesignWorkspace project={project} />);
+    const rectangle = screen.getByRole('button', { name: 'Rectangle (R)' });
+    fireEvent.click(rectangle); rectangle.focus();
+    fireEvent.keyDown(rectangle, { key: 'x' });
+    expect(screen.getByRole('button', { name: 'X · YZ' })).toHaveAttribute('aria-pressed', 'true');
+    fireEvent.keyDown(rectangle, { key: 'Z' });
+    expect(screen.getByRole('button', { name: 'Z · XY' })).toHaveAttribute('aria-pressed', 'true');
+    fireEvent.keyDown(rectangle, { key: 'y', ctrlKey: true });
+    expect(screen.getByRole('button', { name: 'Z · XY' })).toHaveAttribute('aria-pressed', 'true');
+    fireEvent.keyDown(rectangle, { key: 'y' });
+    expect(screen.getByRole('button', { name: 'Y · XZ' })).toHaveAttribute('aria-pressed', 'true');
+    fireEvent.click(screen.getByRole('combobox', { name: 'Rectangle direction' }));
+    expect(screen.getByRole('option', { name: '+X, -Z' })).toBeInTheDocument();
+  });
+
   it('saves project information and shared unit preferences without changing stored dimensions', async () => {
     const onCommit=vi.fn().mockResolvedValue(true);
     render(<DesignWorkspace project={project} onCommit={onCommit} />);
