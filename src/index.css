@@ -1076,3 +1076,5 @@ button,a,input,select { outline-offset:3px; }
 
 /* Empty materials have no stock card margin to separate this action from the heading. */
 .add-stock-option:first-child { margin-top: 12px; }
+
+.sheet-material-help { margin-top: 12px; }
