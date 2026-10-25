@@ -150,10 +150,24 @@ describe('local project workflow', () => {
     await user.click(screen.getByRole('link', { name: /all projects/i }));
     await user.click(await screen.findByRole('button', { name: 'Duplicate Shop stool' }));
     expect(await screen.findByText('Shop stool copy')).toBeInTheDocument();
-    vi.stubGlobal('confirm', () => true);
-    await user.click(screen.getByRole('button', { name: 'Delete Shop stool copy' }));
+    const deleteButton = screen.getByRole('button', { name: 'Delete Shop stool copy' });
+    await user.click(deleteButton);
+    let deleteDialog = await screen.findByRole('dialog', { name: 'Delete Shop stool copy?' });
+    expect(within(deleteDialog).getByText(/all its Design and Cutlist data/)).toBeInTheDocument();
+    expect(within(deleteDialog).getByRole('button', { name: 'Cancel' })).toHaveFocus();
+    await user.click(within(deleteDialog).getByRole('button', { name: 'Cancel' }));
+    await waitFor(() => expect(deleteButton).toHaveFocus());
+    expect(await savedProject('Shop stool copy')).toBeDefined();
+    await user.click(deleteButton);
+    await user.keyboard('{Escape}');
+    await waitFor(() => expect(deleteButton).toHaveFocus());
+    expect(await savedProject('Shop stool copy')).toBeDefined();
+    await user.click(deleteButton);
+    deleteDialog = await screen.findByRole('dialog', { name: 'Delete Shop stool copy?' });
+    await user.click(within(deleteDialog).getByRole('button', { name: 'Delete' }));
     await waitFor(() => expect(screen.queryByText('Shop stool copy')).not.toBeInTheDocument());
-    vi.unstubAllGlobals();
+    await waitFor(async () => expect(await savedProject('Shop stool copy')).toBeUndefined());
+    await waitFor(() => expect(document.activeElement).toHaveClass('project-delete'));
   });
 
   it('adds unassigned parts without stock and remembers the selected material for new parts', async () => {

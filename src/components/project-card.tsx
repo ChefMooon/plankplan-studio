@@ -20,7 +20,7 @@ export function ProjectCard({ project, onDuplicate, onDelete }: ProjectCardProps
           {[{ label: 'Duplicate', Icon: Copy, action: onDuplicate }, { label: 'Delete', Icon: Trash, action: onDelete }].map(({ label, Icon, action }) =>
             <Tooltip.Root key={label}>
               <Tooltip.Trigger asChild>
-                <button type="button" className={`project-icon-button ${label === 'Delete' ? 'project-delete' : ''}`} aria-label={`${label} ${project.name}`} onClick={action}>
+                <button id={label === 'Delete' ? `project-delete-${project.id}` : undefined} type="button" className={`project-icon-button ${label === 'Delete' ? 'project-delete' : ''}`} aria-label={`${label} ${project.name}`} onClick={action}>
                   <Icon size={18} aria-hidden="true"/>
                 </button>
               </Tooltip.Trigger>

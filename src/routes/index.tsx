@@ -10,6 +10,7 @@ import { projectRepository } from '@/lib/planner/repository.indexeddb';
 import type { RecoveryIssue } from '@/lib/planner/repository';
 import { LEGACY_PROJECTS_KEY, migrateLegacyProjects, watchLegacyPayloadChanges } from '@/lib/planner/recovery';
 import { ProjectCard } from '@/components/project-card';
+import { DeleteConfirmationDialog } from '@/components/DeleteConfirmationDialog';
 import { ThemeToggle } from '@/components/theme-toggle';
 
 export const Route = createFileRoute('/')({ component: Home });
@@ -19,6 +20,10 @@ function Home() {
   const [projects, setProjects] = useState<Project[]>([]);
   const [status, setStatus] = useState('Loading projects…');
   const [recoveryIssues,setRecoveryIssues]=useState<RecoveryIssue[]>([]);
+  const [pendingDeletionId, setPendingDeletionId] = useState<string | null>(null);
+  const [deleting, setDeleting] = useState(false);
+  const deletionTrigger = useRef<HTMLElement | null>(null);
+  const deletingRef = useRef(false);
   const reloadSequence=useRef(0);
   const importInput = useRef<HTMLInputElement>(null);
   const hasRecovery = recoveryIssues.length > 0;
@@ -47,7 +52,37 @@ function Home() {
   const restore = async (file?: File) => { if (!file) return; try { const imported = importProjectAsNew(await file.text(), projects); const result=await projectRepository.create('local',imported); if(!result.ok)throw new Error('Save failed');++reloadSequence.current;setProjects(current=>[result.value,...current]); setStatus('Project imported as a new copy.'); } catch { setStatus('This project file could not be imported. The saved projects were not changed.'); } };
   const startProject = () => { void create().then(p => navigate({ to: '/projects/$projectId/cutlist', params: { projectId: p.id } })); };
   const preview = () => { void navigate({ to: '/design-preview' }); };
+  const deletionTarget = projects.find(project => project.id === pendingDeletionId);
+  const deleteProject = async () => {
+    if (!deletionTarget || deletingRef.current) return;
+    const id = deletionTarget.id;
+    const index = projects.findIndex(project => project.id === id);
+    const survivor = projects[index === 0 ? 1 : index - 1];
+    deletingRef.current = true;
+    setDeleting(true);
+    let deleted = false;
+    try {
+      const current = await projectRepository.get({ namespaceId: 'local', projectId: id });
+      const result = current.ok ? await projectRepository.delete({ namespaceId: 'local', projectId: id }, current.token) : { ok: false };
+      if (result.ok) {
+        deleted = true;
+        ++reloadSequence.current;
+        setProjects(items => items.filter(project => project.id !== id));
+      } else setStatus('Project changed elsewhere and was not deleted. Reload and retry.');
+    } catch {
+      setStatus('Project could not be deleted. Reload and retry.');
+    } finally {
+      deletingRef.current = false;
+      setDeleting(false);
+      setPendingDeletionId(null);
+      window.setTimeout(() => {
+        const target = deleted ? (survivor ? document.getElementById(`project-delete-${survivor.id}`) : document.getElementById('home-new-project')) : deletionTrigger.current;
+        (target ?? document.getElementById('home-new-project'))?.focus();
+      }, 0);
+    }
+  };
   return <main className="app-shell home-page">
+    <DeleteConfirmationDialog deletion={deletionTarget ? { kind: 'project', id: deletionTarget.id, name: deletionTarget.name } : null} saving={deleting} onOpenChange={open => { if (!open) setPendingDeletionId(null); }} restoreFocus={() => deletionTrigger.current?.focus()} onConfirm={() => { void deleteProject(); }} />
     <header className="topbar">
       <div className="brand"><img src="/plankplan-studio-stock-mix-v02.svg" alt=""/><span>PlankPlan <b>Studio</b></span></div>
       <div className="topbar-tools">
@@ -102,11 +137,11 @@ function Home() {
           </Popover.Root>}
           <button type="button" className="secondary" onClick={() => importInput.current?.click()}><UploadSimple size={18} aria-hidden="true"/>Import</button>
           <input ref={importInput} className="home-file-input" type="file" accept="application/json,.json" aria-label="Import project" onChange={e => { void restore(e.target.files?.[0]); e.currentTarget.value = ''; }}/>
-          <button type="button" className="primary" onClick={startProject}><Plus size={18} weight="bold" aria-hidden="true"/>New project</button>
+          <button id="home-new-project" type="button" className="primary" onClick={startProject}><Plus size={18} weight="bold" aria-hidden="true"/>New project</button>
         </div>
       </div>
       {status && <p className="home-status" role="status">{status}{!status.startsWith('Loading') && <button type="button" className="home-text-button" onClick={() => void reload()}>Refresh</button>}</p>}
-      {projects.length ? <div className="project-grid">{projects.map(p => <ProjectCard key={p.id} project={p} onDuplicate={() => { const copy=copyProjectDocument(p); void projectRepository.create('local',copy).then(r=>{if(r.ok){++reloadSequence.current;setProjects(current=>[r.value,...current]);}else setStatus('Could not duplicate project.');}); }} onDelete={() => { if (confirm(`Delete ${p.name}?`)) void projectRepository.get({namespaceId:'local',projectId:p.id}).then(r=>r.ok?projectRepository.delete({namespaceId:'local',projectId:p.id},r.token):{ok:false}).then(r=>{if(r.ok){++reloadSequence.current;setProjects(current=>current.filter(x=>x.id!==p.id));}else setStatus('Project changed elsewhere and was not deleted. Reload and retry.');}); }}/>)}</div> : !status.startsWith('Loading') && !status.includes('unavailable') && <div className="empty-state"><div className="empty-mark">⌂</div><h2>No projects yet</h2><p>Create a project or import one to get started.</p><button type="button" className="primary" onClick={startProject}><Plus size={18} weight="bold" aria-hidden="true"/>New project</button></div>}
+      {projects.length ? <div className="project-grid">{projects.map(p => <ProjectCard key={p.id} project={p} onDuplicate={() => { const copy=copyProjectDocument(p); void projectRepository.create('local',copy).then(r=>{if(r.ok){++reloadSequence.current;setProjects(current=>[r.value,...current]);}else setStatus('Could not duplicate project.');}); }} onDelete={() => { deletionTrigger.current = document.getElementById(`project-delete-${p.id}`); setPendingDeletionId(p.id); }}/>)}</div> : !status.startsWith('Loading') && !status.includes('unavailable') && <div className="empty-state"><div className="empty-mark">⌂</div><h2>No projects yet</h2><p>Create a project or import one to get started.</p><button type="button" className="primary" onClick={startProject}><Plus size={18} weight="bold" aria-hidden="true"/>New project</button></div>}
     </section>
   </main>;
 }

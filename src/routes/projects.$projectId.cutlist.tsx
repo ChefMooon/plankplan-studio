@@ -21,7 +21,7 @@ import { NumberStepper } from '@/components/ui/number-stepper';
 import { dropEditorItem, getEditorDropIntent, type EditorDropIntent, insertEditorCopy, moveEditorItem, removeEditorId, resolveEditorOrder, withEditorOrder } from '@/lib/planner/editor-order';
 import { StockCreationForm } from '@/components/cutlist/StockCreationForm';
 import { MaterialTypeToggle } from '@/components/cutlist/MaterialTypeToggle';
-import { DeleteConfirmationDialog, type DeleteConfirmation } from '@/components/cutlist/DeleteConfirmationDialog';
+import { DeleteConfirmationDialog, type DeleteConfirmation } from '@/components/DeleteConfirmationDialog';
 
 export const Route = createFileRoute('/projects/$projectId/cutlist')({ component: Cutlist });
 
