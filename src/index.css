@@ -1073,3 +1073,6 @@ button,a,input,select { outline-offset:3px; }
 
 .delete-confirm-button{background:var(--pp-danger,#A33D32);border-color:var(--pp-danger,#A33D32);color:#fff}
 .delete-confirm-button:hover{filter:brightness(.92)}
+
+/* Empty materials have no stock card margin to separate this action from the heading. */
+.add-stock-option:first-child { margin-top: 12px; }
