@@ -1,5 +1,4 @@
-import { useRef } from 'react';
-import { Dialog } from 'radix-ui';
+import { ConfirmationDialog } from '@/components/ConfirmationDialog';
 
 export type DeleteConfirmation =
   | { kind: 'project'; id: string; name: string }
@@ -14,7 +13,6 @@ export function DeleteConfirmationDialog({ deletion, onOpenChange, onConfirm, re
   restoreFocus: () => void;
   saving?: boolean;
 }) {
-  const confirmedRef = useRef(false);
   const material = deletion?.kind === 'material';
   const title = material ? `Delete ${deletion.name}?` : `Delete ${deletion?.name ?? 'part'}?`;
   const description = material
@@ -25,17 +23,5 @@ export function DeleteConfirmationDialog({ deletion, onOpenChange, onConfirm, re
         ? `This deletes the project ${deletion.name} and all its Design and Cutlist data from this device. This cannot be undone.`
         : `This removes ${deletion?.name ?? 'this part'} from the cutlist.`;
 
-  return <Dialog.Root open={deletion !== null} onOpenChange={open => { if (!saving) onOpenChange(open); }}>
-    <Dialog.Portal>
-      <Dialog.Overlay className="project-info-overlay" />
-      <Dialog.Content className="project-info-dialog delete-confirmation-dialog" onOpenAutoFocus={event => { confirmedRef.current = false; event.preventDefault(); document.getElementById('delete-confirm-cancel')?.focus(); }} onCloseAutoFocus={event => { event.preventDefault(); if (!confirmedRef.current) window.setTimeout(restoreFocus, 0); }}>
-        <Dialog.Title className="project-info-title">{title}</Dialog.Title>
-        <Dialog.Description className="project-info-description">{description}</Dialog.Description>
-        <div className="project-info-actions">
-          <button id="delete-confirm-cancel" type="button" className="secondary" disabled={saving} onClick={() => onOpenChange(false)}>Cancel</button>
-          <button type="button" className="primary compact delete-confirm-button" disabled={saving} onClick={() => { confirmedRef.current = true; onConfirm(); }}>{saving ? 'Deleting…' : 'Delete'}</button>
-        </div>
-      </Dialog.Content>
-    </Dialog.Portal>
-  </Dialog.Root>;
+  return <ConfirmationDialog open={deletion !== null} title={title} description={description} confirmLabel="Delete" pendingLabel="Deleting…" onOpenChange={onOpenChange} onConfirm={onConfirm} restoreFocus={restoreFocus} saving={saving} />;
 }

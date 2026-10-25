@@ -21,6 +21,7 @@ import { NumberStepper } from '@/components/ui/number-stepper';
 import { dropEditorItem, getEditorDropIntent, type EditorDropIntent, insertEditorCopy, moveEditorItem, removeEditorId, resolveEditorOrder, withEditorOrder } from '@/lib/planner/editor-order';
 import { StockCreationForm } from '@/components/cutlist/StockCreationForm';
 import { MaterialTypeToggle } from '@/components/cutlist/MaterialTypeToggle';
+import { ConfirmationDialog } from '@/components/ConfirmationDialog';
 import { DeleteConfirmationDialog, type DeleteConfirmation } from '@/components/DeleteConfirmationDialog';
 
 export const Route = createFileRoute('/projects/$projectId/cutlist')({ component: Cutlist });
@@ -66,6 +67,8 @@ function Cutlist() {
   const [orderAnnouncement, setOrderAnnouncement] = useState('');
   const [pendingDeletion, setPendingDeletion] = useState<{ kind: 'part' | 'material' | 'stock'; id: string } | null>(null);
   const deletionTriggerId = useRef<string | null>(null);
+  const [pendingReplacement, setPendingReplacement] = useState<Project | null>(null);
+  const [importError, setImportError] = useState('');
   useEffect(() => {
     const load=async()=>{const result=await projectRepository.get({namespaceId:'local',projectId});if(result.ok){setAll([result.value]);tokenRef.current=result.token;setLoadStatus('');}else setLoadStatus(result.kind==='not-found'?'Project not found.':'Project could not be opened. Your saved data has not been changed.');};
     void load();
@@ -194,7 +197,12 @@ function Cutlist() {
     const url = URL.createObjectURL(new Blob([exportCutCsv(project, result.plans, sheetResult.plans)], { type: 'text/csv;charset=utf-8' }));
     const anchor = document.createElement('a'); anchor.href = url; anchor.download = `${project.name || 'project'}-cutlist.csv`; anchor.click(); window.setTimeout(() => URL.revokeObjectURL(url), 0);
   };
-  const importBackup = async (file?: File) => { if (!file) return; try { const imported = restoreProjectDocument(project, importProject(await file.text())); if (!window.confirm(`Replace the current project “${project.name}” with “${imported.name}”? This replaces its saved contents.`)) return; update(imported); } catch { window.alert('This project backup could not be imported. Check that it is a valid PlankPlan JSON backup.'); } };
+  const importBackup = async (file?: File) => {
+    if (!file) return;
+    setImportError('');
+    try { setPendingReplacement(importProject(await file.text())); }
+    catch { setImportError('This project backup could not be imported. Check that it is a valid PlankPlan JSON backup.'); }
+  };
   const dimValue = (um: number) => project.unitSystem === 'imperial' ? (um / 25400).toFixed(3) : (um / 1000).toFixed(1);
   const dimFromValue = (value: string) => project.unitSystem === 'imperial' ? parseFractionalInches(value) : umFromMillimeters(Number(value));
   const dimensionProps = (key: string, um: number, setter: (um: number) => void, label: string) => ({
@@ -246,7 +254,15 @@ function Cutlist() {
   const taxCents = Math.round(combinedCost * (project.taxRate ?? 0) / 100);
   const money = (cents: number) => { try { return new Intl.NumberFormat(undefined, { style: 'currency', currency: project.currency }).format(cents / 100); } catch { return `$${(cents / 100).toFixed(2)}`; } };
 
+  const restoreImportFocus = () => document.getElementById('replace-project-json')?.focus();
   return <>
+    <ConfirmationDialog open={pendingReplacement !== null} title="Replace project from JSON?" description={`Replace the current project “${project.name}” with “${pendingReplacement?.name ?? ''}”? This replaces all its saved Design and Cutlist contents and cannot be undone.`} confirmLabel="Replace project" onOpenChange={open => { if (!open) setPendingReplacement(null); }} restoreFocus={restoreImportFocus} onConfirm={() => {
+      if (!pendingReplacement) return;
+      update(restoreProjectDocument(project, pendingReplacement));
+      setPendingReplacement(null);
+      setDimensionDrafts({});
+      window.setTimeout(restoreImportFocus, 0);
+    }} />
     <ProjectInfoDialog open={projectInfoOpen} onOpenChange={setProjectInfoOpen} draft={projectInfoDraft} onDraftChange={setProjectInfoDraft} error={projectInfoError} onSave={() => saveProjectInfo(project)} />
     <DeleteConfirmationDialog deletion={deletionTarget} onOpenChange={open => { if (!open) setPendingDeletion(null); }} restoreFocus={() => { const triggerId = deletionTriggerId.current; if (triggerId) document.getElementById(triggerId)?.focus(); }} onConfirm={() => {
       const deletion = pendingDeletion;
@@ -289,8 +305,9 @@ function Cutlist() {
       }
     }} />
       <div className="workspace-head cutlist-workspace-head">
-      <div className="workspace-actions cutlist-action-row"><div className="cutlist-export-actions"><button className="secondary compact" onClick={downloadBackup}>Export JSON</button><label className="secondary compact import-backup">Replace from JSON<input type="file" accept="application/json,.json" aria-label="Replace project from JSON" onChange={e => { void importBackup(e.target.files?.[0]); e.currentTarget.value = ''; }}/></label><button className="secondary compact" onClick={downloadCsv}>Export CSV</button><button className="secondary compact" onClick={() => window.print()}>Print / Save PDF</button></div></div>
+      <div className="workspace-actions cutlist-action-row"><div className="cutlist-export-actions"><button className="secondary compact" onClick={downloadBackup}>Export JSON</button><label className="secondary compact import-backup">Replace from JSON<input id="replace-project-json" type="file" accept="application/json,.json" aria-label="Replace project from JSON" onChange={e => { void importBackup(e.target.files?.[0]); e.currentTarget.value = ''; }}/></label><button className="secondary compact" onClick={downloadCsv}>Export CSV</button><button className="secondary compact" onClick={() => window.print()}>Print / Save PDF</button></div></div>
     </div>
+    {importError && <p className="warning" role="alert">{importError}</p>}
     <div className="workspace-grid"><section className="editor-column">
       <section className="panel"><div className="panel-title"><div><p className="eyebrow">01 · PARTS</p><h2>What are you making?</h2></div><div className="parts-panel-actions"><button className="secondary compact" type="button" aria-expanded={projectSettingsExpanded} aria-controls="project-settings" onClick={toggleProjectSettings}>{projectSettingsExpanded ? 'Hide settings' : 'Show settings'}</button><div className="parts-add-controls"><Select aria-label="Stock for new parts" value={project.materials.some(material => material.stocks.some(stock => stock.id === newPartMaterialId)) ? newPartMaterialId : ''} onValueChange={setNewPartMaterialId} options={stockOptions}/><button id="add-part" className="primary compact" onClick={addPart}>＋ Add part</button></div></div></div>
         <div className={`project-settings ${projectSettingsExpanded ? 'expanded' : 'collapsed'}`} id="project-settings" aria-hidden={!projectSettingsExpanded} inert={!projectSettingsExpanded}>

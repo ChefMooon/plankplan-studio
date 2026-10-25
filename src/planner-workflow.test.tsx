@@ -33,6 +33,37 @@ async function startCutlistProject(user: ReturnType<typeof userEvent.setup>, nam
 }
 
 describe('local project workflow', () => {
+  it('confirms JSON replacement before changing the saved project and rejects invalid backups', async () => {
+    const user = userEvent.setup(); await renderApp();
+    await startCutlistProject(user, 'Replace destination');
+    const before = await savedProject('Replace destination');
+    const backup = { ...createProject('Replacement backup'), notes: 'Imported notes' };
+    const input = screen.getByLabelText('Replace project from JSON');
+    const upload = () => user.upload(input, new File([exportProject(backup)], 'backup.json', { type: 'application/json' }));
+    await upload();
+    let dialog = await screen.findByRole('dialog', { name: 'Replace project from JSON?' });
+    expect(within(dialog).getByText(/Replace destination.*Replacement backup/)).toBeInTheDocument();
+    expect(within(dialog).getByRole('button', { name: 'Cancel' })).toHaveFocus();
+    expect(await savedProject('Replace destination')).toEqual(before);
+    await user.click(within(dialog).getByRole('button', { name: 'Cancel' }));
+    await waitFor(() => expect(input).toHaveFocus());
+    expect(await savedProject('Replace destination')).toEqual(before);
+    await upload();
+    await screen.findByRole('dialog', { name: 'Replace project from JSON?' });
+    await user.keyboard('{Escape}');
+    await waitFor(() => expect(input).toHaveFocus());
+    expect(await savedProject('Replace destination')).toEqual(before);
+    await upload();
+    dialog = await screen.findByRole('dialog', { name: 'Replace project from JSON?' });
+    await user.click(within(dialog).getByRole('button', { name: 'Replace project' }));
+    await waitFor(async () => expect(await savedProject('Replacement backup')).toMatchObject({ id: before!.id, notes: 'Imported notes' }));
+    await waitFor(() => expect(input).toHaveFocus());
+    await user.upload(input, new File(['invalid'], 'invalid.json', { type: 'application/json' }));
+    expect(await screen.findByRole('alert')).toHaveTextContent('This project backup could not be imported');
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    expect(await savedProject('Replacement backup')).toMatchObject({ id: before!.id, notes: 'Imported notes' });
+  });
+
   it('confirms stock deletion and keeps assigned parts as unassigned entries', async () => {
     const user = userEvent.setup(); await renderApp();
     await startCutlistProject(user, 'Stock deletion confirmation');
