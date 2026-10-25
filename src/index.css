@@ -1074,8 +1074,20 @@ button,a,input,select { outline-offset:3px; }
 .delete-confirm-button{background:var(--pp-danger,#A33D32);border-color:var(--pp-danger,#A33D32);color:#fff}
 .delete-confirm-button:hover{filter:brightness(.92)}
 
-/* Empty materials have no stock card margin above this action. */
-.add-stock-option:first-child,
-label + .add-stock-option { margin-top: 12px; }
-
-.sheet-material-help { margin-top: 12px; }
+/* Cutlist groups own their spacing, independent of empty or expanded content. */
+.cutlist-page { --cutlist-group-gap: 12px; --cutlist-section-gap: 24px; }
+.cutlist-page .material-card-content:has(> .collapsible-region:not(.is-collapsed)),
+.cutlist-page .stock-editor-content:has(> .collapsible-region:not(.is-collapsed)) { row-gap: var(--cutlist-group-gap); }
+.cutlist-page .material-content-stack { display: grid; gap: var(--cutlist-group-gap); }
+.cutlist-page .material-content-stack > .stock-editor,
+.cutlist-page .material-content-stack > .stock-creation-form,
+.cutlist-page .material-content-stack > .sheet-material-help { margin: 0; }
+.cutlist-page .material-content-stack > label { display: grid; gap: 5px; min-width: 0; color: var(--pp-muted); font-size: 11px; }
+.cutlist-page .add-stock-option { justify-self: start; }
+.cutlist-page .stock-editor-head { margin-bottom: 0; }
+.cutlist-page .stock-editor-content > .collapsible-region > .collapsible-region-inner { display: grid; gap: var(--cutlist-group-gap); }
+.cutlist-page .stock-editor-content .field-help { display: block; margin: 0; line-height: 1.5; }
+.cutlist-page .stock-creation-form { gap: var(--cutlist-group-gap); }
+.cutlist-page .result-panel > h3 { margin: var(--cutlist-section-gap) 0 var(--cutlist-group-gap); }
+.cutlist-page .result-panel > .muted { margin: var(--cutlist-group-gap) 0; line-height: 1.5; }
+.cutlist-page .plan-card > .plan-row { border-top: 0; padding-top: 0; padding-bottom: var(--cutlist-group-gap); }
