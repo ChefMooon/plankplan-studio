@@ -132,6 +132,10 @@
 :root { --pp-canvas:#eff4f7; --pp-surface:#fbfdfe; --pp-raised:#f2f7fa; --pp-text:#1e3342; --pp-muted:#536b7a; --pp-border:#d3e0e8; --pp-blue:#276a91; --pp-navy:#173b56; color-scheme:light; }
 * { box-sizing:border-box; }
 html { scrollbar-gutter:stable; }
+@supports (scrollbar-gutter:stable) {
+  /* The root gutter already reserves scrollbar space; Radix's scroll lock adds it again. */
+  html body[data-scroll-locked] { margin-right:0!important; }
+}
 @supports not (scrollbar-gutter:stable) {
   html { overflow-y:scroll; }
   html:has(.design-page) { overflow-y:hidden; }
@@ -1066,3 +1070,6 @@ button,a,input,select { outline-offset:3px; }
 
 .segmented-control button:disabled { cursor: not-allowed; opacity: .5; }
 .segmented-control-icon { display: inline-flex; flex: none; }
+
+.delete-confirm-button{background:var(--pp-danger,#A33D32);border-color:var(--pp-danger,#A33D32);color:#fff}
+.delete-confirm-button:hover{filter:brightness(.92)}

@@ -33,6 +33,107 @@ async function startCutlistProject(user: ReturnType<typeof userEvent.setup>, nam
 }
 
 describe('local project workflow', () => {
+  it('confirms stock deletion and keeps assigned parts as unassigned entries', async () => {
+    const user = userEvent.setup(); await renderApp();
+    await startCutlistProject(user, 'Stock deletion confirmation');
+    await user.click(screen.getByRole('button', { name: /create material/i }));
+    const stockName = (screen.getByRole('textbox', { name: 'Stock name' }) as HTMLInputElement).value;
+    await user.click(screen.getByRole('combobox', { name: 'Stock for new parts' }));
+    await user.click(await screen.findByRole('option', { name: /Material 1 ·/ }));
+    await user.click(screen.getByRole('button', { name: /add part/i }));
+    await waitFor(async () => expect((await savedProject('Stock deletion confirmation'))?.parts[0]?.stockId).toBeTruthy());
+    const before = await savedProject('Stock deletion confirmation');
+    const actions = screen.getByRole('button', { name: `${stockName} actions` });
+    await user.click(actions);
+    await user.click(await screen.findByRole('menuitem', { name: 'Delete' }));
+    let dialog = await screen.findByRole('dialog', { name: `Delete ${stockName}?` });
+    expect(within(dialog).getByText(/1 assigned part entry will become unassigned and remain in the cutlist/)).toBeInTheDocument();
+    expect(within(dialog).getByRole('button', { name: 'Cancel' })).toHaveFocus();
+    await user.click(within(dialog).getByRole('button', { name: 'Cancel' }));
+    await waitFor(() => expect(actions).toHaveFocus());
+    expect(await savedProject('Stock deletion confirmation')).toEqual(before);
+    await user.click(actions);
+    await user.click(await screen.findByRole('menuitem', { name: 'Delete' }));
+    await user.keyboard('{Escape}');
+    await waitFor(() => expect(actions).toHaveFocus());
+    expect(await savedProject('Stock deletion confirmation')).toEqual(before);
+    await user.click(actions);
+    await user.click(await screen.findByRole('menuitem', { name: 'Delete' }));
+    dialog = await screen.findByRole('dialog', { name: `Delete ${stockName}?` });
+    await user.click(within(dialog).getByRole('button', { name: 'Delete' }));
+    await waitFor(async () => {
+      const saved = await savedProject('Stock deletion confirmation');
+      expect(saved?.materials[0].stocks).toEqual([]);
+      expect(saved?.parts).toEqual([expect.objectContaining({ id: before!.parts[0].id, materialId: '', kind: 'linear' })]);
+      expect(saved?.parts[0].stockId).toBeUndefined();
+      expect(saved?.editorOrder?.stocks?.[before!.materials[0].id]).toEqual([]);
+    });
+    expect(document.getElementById(`add-stock-${before!.materials[0].id}`)).toHaveFocus();
+  });
+
+  it('confirms part deletion and preserves the part when cancelled or dismissed with Escape', async () => {
+    const user = userEvent.setup(); await renderApp();
+    await startCutlistProject(user, 'Delete confirmation');
+    await user.click(screen.getByRole('button', { name: /add part/i }));
+    const actions = screen.getByRole('button', { name: 'Part 1 actions' });
+    await user.click(actions);
+    await user.click(await screen.findByRole('menuitem', { name: 'Delete' }));
+    let dialog = await screen.findByRole('dialog', { name: 'Delete Part 1?' });
+    expect(within(dialog).getByText('This removes Part 1 from the cutlist.')).toBeInTheDocument();
+    expect(within(dialog).getByRole('button', { name: 'Cancel' })).toHaveFocus();
+    await user.click(within(dialog).getByRole('button', { name: 'Cancel' }));
+    expect(await screen.findByRole('textbox', { name: 'Part name' })).toBeInTheDocument();
+    expect(actions).toHaveFocus();
+
+    await user.click(actions);
+    await user.click(await screen.findByRole('menuitem', { name: 'Delete' }));
+    dialog = await screen.findByRole('dialog', { name: 'Delete Part 1?' });
+    await user.keyboard('{Escape}');
+    await waitFor(() => expect(dialog).not.toBeInTheDocument());
+    expect(screen.getByRole('textbox', { name: 'Part name' })).toBeInTheDocument();
+
+    await user.click(actions);
+    await user.click(await screen.findByRole('menuitem', { name: 'Delete' }));
+    dialog = await screen.findByRole('dialog', { name: 'Delete Part 1?' });
+    await user.click(within(dialog).getByRole('button', { name: 'Delete' }));
+    await waitFor(() => expect(screen.queryByRole('textbox', { name: 'Part name' })).not.toBeInTheDocument());
+    expect(screen.getByRole('button', { name: /add part/i })).toHaveFocus();
+  });
+
+  it('confirms deleting a material even when no parts are assigned', async () => {
+    const user = userEvent.setup(); await renderApp();
+    await startCutlistProject(user, 'Empty material confirmation');
+    await user.click(screen.getByRole('button', { name: /create material/i }));
+    const actions = await screen.findByRole('button', { name: 'Material 1 actions' });
+    await user.click(actions);
+    await user.click(await screen.findByRole('menuitem', { name: 'Delete' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Delete Material 1?' });
+    expect(within(dialog).getByText('This removes Material 1, its stock options, and 0 assigned part entries.')).toBeInTheDocument();
+    await user.click(within(dialog).getByRole('button', { name: 'Delete' }));
+    await waitFor(() => expect(screen.queryByRole('textbox', { name: 'Material name' })).not.toBeInTheDocument());
+    expect(document.getElementById('add-material')).toHaveFocus();
+  });
+
+  it('removes material assigned parts only after confirming the cascade', async () => {
+    const user = userEvent.setup(); await renderApp();
+    await startCutlistProject(user, 'Material cascade confirmation');
+    await user.click(screen.getByRole('button', { name: /create material/i }));
+    await user.click(screen.getByRole('combobox', { name: 'Stock for new parts' }));
+    await user.click(await screen.findByRole('option', { name: /Material 1 ·/ }));
+    await user.click(screen.getByRole('button', { name: /add part/i }));
+    await waitFor(async () => {
+      const project = await savedProject('Material cascade confirmation');
+      expect(project?.parts[0]?.materialId).toBe(project?.materials[0]?.id);
+    });
+    const actions = screen.getByRole('button', { name: 'Material 1 actions' });
+    await user.click(actions);
+    await user.click(await screen.findByRole('menuitem', { name: 'Delete' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Delete Material 1?' });
+    expect(within(dialog).getByText('This removes Material 1, its stock options, and 1 assigned part entry.')).toBeInTheDocument();
+    await user.click(within(dialog).getByRole('button', { name: 'Delete' }));
+    await waitFor(async () => expect(await savedProject('Material cascade confirmation')).toMatchObject({ materials: [], parts: [] }));
+  });
+
   it('creates, edits, saves, reopens, duplicates and deletes a project', async () => {
     const user = userEvent.setup();
     await renderApp();
@@ -44,7 +145,7 @@ describe('local project workflow', () => {
     await waitFor(async () => expect((await savedProject('Shop stool'))?.parts[0]).toMatchObject({ name:'Seat rail', quantity:2 }));
     await user.click(screen.getByRole('link', { name: /all projects/i }));
     expect(await screen.findByText('Shop stool')).toBeInTheDocument();
-    await user.click(screen.getByRole('link', { name: /open cutlist/i }));
+    await user.click(screen.getByRole('link', { name: 'Open cutlist for Shop stool' }));
     expect(await screen.findByDisplayValue('Seat rail')).toBeInTheDocument();
     await user.click(screen.getByRole('link', { name: /all projects/i }));
     await user.click(await screen.findByRole('button', { name: 'Duplicate Shop stool' }));
