@@ -549,13 +549,19 @@ button,a,input,select { outline-offset:3px; }
 .project-info-title{margin:0;color:var(--pp-navy);font-size:20px}
 .project-info-description{margin:6px 0 14px;color:var(--pp-muted);font-size:13px}
 .project-info-dialog textarea{display:block;width:100%;min-height:180px;resize:vertical;border:1px solid var(--pp-border);border-radius:8px;background:var(--pp-surface);color:var(--pp-text);padding:11px 12px;font:inherit;line-height:1.5}
-.parts-panel-actions{display:flex;align-items:center;gap:8px}
+.parts-editor-panel{container-type:inline-size;container-name:parts-panel}
+.parts-panel-actions{display:flex;align-items:center;justify-content:flex-end;gap:8px;min-width:0}
+.parts-add-controls{display:flex;align-items:center;gap:8px;min-width:0}
+.parts-add-controls>.pp-select-trigger{width:min(170px,100%);min-width:0}
+.parts-add-controls>.primary{flex-shrink:0;white-space:nowrap}
 .project-settings{display:grid;grid-template-rows:1fr;opacity:1;transition:grid-template-rows 220ms ease,opacity 180ms ease}
 .project-settings.collapsed{grid-template-rows:0fr;opacity:0}
 .project-settings-content{min-height:0;overflow:hidden}
 @keyframes project-info-fade{from{opacity:0}to{opacity:1}}
 .dark .project-info-dialog textarea{background:var(--pp-input-bg)}
-@media(max-width:760px){.cutlist-export-actions{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));width:100%}.cutlist-export-actions>.compact{min-width:0;white-space:normal;text-align:center}.project-info-dialog{padding:18px}.project-info-dialog textarea{min-height:180px}.parts-panel-actions{flex-wrap:wrap;justify-content:flex-end}}
+@media(max-width:760px){.cutlist-export-actions{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));width:100%}.cutlist-export-actions>.compact{min-width:0;white-space:normal;text-align:center}.project-info-dialog{padding:18px}.project-info-dialog textarea{min-height:180px}}
+@container parts-panel (max-width:660px){.parts-editor-panel .panel-title:has(.parts-panel-actions){align-items:stretch;flex-direction:column;gap:14px}.parts-panel-actions{display:grid;grid-template-columns:auto minmax(0,1fr);align-items:center;width:100%}.parts-add-controls{display:grid;grid-template-columns:minmax(0,1fr) auto;width:100%}.parts-add-controls>.pp-select-trigger{width:100%}}
+@container parts-panel (max-width:440px){.parts-panel-actions{grid-template-columns:minmax(0,1fr)}.parts-panel-actions>.secondary{justify-self:start}.parts-add-controls{grid-template-columns:minmax(0,1fr) auto}}
 @media(prefers-reduced-motion:reduce){.project-settings{transition:none}}
 @media print{.project-info-overlay,.project-info-dialog{display:none!important}}
 .dark .sheet-diagram { background: var(--pp-raised); }
@@ -913,122 +919,75 @@ button,a,input,select { outline-offset:3px; }
 .rectangle-controls .rectangle-direction-control { display: flex; flex-direction: row; align-items: center; gap: 5px; min-width: 0; margin: 0; }
 .rectangle-direction-control .pp-select-trigger { width: 130px; min-width: 130px; }
 .rectangle-plane-hint { color: var(--pp-muted); }
-/* Compact part rows keep dimensions readable; optional fields disclose below. */
+/* Part editors use card-width container queries so the card, not the viewport, chooses its density. */
 .part-row.reorderable-row{container-type:inline-size;container-name:part-editor;display:block;padding:10px;border:1px solid var(--pp-border);border-radius:9px;min-width:0}
-.part-main-row{display:grid;grid-template-columns:28px minmax(100px,1.3fr) minmax(115px,1fr) minmax(90px,.8fr) 34px 34px;align-items:end;gap:8px}
-.part-main-row.is-sheet{grid-template-columns:28px minmax(90px,1.2fr) repeat(2,minmax(110px,1fr)) minmax(85px,.8fr) 34px 34px}
+.part-main-row{display:grid;grid-template-columns:28px minmax(0,1fr);gap:8px 6px;align-items:start;min-width:0}
+.part-identity-row{grid-column:2;grid-row:1;display:grid;grid-template-columns:minmax(0,1fr) 76px;gap:8px;align-items:end;min-width:0}
+.part-secondary-row{grid-column:2;grid-row:2;display:grid;gap:8px;min-width:0}
+.part-dimensions-row{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;align-items:end;min-width:0}
+.part-actions-row{display:flex;align-items:end;justify-content:flex-end;gap:6px;min-width:0}
 .part-main-row label,.part-details-fields label{min-width:0}
 .part-main-row .number-field>label{white-space:nowrap}
-.part-expand{display:flex;align-items:center;justify-content:center;width:34px;height:36px;padding:0;border:1px solid var(--pp-border);border-radius:6px;background:var(--pp-surface);color:var(--pp-blue);cursor:pointer}
+.part-row .part-main-row>.reorder-handle{grid-column:1;grid-row:1/4;align-self:start;justify-self:start;margin:0;width:28px}
+.part-main-row .part-name-field{box-sizing:border-box;width:100%;min-width:0}
+.part-main-row .part-type-field{min-width:76px;width:76px}
+.part-type-field .stock-type-fieldset{margin:0;padding:0;min-width:0}
+.part-type-field .stock-type-fieldset>legend{font-size:11px}
+.part-type-field .material-type-toggle{width:74px}
+.part-type-field .material-type-toggle button{width:36px;min-width:36px;height:36px;padding:6px}
+.part-main-row .part-lumber-field{min-width:0}
+.part-main-row .part-optional-width.is-visible{min-width:0;max-width:none}
+.part-main-row .part-quantity-field{flex:none;width:70px;min-width:70px;max-width:70px}
+.part-quantity-field .number-stepper-grip{display:none}
+.part-quantity-field .number-stepper>input{padding-inline:6px}
+.part-main-row .part-optional-width:not(.is-visible){display:none}
+.part-expand{display:flex;align-items:center;justify-content:center;flex:none;width:34px;height:36px;padding:0;border:1px solid var(--pp-border);border-radius:6px;background:var(--pp-surface);color:var(--pp-blue);cursor:pointer}
 .part-expand svg{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
 .part-expand[aria-expanded=true] svg{rotate:180deg}
 .part-expand:focus-visible{outline:2px solid var(--pp-focus);outline-offset:2px}
 .part-expand:active{background:var(--pp-raised)}
 @media(hover:hover){.part-expand:hover{background:var(--pp-raised);border-color:var(--pp-blue)}}
+.part-main-row .quick-actions-trigger{flex:none;width:34px;height:36px}
 .part-details{display:grid;grid-template-rows:0fr;opacity:0;visibility:hidden}
 .part-details.is-expanded{grid-template-rows:1fr;opacity:1;visibility:visible}
 .part-details-clip{min-height:0;overflow:hidden}
-.part-details-fields{display:grid;grid-template-columns:minmax(90px,1fr) auto minmax(110px,1fr) minmax(110px,1.5fr);gap:10px;align-items:end;padding:14px 0 4px}
+.part-details-fields{display:grid;grid-template-columns:minmax(70px,1fr) minmax(100px,1fr) minmax(0,0fr) minmax(100px,1.5fr);gap:10px;align-items:end;padding:14px 0 4px calc(28px + 6px)}
+.part-details-fields:has(.part-optional-grain.is-visible){grid-template-columns:minmax(70px,1fr) minmax(100px,1fr) minmax(95px,.8fr) minmax(100px,1.5fr)}
 .part-details-fields .grain-lock{display:flex;align-items:center;gap:6px;min-height:36px;white-space:nowrap}
 .part-details-fields .grain-lock input{width:16px;height:16px;padding:0;accent-color:var(--pp-blue)}
-.part-main-row .quick-actions-trigger{height:36px}
-@media(prefers-reduced-motion:no-preference){.part-details{transition:grid-template-rows 220ms ease-out,opacity 150ms ease-out,visibility 220ms}.part-expand svg{transition:rotate 150ms ease-out}}
-@media(prefers-reduced-motion:reduce){.part-details{transition:opacity 100ms ease-out}}
-@container part-editor (max-width:540px){.part-main-row,.part-main-row.is-sheet{grid-template-columns:28px minmax(0,1fr) minmax(0,1fr) 34px 34px}.part-main-row>label{grid-column:2/4}.part-main-row>.number-field{grid-row:2}.part-main-row>.number-field:first-of-type{grid-column:2}.part-main-row>.number-field:nth-of-type(2){grid-column:3}.part-main-row>.number-field:last-of-type{grid-column:2/4;grid-row:3}.part-main-row>.part-expand{grid-column:4;grid-row:1}.part-main-row>.quick-actions-trigger{grid-column:5;grid-row:1}.part-details-fields{grid-template-columns:repeat(2,minmax(0,1fr))}.part-details-fields label{min-width:0}}
-/* Material-specific fields share a reversible grid transition. */
-.parts-panel-actions{flex-wrap:wrap;justify-content:flex-end;min-width:0}
-.parts-add-controls>.pp-select-trigger{width:170px;min-width:0;max-width:100%}
-.part-main-row{grid-template-columns:28px minmax(90px,1.2fr) minmax(110px,1fr) minmax(0,0fr) minmax(85px,.8fr) 34px 34px}
-.part-main-row.is-sheet{grid-template-columns:28px minmax(90px,1.2fr) minmax(110px,1fr) minmax(0,1fr) minmax(85px,.8fr) 34px 34px}
-.part-optional-width{min-width:0;overflow:hidden;opacity:0;visibility:hidden}
-.part-optional-width.is-visible{opacity:1;visibility:visible}
-.part-details-fields{grid-template-columns:minmax(70px,1fr) minmax(100px,1fr) minmax(0,0fr) minmax(100px,1.5fr)}
-.part-details-fields:has(.part-optional-grain.is-visible){grid-template-columns:minmax(70px,1fr) minmax(100px,1fr) minmax(95px,.8fr) minmax(100px,1.5fr)}
 .part-details-fields .part-optional-grain{overflow:hidden;opacity:0;visibility:hidden;min-width:0}
 .part-details-fields .part-optional-grain.is-visible{opacity:1;visibility:visible}
-@media(prefers-reduced-motion:no-preference){.part-main-row,.part-details-fields{transition:grid-template-columns 220ms ease-out}.part-optional-width,.part-optional-grain{transition:opacity 150ms ease-out,visibility 220ms}}
-@media(prefers-reduced-motion:reduce){.part-optional-width,.part-optional-grain{transition:opacity 100ms ease-out}}
-@container part-editor (max-width:540px){.part-main-row,.part-main-row.is-sheet{grid-template-columns:28px minmax(0,1fr) minmax(0,1fr) 34px 34px}.part-main-row>.part-optional-width{grid-column:3;grid-row:2}.part-main-row>.number-field:first-of-type{grid-column:2;grid-row:2}.part-main-row>.number-field:last-of-type{grid-column:2/4;grid-row:3}.part-details-fields,.part-details-fields:has(.part-optional-grain.is-visible){grid-template-columns:repeat(2,minmax(0,1fr))}.part-optional-grain:not(.is-visible){height:0;min-height:0}}
-
-.panel-title:has(.parts-panel-actions){flex-wrap:wrap;align-items:center}.parts-add-controls{display:flex;align-items:center;gap:8px;min-width:0}.parts-add-controls>.primary{flex-shrink:0}
-/* Part-owned type and size controls wrap as a group when the editor is narrow. */
-.part-main-row,.part-main-row.is-sheet{display:flex;flex-wrap:wrap;align-items:end;gap:8px}
-.part-main-row>label{flex:1 1 110px;min-width:85px}
-.part-main-row>.number-field{flex:1 1 100px;min-width:85px}
-.part-main-row>.part-optional-width{flex:0 1 0px;min-width:0;max-width:0}
-.part-main-row.is-sheet>.part-optional-width{flex:1 1 100px;max-width:100%;min-width:85px}
-.part-main-row>.reorder-handle,.part-main-row>.part-expand,.part-main-row>.quick-actions-trigger{flex:0 0 28px}
-.part-main-row>.part-expand,.part-main-row>.quick-actions-trigger{flex-basis:34px}
-.part-details-fields>label:has(.number-stepper){grid-column:span 2}
-@media(prefers-reduced-motion:no-preference){.part-optional-width{transition:flex-basis 220ms ease-out,max-width 220ms ease-out,opacity 150ms ease-out,visibility 220ms}}
-@container part-editor (max-width:850px){
- .part-main-row,.part-main-row.is-sheet{display:grid;grid-template-columns:28px repeat(4,minmax(0,1fr)) 34px 34px}
- .part-main-row>.part-name-field{grid-column:2/4;grid-row:1;min-width:0}
- .part-main-row>.part-type-field{grid-column:4/6;grid-row:1;min-width:0}
- .part-main-row:has(.part-lumber-field)>.part-type-field{grid-column:4}
- .part-main-row>.part-lumber-field{grid-column:5/8;grid-row:1;min-width:0}
- .part-main-row>.part-length-field{grid-column:2/4;grid-row:2;min-width:0}
- .part-main-row.is-sheet>.part-length-field{grid-column:2/3}
- .part-main-row>.part-optional-width{grid-column:3/4;grid-row:2;min-width:0;max-width:none}
- .part-main-row>.part-quantity-field{grid-column:4/6;grid-row:2;min-width:0}
- .part-main-row>.part-expand{grid-column:6;grid-row:2}
- .part-main-row>.quick-actions-trigger{grid-column:7;grid-row:2}
- .part-main-row>.reorder-handle{grid-column:1;grid-row:1/3;align-self:center}
+@media(prefers-reduced-motion:no-preference){.part-details{transition:grid-template-rows 220ms ease-out,opacity 150ms ease-out,visibility 220ms}.part-expand svg{transition:rotate 150ms ease-out}.part-main-row,.part-details-fields{transition:grid-template-columns 220ms ease-out}.part-optional-grain{transition:opacity 150ms ease-out,visibility 220ms}}
+@media(prefers-reduced-motion:reduce){.part-details{transition:opacity 100ms ease-out}.part-optional-grain{transition:opacity 100ms ease-out}}
+@container part-editor (min-width:450px){
+ .part-main-row>.reorder-handle{grid-row:1/3}
+ .part-main-row>.part-secondary-row{grid-template-columns:minmax(0,1fr) auto;align-items:end}
+ .part-main-row .part-dimensions-row{grid-template-columns:repeat(2,minmax(80px,1fr))}
+ .part-details-fields{grid-template-columns:repeat(2,minmax(0,1fr));padding-inline-start:0}
+ .part-details-fields label:has(.number-stepper){grid-column:span 2}
 }
-@container part-editor (max-width:360px){.part-main-row>.part-lumber-field{grid-column:2/8;grid-row:2}.part-main-row:has(.part-lumber-field)>.part-length-field,.part-main-row:has(.part-lumber-field)>.part-quantity-field,.part-main-row:has(.part-lumber-field)>.part-expand,.part-main-row:has(.part-lumber-field)>.quick-actions-trigger{grid-row:3}}
+@container part-editor (min-width:700px){
+ .part-main-row{gap:6px;align-items:end}
+ .part-main-row{grid-template-columns:28px minmax(120px,1.2fr) 76px minmax(90px,1fr) minmax(90px,1fr) 70px 34px 34px}
+ .part-main-row>.part-identity-row,.part-main-row>.part-secondary-row,.part-main-row .part-dimensions-row,.part-main-row .part-actions-row{display:contents}
+ .part-main-row>.reorder-handle,.part-main-row .part-name-field,.part-main-row .part-type-field,.part-main-row .part-lumber-field,.part-main-row .part-length-field,.part-main-row .part-optional-width.is-visible,.part-main-row .part-quantity-field,.part-main-row .part-expand,.part-main-row .quick-actions-trigger{grid-row:1;min-width:0;max-width:none}
+ .part-main-row>.reorder-handle{grid-column:1;width:28px}
+ .part-main-row .part-name-field{grid-column:2;width:100%}
+ .part-main-row .part-type-field{grid-column:3}
+ .part-main-row:not(.is-sheet) .part-lumber-field{grid-column:4}
+ .part-main-row .part-length-field{grid-column:4}
+ .part-main-row:not(.is-sheet) .part-length-field{grid-column:5}
+ .part-main-row.is-sheet .part-optional-width.is-visible{grid-column:5}
+ .part-main-row .part-quantity-field{grid-column:6}
+ .part-main-row .part-expand{grid-column:7;width:34px}
+ .part-main-row .quick-actions-trigger{grid-column:8;width:34px}
+ .part-details-fields{grid-template-columns:minmax(70px,1fr) minmax(100px,1fr) minmax(0,0fr) minmax(100px,1.5fr);padding-inline-start:0}
+ .part-details-fields:has(.part-optional-grain.is-visible){grid-template-columns:minmax(70px,1fr) minmax(100px,1fr) minmax(95px,.8fr) minmax(100px,1.5fr)}
+ .part-details-fields label:has(.number-stepper){grid-column:auto}
+}
 ::view-transition-old(root),::view-transition-new(root){animation:none}
 ::view-transition-group(*),::view-transition-old(*),::view-transition-new(*){animation-duration:220ms;animation-timing-function:ease-out}
 @media(prefers-reduced-motion:reduce){::view-transition-group(*),::view-transition-old(*),::view-transition-new(*){animation:none}}
-/* Compact controls reserve a small quantity column and reuse the blueprint type toggle. */
-.part-main-row>.part-type-field{min-width:76px;flex:0 0 76px}
-.part-type-field .stock-type-fieldset{margin:0;padding:0;min-width:0}
-.part-type-field .stock-type-fieldset>legend{font-size:11px}
-.part-type-field .material-type-toggle{width:74px}
-.part-type-field .material-type-toggle button{width:36px;min-width:36px;height:36px;padding:6px}
-.part-main-row>.part-quantity-field{flex:0 0 70px;min-width:0;max-width:70px;justify-self:start;width:70px}
-.part-quantity-field .number-stepper-grip{display:none}
-.part-quantity-field .number-stepper>input{padding-inline:6px}
-@container part-editor (max-width:850px){.part-main-row>.part-type-field{grid-column:4/6;grid-row:1}.part-main-row:has(.part-lumber-field)>.part-type-field{grid-column:4}.part-main-row>.part-quantity-field{grid-column:4/6;max-width:70px}}
-@container part-editor (min-width:610px){
- .part-main-row.is-sheet{display:grid;grid-template-columns:20px 125px 76px minmax(90px,1fr) minmax(90px,1fr) 56px 28px 28px;gap:6px}
- .part-main-row.is-sheet>.part-name-field,.part-main-row.is-sheet>.part-type-field,.part-main-row.is-sheet>.part-length-field,.part-main-row.is-sheet>.part-optional-width,.part-main-row.is-sheet>.part-quantity-field,.part-main-row.is-sheet>.part-expand,.part-main-row.is-sheet>.quick-actions-trigger,.part-main-row.is-sheet>.reorder-handle{grid-column:auto;grid-row:1;min-width:0;width:auto;max-width:none}
- .part-main-row.is-sheet>.part-quantity-field{width:56px}
- .part-main-row.is-sheet>.part-expand,.part-main-row.is-sheet>.quick-actions-trigger{width:28px}
-}
-@container part-editor (min-width:610px){
- .part-main-row:not(.is-sheet){display:grid;grid-template-columns:20px minmax(70px,1fr) 76px minmax(100px,1fr) 88px 0px 56px 28px 28px;gap:6px}
- .part-main-row:not(.is-sheet)>*{grid-column:auto;grid-row:1;min-width:0;max-width:none;width:auto}
- .part-main-row:not(.is-sheet)>.part-quantity-field{width:56px}
- .part-main-row:not(.is-sheet)>.part-expand,.part-main-row:not(.is-sheet)>.quick-actions-trigger{width:28px}
-}
-
-.part-main-row input{font-size:12px}
-@container part-editor (min-width:610px){
- .part-main-row:not(.is-sheet){grid-template-columns:20px 125px 76px minmax(80px,1fr) 96px 56px 28px 28px}
- .part-main-row:not(.is-sheet)>.reorder-handle{grid-column:1}
- .part-main-row:not(.is-sheet)>.part-name-field{grid-column:2}
- .part-main-row:not(.is-sheet)>.part-type-field{grid-column:3}
- .part-main-row:not(.is-sheet)>.part-lumber-field{grid-column:4}
- .part-main-row:not(.is-sheet)>.part-length-field{grid-column:5}
- .part-main-row:not(.is-sheet)>.part-optional-width{display:none}
- .part-main-row:not(.is-sheet)>.part-quantity-field{grid-column:6}
- .part-main-row:not(.is-sheet)>.part-expand{grid-column:7}
- .part-main-row:not(.is-sheet)>.quick-actions-trigger{grid-column:8}
-}
-.part-main-row .number-stepper>input{padding-inline:6px}
-.part-main-row .number-stepper-arrows{width:16px}
-.part-main-row .number-stepper-grip{width:13px}
-
-/* Keep identity compact and stable across part types and wrapping layouts. */
-.part-row .part-main-row>.part-name-field{box-sizing:border-box;flex:0 0 125px;width:125px;max-width:100%;min-width:0;justify-self:start}
-/* One shared gutter aligns identity and details while the handle stays in the corner. */
-.part-row.reorderable-row{--part-handle-width:28px;--part-field-gap:8px}
-.part-row .part-main-row>.reorder-handle{align-self:start;justify-self:start;margin:0;width:var(--part-handle-width)}
-.part-details-fields{padding-inline-start:calc(var(--part-handle-width) + var(--part-field-gap))}
-@container part-editor (min-width:610px){
- .part-main-row,.part-details{--part-handle-width:20px;--part-field-gap:6px}
- .part-row .part-main-row>.reorder-handle{align-self:start;margin:0}
-}
 
 .material-card-content,.stock-editor-content{display:grid;grid-template-rows:auto 1fr;min-width:0}
 .material-heading{display:grid;grid-template-columns:auto minmax(0,1fr) auto auto;align-items:end;gap:8px 10px}

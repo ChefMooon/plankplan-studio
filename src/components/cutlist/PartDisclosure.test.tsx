@@ -5,7 +5,7 @@ import { PartDisclosure } from './PartDisclosure';
 
 it('discloses optional fields without discarding their draft values', async () => {
   const user = userEvent.setup();
-  render(<PartDisclosure partId="rail" partName="Rail" sheetPart handle={<button>Reorder Rail</button>} main={<input aria-label="Part name" defaultValue="Rail" />} details={<label>Notes<input defaultValue="Keep grain" /></label>} actions={<button>Rail actions</button>} />);
+  render(<PartDisclosure partId="rail" partName="Rail" sheetPart handle={<button>Reorder Rail</button>} identity={<input aria-label="Part name" defaultValue="Rail" />} dimensions={<input aria-label="Length" defaultValue="8" />} quantity={<input aria-label="Quantity" defaultValue="1" />} details={<label>Notes<input defaultValue="Keep grain" /></label>} actions={<button>Rail actions</button>} />);
   const toggle = screen.getByRole('button', { name: 'Expand details for Rail' });
   expect(toggle).toHaveAttribute('aria-expanded', 'false');
   expect(screen.queryByRole('textbox', { name: 'Notes' })).not.toBeInTheDocument();
