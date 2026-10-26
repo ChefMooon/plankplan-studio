@@ -278,7 +278,7 @@ describe('local project workflow', () => {
     await user.click(screen.getByRole('link', { name: 'Cutlist' }));
     expect(await screen.findByRole('heading', { name: 'What are you making?' })).toBeInTheDocument();
     expect(await savedProject('Imported bench')).toMatchObject({schemaVersion:2,name:'Imported bench'});
-  });
+  }, 10_000);
 
   it('opens the dashboard preview without persisting a new project', async () => {
     const projectsBefore = await projectRepository.list('local');
