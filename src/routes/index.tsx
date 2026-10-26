@@ -12,6 +12,7 @@ import { LEGACY_PROJECTS_KEY, migrateLegacyProjects, watchLegacyPayloadChanges }
 import { ProjectCard } from '@/components/project-card';
 import { DeleteConfirmationDialog } from '@/components/DeleteConfirmationDialog';
 import { ThemeToggle } from '@/components/theme-toggle';
+import { HomeTableIllustration } from '@/components/HomeTableIllustration';
 
 export const Route = createFileRoute('/')({ component: Home });
 function Home() {
@@ -105,14 +106,7 @@ function Home() {
         <p>Design your next build, plan your stock, and turn dimensions into a clear cutlist.</p>
       </div>
       <div className="home-intro-art" aria-hidden="true">
-        <svg viewBox="0 0 440 240" fill="none">
-          <path d="M98 83 243 43l106 39-147 43L98 83Z" fill="#C18D5B" stroke="#E0BB8E" strokeWidth="2"/>
-          <path d="m98 83 104 42v23L98 106V83Z" fill="#9D6C43" stroke="#D6A675" strokeWidth="2"/>
-          <path d="m202 125 147-43v24l-147 42v-23Z" fill="#AC794C" stroke="#D6A675" strokeWidth="2"/>
-          <path d="m119 111 19 7v80l-19-7v-80ZM321 111l19-6v80l-19 6v-80ZM185 142l19 7v80l-19-7v-80ZM257 130l19-6v80l-19 6v-80Z" fill="#694332" stroke="#83ABC3" strokeWidth="2"/>
-          <path d="M108 69 245 31M78 62v43M362 78l-8 3m-1 41 9-3" stroke="#D7C8AA" strokeWidth="1.5" strokeLinecap="round"/>
-          <path d="M105 55 240 18" stroke="#D7C8AA" strokeDasharray="3 5"/>
-        </svg>
+        <HomeTableIllustration />
       </div>
     </section>
     <section className="project-section home-projects" aria-labelledby="projects-heading">
