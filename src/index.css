@@ -631,6 +631,8 @@ button,a,input,select { outline-offset:3px; }
   gap: 12px;
 }
 .materials-panel-title > .material-form-toggle { justify-self: start; width: auto; }
+.stable-toggle-label { display: inline-grid; }
+.stable-toggle-label::after { content: attr(data-width-label); visibility: hidden; height: 0; overflow: hidden; }
 .material-form-toggle svg { width: 15px; height: 15px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; transition: transform 120ms ease; }
 .material-form-toggle svg.is-expanded { transform: rotate(180deg); }
 .material-heading { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; align-items: end; gap: 8px 10px; }
@@ -1050,3 +1052,7 @@ button,a,input,select { outline-offset:3px; }
 .cutlist-page .result-panel > h3 { margin: var(--cutlist-section-gap) 0 var(--cutlist-group-gap); }
 .cutlist-page .result-panel > .muted { margin: var(--cutlist-group-gap) 0; line-height: 1.5; }
 .cutlist-page .plan-card > .plan-row { border-top: 0; padding-top: 0; padding-bottom: var(--cutlist-group-gap); }
+
+.settings-panel-layout { display: grid; }
+.settings-panel-layout > .units-row { grid-area: 1 / 1; align-content: start; }
+.settings-panel-layout > .units-row[aria-hidden="true"] { visibility: hidden; }
