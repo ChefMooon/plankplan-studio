@@ -33,6 +33,20 @@ async function startCutlistProject(user: ReturnType<typeof userEvent.setup>, nam
 }
 
 describe('local project workflow', () => {
+  it('stays on the dashboard when project creation cannot be saved', async () => {
+    const user = userEvent.setup();
+    const router = await renderApp();
+    await waitFor(() => expect(screen.queryByText('Loading projects…')).not.toBeInTheDocument());
+    const create = vi.spyOn(projectRepository, 'create').mockResolvedValueOnce({ ok: false, kind: 'storage-failure' });
+    try {
+      const projects = screen.getByRole('region', { name: 'Projects' });
+      await user.click(within(projects).getAllByRole('button', { name: 'New project' })[0]);
+      expect(await screen.findByText('Project could not be saved. Retry after checking local storage.')).toBeInTheDocument();
+      expect(router.state.location.pathname).toBe('/');
+      expect(screen.queryByRole('heading', { name: 'What are you making?' })).not.toBeInTheDocument();
+    } finally { create.mockRestore(); }
+  });
+
   it('confirms JSON replacement before changing the saved project and rejects invalid backups', async () => {
     const user = userEvent.setup(); await renderApp();
     await startCutlistProject(user, 'Replace destination');
