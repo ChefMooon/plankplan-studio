@@ -1,5 +1,7 @@
 # PlankPlan Studio MVP UI/UX Specification
 
+> Historical product requirements and planning targets: references to the MVP Design shell or future Phase 2 describe the original scope, not the current application. See the [README](../README.md) and [3D workspace guide](plankplan-studio-3d-workspace-guide.md) for delivered behavior and limits.
+
 **Status:** Draft | **Product specification:** [PlankPlan Studio Product Specification](plankplan-studio-product-spec.md) | **User stories:** [PlankPlan Studio MVP User Stories](plankplan-studio-mvp-user-stories.md) | **Implementation plan:** [PlankPlan Studio MVP Implementation Plan](plans/plankplan-studio-mvp/plankplan-studio-mvp-implementation-plan.md)
 
 **Visual source:** [PlankPlan Studio Design Guide](DESIGN.md)
@@ -8,14 +10,14 @@ This document defines the MVP screen structure and interaction boundaries. It re
 
 ## Visual Direction
 
-Use the blue Stock Mix mark with the current blueprint-blue interface exploration, cool neutral surfaces, strong alignment, clear grids, and readable numeric values. Keep dense planning information calm and legible; avoid decorative wood textures behind tables or results. See [DESIGN.md](DESIGN.md) for the shared rules and the [HTML dashboard concept](mockups/plankplan-studio-dashboard-concept.html) for this candidate direction.
+Use the blue Stock Mix mark with the current blueprint-blue interface exploration, cool neutral surfaces, strong alignment, clear grids, and readable numeric values. Keep dense planning information calm and legible; avoid decorative wood textures behind tables or results. See [DESIGN.md](DESIGN.md) for the shared rules for this candidate direction.
 
 ## Product Navigation
 
 ```text
 Project Dashboard
 ├── Start a cutlist project → Project Workspace / Cutlist
-├── Open 3D workspace preview → Project Workspace / Design
+├── Open 3D workspace preview → Standalone preview (no project/save)
 └── Existing project → Project Workspace
     ├── Design
     └── Cutlist

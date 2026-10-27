@@ -329,7 +329,7 @@ describe('local project workflow', () => {
     await user.click(await screen.findByRole('button', { name: /add part/i }));
     const length = screen.getByRole('textbox', { name: 'Part length' });
     fireEvent.change(length, { target: { value: '2 3/8' } }); fireEvent.blur(length);
-    const designHref=screen.getByRole('link',{name:'Design'}).getAttribute('href')!; const fractionalId=designHref.split('/')[2];
+    const designHref=screen.getByRole('link',{name:'Design Beta'}).getAttribute('href')!; const fractionalId=designHref.split('/')[2];
     await waitFor(async () => { const saved=await projectRepository.get({namespaceId:'local',projectId:fractionalId}); expect(saved.ok&&saved.value.parts[0].length.um).toBe(60325); });
     await user.click(screen.getByRole('button', { name: 'Project Info' }));
     const dialog = await screen.findByRole('dialog', { name: 'Project Info' });

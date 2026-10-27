@@ -12,7 +12,7 @@ export function ProjectNavigation({ projectId, projectName, active, onProjectInf
     <strong className="project-navigation-title" title={projectName}>{projectName}</strong>
     <div id="design-project-info-action" className="project-navigation-info">{onProjectInfo && <ProjectInfoButton onClick={onProjectInfo}/>}</div>
     <div className="project-navigation-tabs" role="group" aria-label="Project areas">
-      <Link to="/projects/$projectId/design" params={{ projectId }} aria-current={active === 'design' ? 'page' : undefined} className={active === 'design' ? 'active' : ''}>Design</Link>
+      <Link to="/projects/$projectId/design" params={{ projectId }} aria-current={active === 'design' ? 'page' : undefined} className={active === 'design' ? 'active' : ''}>Design <span className="project-navigation-beta">Beta</span></Link>
       <Link to="/projects/$projectId/cutlist" params={{ projectId }} aria-current={active === 'cutlist' ? 'page' : undefined} className={active === 'cutlist' ? 'active' : ''}>Cutlist</Link>
     </div>
   </nav>;

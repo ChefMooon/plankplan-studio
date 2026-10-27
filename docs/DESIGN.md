@@ -4,7 +4,7 @@
 
 PlankPlan Studio is a precise, approachable planning tool for the woodshop. Its interface should make dimensions, stock choices, cut plans, and project progress easy to scan. The initial **Stock Mix** mark combines a blueprint-blue sheet panel with deep navy boards. The current interface exploration uses a blueprint-inspired blue system; broader interface choices remain open for review.
 
-This is the initial MVP design direction, not a claim that the whole application UI has been implemented. The [dashboard concept](mockups/plankplan-studio-dashboard-concept.html) is the visual reference for the home page and project shell. Product behavior and screen requirements remain in the [UI/UX specification](plankplan-studio-mvp-ui-ux-spec.md).
+This guide records the initial design direction and shared controls. The application now includes both the Cutlist and project Design workspaces. The [dashboard concept](mockups/plankplan-studio-dashboard-concept.html) is a historical visual exploration. Product behavior and screen requirements remain in the [UI/UX specification](plankplan-studio-mvp-ui-ux-spec.md).
 
 ## Visual principles
 
@@ -14,7 +14,7 @@ This is the initial MVP design direction, not a claim that the whole application
 - Use wood texture or grain only as a restrained accent. Do not place texture behind tables, cut diagrams, or dense results.
 - Use precise alignment and light grid cues to suggest layout and cutting work.
 - Keep the dashboard welcoming and project-oriented, with two clear starting actions: Design and Cutlist.
-- Show product maturity in text: Cutlist is the MVP workflow; Design is a shell until Phase 2.
+- Show product maturity and the limits of each workflow clearly in text.
 
 ## Brand mark and iconography
 
@@ -29,9 +29,9 @@ The initial app icon is the **Stock Mix** SVG, preserved as an editable, version
 
 ## Color and themes
 
-The current exploration is a light blueprint workspace. The light and planned dark semantic tokens below are paired so the blue identity remains recognizable across themes. Dark values are design targets, not an implemented theme or a final brand lock.
+The application supports light, dark, and system themes. The semantic token values below document the blueprint direction; check the stylesheet for current implementation values.
 
-| Token | Light | Planned dark | Role |
+| Token | Light | Dark | Role |
 | --- | --- | --- | --- |
 | `--color-canvas` | `#EFF4F7` | `#111C25` | Main page background |
 | `--color-surface` | `#FBFDFE` | `#192834` | Cards, tables, and workspace surfaces |
@@ -52,7 +52,7 @@ The current exploration is a light blueprint workspace. The light and planned da
 | `--color-warning` | `#936326` | `#F2C66D` | Caution state with a textual label |
 | `--color-danger` | `#A33D32` | `#FF978D` | Error/destructive state with a textual label |
 
-These are candidate values. Before production use, verify text, controls, focus indicators, and status colors against their actual backgrounds in both themes. Keep the Stock Mix SVG's colors unchanged; use the backplate token when the navy shapes need separation from a dark surface. Never communicate status through color alone. Dark theme implementation remains future work.
+These are candidate values. Before production use, verify text, controls, focus indicators, and status colors against their actual backgrounds in both themes. Keep the Stock Mix SVG's colors unchanged; use the backplate token when the navy shapes need separation from a dark surface. Never communicate status through color alone.
 
 ## Typography, spacing, and shape
 
@@ -68,7 +68,7 @@ These are candidate values. Before production use, verify text, controls, focus 
 - Within a project, Design and Cutlist are peer navigation destinations under one project identity.
 - Use a centered content area near 1160 px with fluid page gutters; let cards collapse to one column on phone widths.
 - Keep tables and diagrams readable at narrow widths; use the defined card-style parts fallback and prevent page-level horizontal overflow.
-- The Design viewport is a bounded Phase 2 placeholder in the MVP, not an interactive model canvas.
+- The project Design viewport is an interactive modeling canvas; the standalone dashboard preview is illustrative.
 
 ## Components and interaction states
 
@@ -76,7 +76,7 @@ These are candidate values. Before production use, verify text, controls, focus 
 - Primary buttons use blueprint blue with clear text contrast. Secondary actions use quiet surfaces and a visible boundary.
 - Preserve visible focus, keyboard operation, disabled and pressed states, and reduced-motion behavior.
 - Keep focus predictable when switching project areas or returning to the dashboard.
-- Keep status and availability labels explicit, such as “MVP workflow” or “Planned · Phase 2.”
+- Keep status and availability labels explicit and consistent with the current workflow.
 
 ### Shared controls
 
@@ -105,6 +105,6 @@ Use concise, practical language that helps people act in the shop. Prefer specif
 
 - Does the interface use the blue Stock Mix identity with a restrained blueprint-blue palette?
 - Are dimensions, quantities, costs, and cut results easier to scan than decorative elements?
-- Do the home page and project areas make Design and Cutlist roles clear, including the Phase 2 boundary?
+- Do the home page and project areas make Design and Cutlist roles clear, including the standalone preview boundary?
 - Are focus, keyboard operation, status labels, reduced motion, and narrow layouts handled?
 - Have actual color contrast and rendered layouts been checked at the target sizes?

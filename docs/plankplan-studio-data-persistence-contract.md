@@ -1,16 +1,16 @@
 # Project Data and Persistence Contract
 
-**Status:** Target contract approved for documentation on 2026-10-22; not implemented.
+**Status:** Target contract approved on 2026-10-22. Local schema v2, IndexedDB repository, migration and recovery are implemented; release verification remains partial. Cloud provisions remain future work.
 **Authority:** Canonical serialized project, identity, validation, migration, and persistence contract. Product concepts and optimizer request types do not override this format.
 
 **Revision:** 2026-10-22 final review resolved: legacy-tab cutover, uncertain mutation reconciliation, retained creation metadata, and bounded snapshots/status reads. Earlier review resolutions remain in force. Owner-authorized follow-up closes persistent cut-spec confirmation, durable detach, and canonical document-byte measurement.
 
 ## Scope and delivery boundaries
 
-The current application implements schema v1 and synchronous whole-library localStorage persistence. It does not implement the recovery, repository, schema-v2, or cloud guarantees below. This document does not certify current behavior or authorize application changes.
+The application now uses schema v2 and an asynchronous per-project IndexedDB repository, with legacy migration and recovery. The local implementation and its remaining verification gaps are recorded in the [3D workspace plan](plans/3d-workspace/3d-workspace-plan.md). Cloud guarantees below are future requirements, not current behavior. This contract does not by itself certify implementation or release readiness.
 
 - **MVP:** Existing local cutlist application; preserve the completed implementation plan as historical evidence.
-- **Phase 2:** Plan local recovery, an asynchronous per-project repository, explicit identity operations, v1-to-v2 migration, and the embedded design contract before implementing design persistence. No accounts, Worker API, D1, R2, or network sync.
+- **Phase 2:** Local recovery, an asynchronous per-project repository, explicit identity operations, v1-to-v2 migration, and the embedded design contract are implemented with partial verification. No accounts, Worker API, D1, R2, or network sync.
 - **Phase 3:** Implement authentication, account migration, cloud saves, concurrency, retries, deletion synchronization, and Cloudflare storage. Revalidate platform/auth compatibility before implementation.
 - Full offline PWA support and collaborative editing remain later work. Safe recovery from temporary connection failure is required for Phase 3 saves.
 

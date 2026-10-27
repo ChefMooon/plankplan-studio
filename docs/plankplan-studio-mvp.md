@@ -1,9 +1,11 @@
 # PlankPlan Studio MVP
 
-**Status:** Planning foundation in progress
-**Last reviewed:** 2026-10-22
+**Status:** Historical MVP scope and current documentation register
+**Last reviewed:** 2026-10-27
 
-This is the entry point and document register for the PlankPlan Studio MVP. It records scope, the agreed initial-page direction, and where each type of product detail lives. Detailed requirements belong in the product specification; implementation and verification belong in the MVP plan.
+This records the original MVP scope and serves as the document register. The MVP plan is complete with verification gaps, and the project Design workspace has since been implemented with partial release evidence. See the [README](../README.md) for current features. It records scope, the agreed initial-page direction, and where each type of product detail lives. Detailed requirements belong in the product specification; implementation and verification belong in the MVP plan.
+
+> The MVP goal, scope and initial page decision below describe the original requirements. Project Design now supports modeling and reviewed Cutlist updates; the standalone preview remains illustrative.
 
 ## MVP Goal
 
@@ -36,7 +38,7 @@ The selected dashboard-plus-project-navigation structure combines the strengths 
 
 ## Initial Visual Direction (Under Review)
 
-Use the blue **Stock Mix** icon with a blueprint-inspired interface palette under review. Keep clear drafting grids, cool neutral surfaces, and readable numbers. Keep cutlist and cost information visually crisp. The [design guide](DESIGN.md) is the shared MVP visual reference; the [HTML concept mockup](mockups/plankplan-studio-dashboard-concept.html) explores its dashboard and project shell, not production UI.
+Use the blue **Stock Mix** icon with a blueprint-inspired interface palette under review. Keep clear drafting grids, cool neutral surfaces, and readable numbers. Keep cutlist and cost information visually crisp. The [design guide](DESIGN.md) is the shared visual reference; the [HTML concept mockup](mockups/plankplan-studio-dashboard-concept.html) is a historical exploration, not production UI.
 
 The current icon source is [`src/assets/plankplan-studio-stock-mix-v02.svg`](../src/assets/plankplan-studio-stock-mix-v02.svg). The original [`v01`](../src/assets/plankplan-studio-stock-mix-v01.svg) remains preserved; the browser favicon uses v02.
 
@@ -46,18 +48,19 @@ The current icon source is [`src/assets/plankplan-studio-stock-mix-v02.svg`](../
 |---|---|---|
 | [Design guide](DESIGN.md) | Initial Stock Mix identity, candidate blueprint palette, visual principles, responsive layout, and accessibility expectations for MVP screens. | Candidate; palette under review |
 | [Product specification](plankplan-studio-product-spec.md) | Product vision, user/use cases, MVP requirements, domain model, optimizer behavior, technical direction, success criteria, decisions, and open questions. | Draft v0.17 |
-| [Data and persistence contract](plankplan-studio-data-persistence-contract.md) | Canonical target schema, identity, validation/migration, local recovery, and Phase 3 cloud-save protocol. | Documentation approved; implementation pending |
-| [3D workspace guide](plankplan-studio-3d-workspace-guide.md) | Adapts the CM Modding Tools Three.js workspace patterns and records architecture, cutlist, persistence, and accessibility constraints for Phase 2. | Owner decisions recorded; Phase 2 implementation plan remains |
-| [3D workspace initial features](plankplan-studio-3d-workspace-initial-features.md) | Initial tools, drawers, shortcuts, mouse controls, component instances, stock defaults, and cutlist behaviors. | Feature decisions closed; Phase 2 implementation plan remains |
+| [Data and persistence contract](plankplan-studio-data-persistence-contract.md) | Canonical target schema, identity, validation/migration, local recovery, and Phase 3 cloud-save protocol. | Local implementation present; cloud contract is future work |
+| [3D workspace guide](plankplan-studio-3d-workspace-guide.md) | Adapts the CM Modding Tools Three.js workspace patterns and records architecture, cutlist, persistence, and accessibility constraints for Phase 2. | Implemented with documented limits and partial release evidence |
+| [3D workspace initial features](plankplan-studio-3d-workspace-initial-features.md) | Initial tools, drawers, shortcuts, mouse controls, component instances, stock defaults, and cutlist behaviors. | Implemented with documented limits and partial release evidence |
 | [MVP user stories](plankplan-studio-mvp-user-stories.md) | User goals and acceptance criteria for MVP workflows, traced to the product spec and plan. | Draft |
 | [MVP UI/UX specification](plankplan-studio-mvp-ui-ux-spec.md) | Screen hierarchy, dashboard decision, project navigation, responsive behavior, accessibility, and 3D-shell states. | Draft |
-| [Dashboard HTML concept](mockups/plankplan-studio-dashboard-concept.html) | Clickable visual prototype of the dashboard and destination shells. | Concept; review before implementation |
+| [Dashboard HTML concept](mockups/plankplan-studio-dashboard-concept.html) | Clickable visual prototype of the dashboard and destination shells. | Historical concept |
+| [3D implementation plan](plans/3d-workspace/3d-workspace-plan.md) | Delivered workspace, implementation limits, and release verification evidence. | Partial verification |
 | [MVP implementation plan](plans/plankplan-studio-mvp/plankplan-studio-mvp-implementation-plan.md) | Phases, implementation tasks, scope boundaries, and phase evidence. This is the execution source of truth for MVP work. | Complete with gaps; 3/3 phases complete |
-| [Roadmap](plankplan-studio-roadmap.md) | Phase 2 3D direction, later cloud/billing horizons, post-MVP options, and future ideas. | Directional; no dates |
+| [Roadmap](plankplan-studio-roadmap.md) | 3D status, later cloud/billing horizons, post-MVP options, and future ideas. | Directional; no dates |
 
 ## Useful Supporting Documents to Add Later
 
-- **Phase 2 implementation plan:** Owner decisions are closed. Include the data/persistence contract, exact design records, migration/recovery, local repository concurrency, geometry scope, and cross-section fit; keep cloud implementation in Phase 3. Use the [3D workspace guide](plankplan-studio-3d-workspace-guide.md) and [initial features proposal](plankplan-studio-3d-workspace-initial-features.md) as inputs. Three.js is selected; React Three Fiber/Drei remain candidates.
+- **3D release verification:** Complete the outstanding checks recorded in the [3D workspace plan](plans/3d-workspace/3d-workspace-plan.md) and [evidence](plans/3d-workspace/phase-7-evidence.md).
 - **Architecture decisions:** Record the current SPA/deployment/auth reconciliation when the MVP plan's architecture preflight reaches a concrete decision; avoid duplicating unsettled choices here.
 - **Release readiness checklist:** Create when the MVP is approaching release, with required checks and evidence for product, accessibility, browser support, data export/backup, and deployment.
 

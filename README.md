@@ -1,73 +1,57 @@
 # PlankPlan Studio
 
-A woodworking planner in product planning. The current application is still the Vite/React starter scaffold; the product specification and MVP plan describe the intended product and must not be read as implemented behavior.
+PlankPlan Studio helps woodworkers plan projects, work out what stock to buy, and organize cuts. Create a cutlist directly or use the optional 3D Design workspace to model components and review their inclusion in a cutlist.
 
-## Documentation Status
+## Features
 
-Product planning is in progress. Start with the [PlankPlan Studio MVP document](docs/plankplan-studio-mvp.md) for the canonical document register, MVP scope, and agreed dashboard and project-navigation direction. The initial brand and interface guidance is in [docs/DESIGN.md](docs/DESIGN.md), and the versioned Stock Mix mark is in `src/assets/`.
+- **Projects:** Create, rename, duplicate, and delete local projects; organize parts, materials, and stock with imperial or metric measurements.
+- **Cut planning:** Optimize linear boards, sheet goods, or a mix of both. Set quantities, kerf, trim, stock availability, prices, and other project settings. Review cut diagrams, shopping lists, costs, offcuts, and fit or input warnings.
+- **3D design (beta):** Draw and edit simple shapes, create reusable components, measure, paint, and inspect a project. Review proposed cutlist changes before applying them; manual cutlist entries remain available independently. Modeling and stock-fit checks have [documented limits](docs/plankplan-studio-3d-workspace-guide.md#delivered-behavior-and-current-limits).
+- **Shop outputs and backups:** Export project data as JSON, export a cutlist as CSV, or print results using the browser, including Save as PDF where supported. Import a JSON backup as a project or replace an existing project's contents.
+- **Display:** Choose a light, dark, or system theme. Results adapt to smaller screens.
 
-## Tech Stack
+## Getting started
 
-- **Build Engine:** [Vite](https://vite.dev/) (Next-generation native ES Modules dev server)
-- **Framework:** [React 19](https://react.dev/) + [TypeScript](https://www.typescriptlang.org/)
-- **Routing Engine:** [TanStack Router](https://tanstack.com/router/latest) (100% Type-Safe, file-based routing)
-- **Styling Pipeline:** [Tailwind CSS v4.0](https://tailwindcss.com/) (High-performance utility engine)
-- **UI Architecture:** [shadcn/ui](https://ui.shadcn.com/) (Accessible, unstyled primitives powered by Radix UI)
+1. Open PlankPlan Studio and create a project from the dashboard, or import a JSON backup.
+2. In **Cutlist**, add parts, materials, and the stock options and prices available to you. Set your cutting and project preferences, then run the optimizer and review the results.
+3. Optionally open the project's **Design** area to model components and review changes before applying them to the cutlist.
+4. Export a JSON backup and use CSV or **Print / Save PDF** for your shop workflow.
 
----
+The standalone Design preview on the dashboard is illustrative and does not save a project. To save a model, open a project's Design area.
 
-## Key Architecture & Directory Structure
+## Data and current limits
 
-- **public/**
-  - `_redirects` — Cloudflare Pages SPA catch-all routing rules
-- **src/**
-  - **components/ui/** — Component primitives injected directly via shadcn CLI (e.g., `button.tsx`)
-  - **routes/** — File-based routing tree monitored by TanStack Router
-    - `__root.tsx` — Master layout wrapper (Navbar, layout, DevTools)
-    - `index.tsx` — Home page route ('/')
-    - `about.tsx` — About page route ('/about')
-  - `routeTree.gen.ts` — AUTOMATICALLY GENERATED — DO NOT EDIT
-  - `index.css` — Global Tailwind v4 engine layer entrypoint
-  - `main.tsx` — Application bootstrap and strict route mounting
-- `components.json` — shadcn/ui framework workspace configurations
-- `tsconfig.json` — Custom compiler options & path aliases (@/*)
-- `vite.config.ts` — Tailwind, Path Aliases, and TanStack compiler pipelines
+Projects are stored locally in the browser on this device. They do not automatically sync between devices, and clearing browser data can remove them. Export JSON backups regularly and before moving to another browser or device. Prices are entered manually; there is no automatic store lookup. Accounts and cloud sync are not available.
 
----
+The 3D workspace is in beta: bugs and further improvements are expected as the core planning flow develops. It supports a bounded set of modeling operations rather than general-purpose CAD. Its accessibility, browser compatibility, and performance release checks are still incomplete; see the [3D workspace guide](docs/plankplan-studio-3d-workspace-guide.md) and [verification evidence](docs/plans/3d-workspace/phase-7-evidence.md).
 
-## Local Development Workflow
+## Running locally
 
-### 1. Install Workspace Dependencies
-npm install
-
-### 2. Boot up the Dev Server
-npm run dev
-
-*Note: TanStack Router will continuously watch your src/routes/ directory and auto-generate type definitions inside src/routeTree.gen.ts as you create new route files.*
-
-### Tests
-
-Tests use Vitest, jsdom, and React Testing Library. Use Node.js 22.22.2 or newer in the 22.x line (or Node.js 24.15 or newer), then run:
+To run the application from source, install Node.js 22.22.2 or newer in the 22.x line, or Node.js 24.15 or newer, and npm. From the repository directory:
 
 ```sh
-npm run test       # Run once
-npm run test:watch # Run in watch mode
+npm install
+npm run dev
 ```
 
-Name test files `*.test.ts` or `*.test.tsx` and keep them under `src/` outside `src/routes/`.
+Open the local address printed by Vite. For development checks:
 
-### 3. Injecting UI Primitives (shadcn)
-You own the components in your codebase. To add more accessible components, execute:
-npx shadcn@latest add [component-name]  
-[Component List](https://ui.shadcn.com/docs/components)
+```sh
+npm run test
+npm run lint
+npm run build
+```
 
----
+The app is built with React, TypeScript, Vite, and TanStack Router. Repository conventions are in [AGENTS.md](AGENTS.md).
 
-## Type-Safe Routing Rules
+## Documentation
 
-This setup uses TanStack Router. Features to keep in mind while building:
-1. **Layout Wrappers:** Every route rendered is dynamically nested inside the Outlet component located within `src/routes/__root.tsx`.
-2. **FileSystem Mapping:** A file created at `src/routes/dashboard.tsx` automatically maps out to the URL path `/dashboard` with full compilation safety.
-3. **Internal Navigation:** Always use the type-safe Link component instead of traditional anchor tags to maintain local application state.
+- [3D workspace guide](docs/plankplan-studio-3d-workspace-guide.md) — tools, workflow, and current limits.
+- [Roadmap](docs/plankplan-studio-roadmap.md) — current work and possible future features.
+- [Documentation register](docs/plankplan-studio-mvp.md#document-register) — product requirements, design guidance, contracts, and implementation plans. These include historical requirements and future proposals, not just delivered features.
 
----
+- [Contributing](CONTRIBUTING.md), [changelog](CHANGELOG.md), [security](SECURITY.md), and [privacy](PRIVACY.md).
+
+## License
+
+Licensed under the [MIT License](LICENSE).

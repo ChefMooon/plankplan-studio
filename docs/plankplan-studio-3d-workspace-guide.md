@@ -1,6 +1,6 @@
 # PlankPlan Studio 3D Workspace Guide
 
-**Status:** Implemented as a local, optional project Design workspace; see the [implementation plan](plans/3d-workspace/3d-workspace-plan.md) and [Phase 7 evidence](plans/3d-workspace/phase-7-evidence.md). Verification is partial: automated checks and a limited isolated-browser workflow pass, while target Chrome/Edge, cross-tab resilience, performance budgets and assistive-technology validation remain outstanding.
+**Status:** Beta; implemented as a local, optional project Design workspace. Bugs and further improvements are expected; see the [implementation plan](plans/3d-workspace/3d-workspace-plan.md) and [Phase 7 evidence](plans/3d-workspace/phase-7-evidence.md). Verification is partial: automated checks and a limited isolated-browser workflow pass, while target Chrome/Edge, cross-tab resilience, performance budgets and assistive-technology validation remain outstanding.
 **Last reviewed:** 2026-10-23
 **Rendering direction:** Three.js with React Three Fiber and selected Drei helpers. Dependency/build compatibility is checked; real-browser GPU and performance evidence is still pending.
 

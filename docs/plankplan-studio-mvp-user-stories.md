@@ -1,5 +1,7 @@
 # PlankPlan Studio MVP User Stories
 
+> Historical product requirements and planning targets: references to the MVP Design shell or future Phase 2 describe the original scope, not the current application. See the [README](../README.md) and [3D workspace guide](plankplan-studio-3d-workspace-guide.md) for delivered behavior and limits.
+
 **Status:** Draft | **Source:** [PlankPlan Studio Product Specification](plankplan-studio-product-spec.md) | **Plan:** [PlankPlan Studio MVP Implementation Plan](plans/plankplan-studio-mvp/plankplan-studio-mvp-implementation-plan.md) | **Design:** [PlankPlan Studio Design Guide](DESIGN.md)
 
 These stories express MVP outcomes in user language and add acceptance criteria to the product specification. They do not expand MVP scope. Phase 2 stories are listed separately as a future anchor; their detailed acceptance criteria remain open.

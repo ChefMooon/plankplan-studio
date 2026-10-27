@@ -93,7 +93,7 @@ function Home() {
             <Popover.Close className="home-popover-close" aria-label="Close workspace information"><X size={17} aria-hidden="true"/></Popover.Close>
             <h2>Your local workspace</h2>
             <p>Projects are saved on this device. Export a project from its workspace to keep a backup or move it elsewhere.</p>
-            <p>Plan cuts and stock in Cutlist, or build your project in Design.</p>
+            <p>Plan cuts and stock in Cutlist, or build your project in Design, currently in beta.</p>
             <button type="button" className="secondary compact" onClick={preview}><ArrowSquareOut size={17} aria-hidden="true"/>Explore workspace preview</button>
           </Popover.Content></Popover.Portal>
         </Popover.Root>

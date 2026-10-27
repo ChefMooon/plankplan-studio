@@ -1,5 +1,7 @@
 # PlankPlan Studio: Product Specification
 
+> Historical product requirements and planning targets: references to the MVP Design shell or future Phase 2 describe the original scope, not the current application. See the [README](../README.md) and [3D workspace guide](plankplan-studio-3d-workspace-guide.md) for delivered behavior and limits.
+
 *A woodworking planner that turns project parts into the cheapest way to buy and cut the wood.*
 
 **Status:** Draft v0.17
