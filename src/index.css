@@ -888,6 +888,10 @@ button,a,input,select { outline-offset:3px; }
 .home-intro-art svg{position:relative;display:block;width:100%;height:138px}
 @media(max-width:650px){.home-intro{min-height:0;margin-top:22px;padding:22px;gap:0}.home-intro-copy{max-width:100%}.home-intro h1{font-size:28px;max-width:340px}.home-intro p{font-size:13px;max-width:440px}.home-intro-art{display:none}}
 
+.home-preview-label{font-weight:700;white-space:nowrap}
+.home-preview-notice{margin-top:20px;padding:14px 18px;border:1px solid var(--pp-border);border-radius:10px;background:var(--pp-surface);color:var(--pp-text);font-size:13px;line-height:1.5}
+.home-preview-notice strong{color:var(--pp-navy)}
+.home-preview-notice p{margin:4px 0 0;color:var(--pp-muted)}
 .home-projects{padding-top:38px}
 .home-project-heading,.home-title,.home-project-actions{display:flex;align-items:center;gap:12px}
 .home-project-heading{justify-content:space-between;gap:20px;margin-bottom:24px}

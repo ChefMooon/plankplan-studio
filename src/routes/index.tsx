@@ -87,6 +87,7 @@ function Home() {
     <header className="topbar">
       <div className="brand"><img src="/plankplan-studio-stock-mix-v02.svg" alt=""/><span>PlankPlan <b>Studio</b></span></div>
       <div className="topbar-tools">
+        <span className="local-badge home-preview-label">Preview</span>
         <Popover.Root>
           <Popover.Trigger asChild><button type="button" className="home-info-button" aria-label="About this workspace"><Info size={21} aria-hidden="true"/></button></Popover.Trigger>
           <Popover.Portal><Popover.Content className="home-popover" sideOffset={10} align="end" aria-label="About this workspace">
@@ -109,6 +110,10 @@ function Home() {
         <HomeTableIllustration />
       </div>
     </section>
+    <aside className="home-preview-notice" aria-label="Preview and project backups">
+      <strong>Projects are saved in this browser</strong>
+      <p>Export each project as JSON from its Cutlist workspace to back it up. Projects won’t automatically move to the final website or another browser, and clearing browser data can delete them.</p>
+    </aside>
     <section className="project-section home-projects" aria-labelledby="projects-heading">
       <div className="home-project-heading">
         <div className="home-title"><h2 id="projects-heading">Projects</h2><span className="home-project-count" aria-label={`${projects.length} saved projects`}>{projects.length}</span></div>

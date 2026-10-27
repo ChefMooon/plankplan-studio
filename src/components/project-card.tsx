@@ -36,7 +36,7 @@ export function ProjectCard({ project, onDuplicate, onDelete }: ProjectCardProps
       <p className="project-meta"><span>{project.parts.length} {project.parts.length === 1 ? 'part' : 'parts'}</span><span>Updated <time dateTime={project.updatedAt}>{new Date(project.updatedAt).toLocaleDateString()}</time></span></p>
       <div className="project-open-actions">
         <Link className="project-open-link project-cutlist-link" to="/projects/$projectId/cutlist" params={{ projectId: project.id }} aria-label={`Open cutlist for ${project.name}`}><ListChecks size={18} aria-hidden="true"/><span>Open cutlist</span><ArrowRight size={16} aria-hidden="true"/></Link>
-        <Link className="project-open-link" to="/projects/$projectId/design" params={{ projectId: project.id }} aria-label={`Open design for ${project.name}`}><Cube size={18} aria-hidden="true"/><span>Open design</span><ArrowRight size={16} aria-hidden="true"/></Link>
+        <Link className="project-open-link" to="/projects/$projectId/design" params={{ projectId: project.id }} aria-label={`Open design beta for ${project.name}`}><Cube size={18} aria-hidden="true"/><span>Open design</span><span className="project-navigation-beta">Beta</span><ArrowRight size={16} aria-hidden="true"/></Link>
       </div>
     </div>
   </article>;
