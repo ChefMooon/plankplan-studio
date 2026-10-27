@@ -13,7 +13,7 @@ PlankPlan Studio helps woodworkers plan projects, work out what stock to buy, an
 ## Getting started
 
 1. Open PlankPlan Studio and create a project from the dashboard, or import a JSON backup.
-2. In **Cutlist**, add parts, materials, and the stock options and prices available to you. Set your cutting and project preferences, then run the optimizer and review the results.
+2. In **Cutlist**, add parts, materials, and the stock options and prices available to you. Set your cutting and project preferences. The cut plan updates automatically as changes are applied; review the results and any warnings.
 3. Optionally open the project's **Design** area to model components and review changes before applying them to the cutlist.
 4. Export a JSON backup and use CSV or **Print / Save PDF** for your shop workflow.
 

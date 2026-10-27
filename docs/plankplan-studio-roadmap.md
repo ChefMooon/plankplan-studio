@@ -68,6 +68,8 @@ These ideas are recorded in product-spec section 5.7 or follow from the requeste
 
 ### Other Candidate Features
 
+- Multiple cutlists within a project, subject to usability evidence and decisions about design links and shared stock. See the [investigation](multiple-cutlists-investigation.md).
+
 - Offline-capable PWA and sync-on-reconnect after cloud sync exists.
 - Inventory and reuse of offcuts across projects.
 - Full random-width board-foot material support and richer rough-lumber loss.
