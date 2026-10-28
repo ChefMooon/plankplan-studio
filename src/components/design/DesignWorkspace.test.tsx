@@ -17,7 +17,11 @@ describe('DesignWorkspace', () => {
   it('supports plane radio keyboard selection without triggering the Space tool shortcut', async () => {
     const user = userEvent.setup();
     render(<DesignWorkspace project={project}/>);
+    expect(screen.getByRole('group', { name: 'Canvas tool controls' })).toBeInTheDocument();
+    expect(screen.queryByRole('radiogroup', { name: 'Rectangle drawing plane' })).not.toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Rectangle (R)' }));
+    expect(screen.getByRole('radiogroup', { name: 'Rectangle drawing plane' }).closest('.design-canvas-footer')).toBeInTheDocument();
+    expect(screen.getByRole('radiogroup', { name: 'Rectangle drawing plane' }).closest('.design-view-controls')).not.toBeInTheDocument();
     const x = screen.getByRole('radio', { name: 'X · YZ' });
     expect(x).toHaveAttribute('aria-keyshortcuts', 'X');
     await user.click(x);
