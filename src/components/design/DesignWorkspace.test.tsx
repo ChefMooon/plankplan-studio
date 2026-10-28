@@ -35,6 +35,15 @@ describe('DesignWorkspace', () => {
     expect(within(screen.getByRole('radiogroup',{name:'Rotation pivot'})).getByRole('radio',{name:'Vertex'})).toBeChecked();
   });
 
+  it('retains the vertex pivot when the selected object is clicked again in Rotate', () => {
+    render(<DesignWorkspace project={project}/>);
+    fireEvent.click(screen.getByRole('button',{name:'Rotate (Q)'}));
+    fireEvent.click(screen.getByRole('button',{name:'Pick model corner'}));
+    fireEvent.click(screen.getByRole('button',{name:'Select sample in model'}));
+    expect(within(screen.getByRole('radiogroup',{name:'Rotation pivot'})).getByRole('radio',{name:'Vertex'})).toBeChecked();
+    expect(screen.getByRole('status')).toHaveTextContent('vertex');
+  });
+
   it('uses the picked corner for direct exact rotation from the workspace controls', async () => {
     const onCommit=vi.fn();
     render(<DesignWorkspace project={project} onCommit={onCommit}/>);

@@ -367,7 +367,7 @@ function DrawingPlane({activeTool,snap,exactUm,unitSystem,pivotMode,rotationPivo
     const next={...gesture,rotationAxis:axis,rotationDragging:true,rotationPointerId:event.pointerId,rotationLastVector:pointer?.toArray() as [number,number,number]|undefined,rotationLastClientX:event.nativeEvent.clientX,rotationDragStartClient:[event.nativeEvent.clientX,event.nativeEvent.clientY] as [number,number],rotationHadPreviewAtStart:Math.abs(safeBase)>0,rotationBaseDegrees:safeBase};
     setTransformGesture(next);
     if(toolMeasurement?.id===gesture.sessionId){const value=safeBase.toFixed(2);onToolMeasurementChange({...toolMeasurement,rotationAxis:axis,fields:toolMeasurement.fields.map(current=>({...current,value,exact:false,error:undefined})),canPlace:Math.abs(safeBase)>0});}
-    onToolError(`Rotating around ${axis.toUpperCase()} · drag the ring, then click to place`);
+    onToolError(`Rotating around ${axis.toUpperCase()} · drag the ring and release to place`);
   };
   // Ring drags rotate around the selected workspace axis using ray intersections with its plane.
   useEffect(()=>{
@@ -384,11 +384,11 @@ function DrawingPlane({activeTool,snap,exactUm,unitSystem,pivotMode,rotationPivo
       else if(transformGesture.rotationLastClientX!==undefined)deltaDegrees=(event.clientX-transformGesture.rotationLastClientX)*0.9;
       const baseDegrees=transformGesture.rotationBaseDegrees+deltaDegrees;
       const updated={...transformGesture,rotationBaseDegrees:baseDegrees,rotationLastVector:nextVector?.toArray() as [number,number,number]|undefined,rotationLastClientX:event.clientX};
-      setTransformGesture(updated);
+      transformGestureRef.current=updated;setTransformGesture(updated);
       const result=transformResult(updated);
       if(result&&toolMeasurement?.id===updated.sessionId&&!toolMeasurement.fields[0]?.exact){const field=toolMeasurement.fields[0];const value=snap?(Math.round(baseDegrees/15)*15).toFixed(2):result.display;onToolMeasurementChange({...toolMeasurement,fields:[{...field,value}],canPlace:result.valid});}
     };
-    const end=(event:PointerEvent)=>{if(event.pointerId!==transformGesture.rotationPointerId)return;const start=transformGesture.rotationDragStartClient;const clickedInPlace=!!start&&Math.hypot(event.clientX-start[0],event.clientY-start[1])<4;const shouldCommit=clickedInPlace&&transformGesture.rotationHadPreviewAtStart;setTransformGesture(current=>current?.sessionId===transformGesture.sessionId?{...current,rotationDragging:false,rotationPointerId:undefined,rotationLastVector:undefined,rotationLastClientX:undefined,rotationDragStartClient:undefined,rotationHadPreviewAtStart:undefined}:current);if(shouldCommit)commitTransform();};
+    const end=(event:PointerEvent)=>{const current=transformGestureRef.current;if(!current||event.pointerId!==current.rotationPointerId)return;const stopped={...current,rotationDragging:false,rotationPointerId:undefined,rotationLastVector:undefined,rotationLastClientX:undefined,rotationDragStartClient:undefined,rotationHadPreviewAtStart:undefined};transformGestureRef.current=stopped;setTransformGesture(stopped);if(event.type==='pointerup'&&transformResult(stopped)?.valid)commitTransform(stopped);};
     window.addEventListener('pointermove',move);
     window.addEventListener('pointerup',end);
     window.addEventListener('pointercancel',end);
