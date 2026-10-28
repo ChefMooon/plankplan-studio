@@ -17,10 +17,10 @@ describe('DesignWorkspace', () => {
   it('supports plane radio keyboard selection without triggering the Space tool shortcut', async () => {
     const user = userEvent.setup();
     render(<DesignWorkspace project={project}/>);
-    expect(screen.getByRole('group', { name: 'Canvas tool controls' })).toBeInTheDocument();
+    expect(screen.queryByRole('group', { name: 'Canvas tool controls' })).not.toBeInTheDocument();
     expect(screen.queryByRole('radiogroup', { name: 'Rectangle drawing plane' })).not.toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Rectangle (R)' }));
-    expect(screen.getByRole('radiogroup', { name: 'Rectangle drawing plane' }).closest('.design-canvas-footer')).toBeInTheDocument();
+    expect(screen.getByRole('radiogroup', { name: 'Rectangle drawing plane' }).closest('.design-floating-tool-controls')).toBeInTheDocument();
     expect(screen.getByRole('radiogroup', { name: 'Rectangle drawing plane' }).closest('.design-view-controls')).not.toBeInTheDocument();
     const x = screen.getByRole('radio', { name: 'X · YZ' });
     expect(x).toHaveAttribute('aria-keyshortcuts', 'X');
@@ -31,6 +31,11 @@ describe('DesignWorkspace', () => {
     await user.keyboard(' ');
     expect(screen.getByRole('button', { name: 'Rectangle (R)' })).toHaveAttribute('aria-pressed', 'true');
     expect(screen.getByRole('radiogroup', { name: 'Rectangle drawing plane' })).toBeVisible();
+    const controls = screen.getByRole('group', { name: 'Canvas tool controls' });
+    expect(controls).not.toHaveAttribute('inert');
+    await user.click(screen.getByRole('button', { name: 'Select (Space)' }));
+    expect(controls).toHaveAttribute('inert');
+    expect(controls).toHaveAttribute('aria-hidden', 'true');
   });
 
   it('persists camera view choices and synchronizes Frame model with the shared control', () => {

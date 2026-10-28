@@ -1070,9 +1070,10 @@ button,a,input,select { outline-offset:3px; }
 .settings-panel-layout > .units-row[aria-hidden="true"] { visibility: hidden; }
 
 /* Keep canvas geometry stable while tool and measurement controls change. */
-.design-canvas-panel { grid-template-rows: auto minmax(0, 1fr) 46px 44px; }
-.design-canvas-footer { box-sizing: border-box; display: flex; align-items: center; min-width: 0; height: 46px; overflow-x: auto; overflow-y: hidden; padding: 0 10px; border-top: 1px solid var(--pp-border); scrollbar-width: thin; }
-.design-footer-rectangle { display: flex; align-items: center; flex: 0 0 auto; min-width: 0; }
+.design-canvas-panel { grid-template-rows: auto minmax(0, 1fr) 44px; }
+.design-floating-tool-controls { position: absolute; z-index: 6; bottom: 12px; left: 78px; right: 68px; width: max-content; max-width: calc(100% - 146px); margin-inline: auto; box-sizing: border-box; overflow-x: auto; overflow-y: hidden; padding: 8px; border: 1px solid var(--pp-border); border-radius: 9px; background: var(--pp-surface); box-shadow: 0 4px 14px #102a3b20; scrollbar-width: thin; opacity: 0; visibility: hidden; pointer-events: none; transform: translateY(6px); transition: opacity 180ms ease, transform 180ms ease, visibility 0s linear 180ms; }
+.design-floating-tool-controls.is-visible { opacity: 1; visibility: visible; pointer-events: auto; transform: translateY(0); transition-delay: 0s; }
+@media (prefers-reduced-motion: reduce) { .design-floating-tool-controls { transition: none; } }
 .rectangle-controls { flex-wrap: nowrap; white-space: nowrap; }
 .design-status { flex-wrap: nowrap; min-width: 0; height: 44px; min-height: 44px; overflow-x: auto; overflow-y: hidden; white-space: nowrap; scrollbar-width: thin; }
 .design-status-selection,.design-status-message,.design-status-save,.design-status > .design-measurement-box { flex: 0 0 auto; }
