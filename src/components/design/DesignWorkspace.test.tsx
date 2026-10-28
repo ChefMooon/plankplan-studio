@@ -6,7 +6,7 @@ import { rectangleGeometry } from '@/lib/planner/design/geometry';
 import { readDesignViewPreferences } from '@/lib/planner/design/view-preferences';
 import userEvent from '@testing-library/user-event';
 
-vi.mock('./DesignViewport', () => ({ DesignViewport: ({ onSelect, onEnterDefinition, editingDefinitionId, editingObjectId }: { onSelect: (id?: string) => void; onEnterDefinition?:(id:string)=>void; editingDefinitionId?:string; editingObjectId?:string }) => <><button type="button" aria-label="Select sample in model" onClick={() => onSelect('instance-1')}>Sample viewport</button><button type="button" onClick={()=>onEnterDefinition?.('definition-1')}>Enter shared definition</button><button type="button" onClick={()=>onEnterDefinition?.('loose-1')}>Enter loose shape edit</button>{editingDefinitionId&&<span role="status">Editing {editingDefinitionId}</span>}{editingObjectId&&<span role="status">Editing shape {editingObjectId}</span>}</> }));
+vi.mock('./DesignViewport', () => ({ DesignViewport: ({ onSelect, onSubSelect, onEnterDefinition, editingDefinitionId, editingObjectId }: { onSelect: (id?: string) => void; onSubSelect?:(id:string,element:{type:'vertex';id:string})=>void; onEnterDefinition?:(id:string)=>void; editingDefinitionId?:string; editingObjectId?:string }) => <><button type="button" aria-label="Select sample in model" onClick={() => onSelect('instance-1')}>Sample viewport</button><button type="button" onClick={()=>{onSelect('instance-1');onSubSelect?.('instance-1',{type:'vertex',id:'corner-1-1-1'});}}>Pick model corner</button><button type="button" onClick={()=>onEnterDefinition?.('definition-1')}>Enter shared definition</button><button type="button" onClick={()=>onEnterDefinition?.('loose-1')}>Enter loose shape edit</button>{editingDefinitionId&&<span role="status">Editing {editingDefinitionId}</span>}{editingObjectId&&<span role="status">Editing shape {editingObjectId}</span>}</> }));
 
 const project: Project = {
   schemaVersion: 2, id: 'workspace-test', name: 'Sample bench', unitSystem: 'imperial', kerf: { um: 0 }, trim: { um: 0 }, minOffcutLinear: { um: 0 }, minOffcutSheet: { shortSideUm: 0, longSideUm: 0 }, currency: 'CAD', createdAt: '2026-01-01T00:00:00.000Z', updatedAt: '2026-01-01T00:00:00.000Z', parts: [], materials: [],
@@ -14,6 +14,44 @@ const project: Project = {
 };
 
 describe('DesignWorkspace', () => {
+  it('offers per-gesture rotation pivot choices in the floating tool bar and resets to center on tool change', async () => {
+    const user=userEvent.setup();
+    render(<DesignWorkspace project={project}/>);
+    await user.click(screen.getByRole('button',{name:'Rotate (Q)'}));
+    const pivots=screen.getByRole('radiogroup',{name:'Rotation pivot'});
+    expect(within(pivots).getByRole('radio',{name:'Center'})).toBeChecked();
+    expect(within(pivots).getByRole('radio',{name:'Vertex'})).toBeDisabled();
+    await user.click(within(pivots).getByRole('radio',{name:'Origin'}));
+    expect(within(pivots).getByRole('radio',{name:'Origin'})).toBeChecked();
+    await user.click(screen.getByRole('button',{name:'Select (Space)'}));
+    await user.click(screen.getByRole('button',{name:'Rotate (Q)'}));
+    expect(within(screen.getByRole('radiogroup',{name:'Rotation pivot'})).getByRole('radio',{name:'Center'})).toBeChecked();
+  });
+
+  it('selects a vertex pivot on the first rotate click', () => {
+    render(<DesignWorkspace project={project}/>);
+    fireEvent.click(screen.getByRole('button',{name:'Rotate (Q)'}));
+    fireEvent.click(screen.getByRole('button',{name:'Pick model corner'}));
+    expect(within(screen.getByRole('radiogroup',{name:'Rotation pivot'})).getByRole('radio',{name:'Vertex'})).toBeChecked();
+  });
+
+  it('uses the picked corner for direct exact rotation from the workspace controls', async () => {
+    const onCommit=vi.fn();
+    render(<DesignWorkspace project={project} onCommit={onCommit}/>);
+    fireEvent.click(screen.getByRole('button',{name:'Select sample in model'}));
+    fireEvent.click(screen.getByRole('button',{name:'Rotate (Q)'}));
+    fireEvent.click(screen.getByRole('button',{name:'Pick model corner'}));
+    const pivots=screen.getByRole('radiogroup',{name:'Rotation pivot'});
+    expect(within(pivots).getByRole('radio',{name:'Vertex'})).toBeEnabled();
+    fireEvent.click(within(pivots).getByRole('radio',{name:'Vertex'}));
+    fireEvent.click(screen.getByRole('tab',{name:'Entity Info'}));
+    fireEvent.change(screen.getByRole('spinbutton',{name:'Exact value'}),{target:{value:'90'}});
+    fireEvent.click(screen.getByRole('button',{name:'Apply exact value'}));
+    const transformed=onCommit.mock.calls.at(-1)?.[0] as Project;
+    expect(transformed.design?.instances[0].pose.positionUm).toEqual([350_000,-50_000,0]);
+    expect(within(screen.getByRole('radiogroup',{name:'Rotation pivot'})).getByRole('radio',{name:'Center'})).toBeChecked();
+  });
+
   it('supports plane radio keyboard selection without triggering the Space tool shortcut', async () => {
     const user = userEvent.setup();
     render(<DesignWorkspace project={project}/>);

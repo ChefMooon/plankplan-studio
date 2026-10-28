@@ -48,6 +48,8 @@ describe('rectangle drawing planes', () => {
     geometry.extrusions = [{ id: 'extrusion', faceId: geometry.faces[0].id, distanceUm: 50000 }];
     expect(geometryCorners(geometry)).toHaveLength(8);
     expect(geometryCorners(geometry).filter(v => v.point[2] === 50000)).toHaveLength(4);
+    const design={schemaVersion:1 as const,definitions:[],instances:[],looseObjects:[{id:'loose',name:'Extruded',geometry,pose:{positionUm:[0,0,0] as [number,number,number],rotation:[0,0,0,1] as [number,number,number,number]},scalePpm:[1_000_000,1_000_000,1_000_000] as [number,number,number],appearance:{color:'#fff'},hidden:false,locked:false}],partLinks:{}};
+    expect(designVertices(design).find(vertex=>vertex.id==='v-0@extrusion')?.localPoint).toEqual([0,0,50000]);
   });
   it('finds transformed board corners with odd dimensions and skips hidden instances', () => {
     const geometry = rectangleGeometry(100000, 100000, p => p);
@@ -57,6 +59,7 @@ describe('rectangle drawing planes', () => {
     const corners = designVertices(design);
     expect(corners).toHaveLength(8);
     expect(corners.some(c => c.point[0] === 0.100001 && c.point[1] > 0.5)).toBe(true);
+    expect(corners.find(c=>c.id==='corner-1-1-1')?.localPoint).toEqual([50000.5,100000.5,15000.5]);
     expect(designVertices({ ...design, instances: [{ ...instance, hidden: true }] })).toEqual([]);
   });
   it('rejects invalid typed dimensions', () => {

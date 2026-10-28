@@ -3,8 +3,8 @@ import { act, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { PerspectiveCamera, Vector3 } from 'three';
 import type { ToolMeasurementSession } from '../tool-measurements';
-import { fromPlane, type RectangleAxis } from '../rectangle-plane';
-import { transformLocalPoint } from '@/lib/planner/design/geometry';
+import { designVertices, fromPlane, type RectangleAxis } from '../rectangle-plane';
+import { rectangleGeometry, transformLocalPoint } from '@/lib/planner/design/geometry';
 import { VertexDrawing } from './VertexDrawing';
 
 const scene = vi.hoisted(() => ({ state: {} as Record<string, unknown> }));
@@ -76,6 +76,27 @@ describe('live rectangle direction', () => {
     expect(onCommand).toHaveBeenCalledOnce();
     const object = onCommand.mock.calls[0][0].object;
     expect(object.pose.positionUm).toEqual([-100000, -200000, 0]);
+    canvas.remove();
+  });
+});
+
+describe('rotation vertex picking', () => {
+  it('selects a transformed extrusion corner while Rotate is active', () => {
+    vi.spyOn(console,'error').mockImplementation(()=>undefined);
+    const canvas=document.createElement('canvas');document.body.appendChild(canvas);
+    vi.spyOn(canvas,'getBoundingClientRect').mockReturnValue({left:0,top:0,width:800,height:600} as DOMRect);
+    const camera=new PerspectiveCamera(45,800/600,0.01,200);camera.position.set(2,2,2);camera.lookAt(0,0,0);camera.updateMatrixWorld();
+    scene.state={camera,gl:{domElement:canvas},size:{width:800,height:600},invalidate:vi.fn()};
+    const geometry=rectangleGeometry(100_000,60_000,p=>p,20_000);
+    const design={schemaVersion:1 as const,definitions:[],instances:[],looseObjects:[{id:'loose',name:'Extruded profile',geometry,pose:{positionUm:[100_000,200_000,300_000] as [number,number,number],rotation:[0,0,0,1] as [number,number,number,number]},scalePpm:[2_000_000,750_000,1_250_000] as [number,number,number],appearance:{color:'#fff'},hidden:false,locked:false},{id:'other',name:'Other profile',geometry,pose:{positionUm:[700_000,0,0] as [number,number,number],rotation:[0,0,0,1] as [number,number,number,number]},scalePpm:[1_000_000,1_000_000,1_000_000] as [number,number,number],appearance:{color:'#fff'},hidden:false,locked:false}],partLinks:{}};
+    const target=designVertices(design).find(vertex=>vertex.objectId==='loose')!;const other=designVertices(design).find(vertex=>vertex.objectId==='other')!;const projected=new Vector3(...target.point).project(camera);
+    const onSelect=vi.fn(),onSubSelect=vi.fn();
+    render(<VertexDrawing design={design} activeTool="rotate" axis="z" direction="pointer" snap unitSystem="metric" onSelect={onSelect} onSubSelect={onSubSelect} onCommand={vi.fn()} onToolError={vi.fn()} onToolMeasurementChange={vi.fn()} onRegisterMeasurementActions={vi.fn()} />);
+    expect(other).toBeDefined();
+    const ringEvent=new MouseEvent('pointerdown',{button:0,clientX:(projected.x+1)*400,clientY:(1-projected.y)*300});const stopSpy=vi.spyOn(ringEvent,'stopImmediatePropagation');act(()=>canvas.dispatchEvent(ringEvent));expect(stopSpy).not.toHaveBeenCalled();
+    act(()=>canvas.dispatchEvent(new MouseEvent('pointerdown',{button:0,altKey:true,clientX:(projected.x+1)*400,clientY:(1-projected.y)*300})));
+    expect(onSelect).toHaveBeenCalledWith('loose',false,false,false);
+    expect(onSubSelect).toHaveBeenCalledWith('loose',expect.objectContaining({type:'vertex',id:target.id,positionUm:target.localPoint}));
     canvas.remove();
   });
 });

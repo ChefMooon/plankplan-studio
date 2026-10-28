@@ -1075,6 +1075,11 @@ button,a,input,select { outline-offset:3px; }
 .design-floating-tool-controls.is-visible { opacity: 1; visibility: visible; pointer-events: auto; transform: translateY(0); transition-delay: 0s; }
 @media (prefers-reduced-motion: reduce) { .design-floating-tool-controls { transition: none; } }
 .rectangle-controls { flex-wrap: nowrap; white-space: nowrap; }
+.design-rotation-pivot-controls { display: flex; align-items: center; gap: 9px; min-width: max-content; white-space: nowrap; }
+.design-rotation-pivot-controls > span { color: var(--pp-muted); font-size: 11px; font-weight: 700; }
+.design-rotation-pivot-controls > .design-rotation-pivot-hint { font-size: 10px; font-weight: 500; }
+.design-floating-tool-controls .segmented-control-option { min-height: 30px; padding: 5px 9px; white-space: nowrap; }
+@media (max-width: 650px) { .design-floating-tool-controls { left: 62px; right: 12px; max-width: calc(100% - 74px); margin-inline: 0; } }
 .design-status { flex-wrap: nowrap; min-width: 0; height: 44px; min-height: 44px; overflow-x: auto; overflow-y: hidden; white-space: nowrap; scrollbar-width: thin; }
 .design-status-selection,.design-status-message,.design-status-save,.design-status > .design-measurement-box { flex: 0 0 auto; }
 .design-status-message { min-width: 0; }

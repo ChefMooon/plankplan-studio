@@ -1,11 +1,8 @@
 import { Component, StrictMode, Suspense, useInsertionEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
 import { createRoot, events, extend, type RenderProps } from '@react-three/fiber';
-import { AmbientLight, AxesHelper, BoxGeometry, Color, DirectionalLight, Group, Mesh, MeshBasicMaterial, MeshStandardMaterial, PlaneGeometry, TorusGeometry } from 'three';
+import { designCanvasThreeElements } from './design-canvas-elements';
 
-// Keep this catalogue in step with the scene's JSX, including elements used by
-// Drei's Grid. New helpers (for example vertex markers) can register more types.
-// Avoid extend(THREE): it retains otherwise unused Three exports in the bundle.
-extend({ AmbientLight, AxesHelper, BoxGeometry, Color, DirectionalLight, Group, Mesh, MeshBasicMaterial, MeshStandardMaterial, PlaneGeometry, TorusGeometry });
+extend(designCanvasThreeElements);
 
 type Props = Omit<RenderProps<HTMLCanvasElement>, 'size' | 'events' | 'onCreated'> & {
   children: ReactNode;

@@ -3,12 +3,12 @@ import { Link } from '@tanstack/react-router';
 import type { DesignDocumentV1 } from '@/lib/planner/design/schema';
 import type { UnitSystem } from '@/lib/planner/model';
 import type { DesignCommand } from '@/lib/planner/design/commands';
-import type { AxisMode, PivotMode } from './transform-pivot';
+import type { AxisMode, PivotMode, RotationPivotMode } from './transform-pivot';
 import type { SubElement } from './sub-selection';
 import { DesignScene } from './scene/DesignScene';
 import type { ToolMeasurementSession } from './tool-measurements';
 
-type Props = { design?: DesignDocumentV1; unitSystem: UnitSystem; selectedId?: string; selectedCount?:number; selectedElement?:{objectId:string}&SubElement; editingDefinitionId?: string; editingObjectId?: string; onSelect: (id?: string, additive?: boolean, subtractive?: boolean, shiftOnly?:boolean) => void; onSubSelect?:(objectId:string,element?:SubElement)=>void; onEnterDefinition:(id:string)=>void; rectangleAxis?: 'x'|'y'|'z'; rectangleDirection?: 'pointer'|'++'|'-+'|'+-'|'--'; activeTool: string; snap: boolean; exactUm?: number; pivotMode: PivotMode; axisMode: AxisMode; onCommand: (command: DesignCommand) => void; onMeasure: (value?: number) => void; onToolError:(message:string)=>void; preset: 'iso'|'top'|'front'|'right'; projection: 'perspective'|'orthographic'; grid: boolean; axes: boolean; frameRequest: number; toolMeasurement?: ToolMeasurementSession; onToolMeasurementChange:(session?:ToolMeasurementSession)=>void; onRegisterMeasurementActions:(actions?:{commit:()=>void;cancel:()=>void})=>void };
+type Props = { design?: DesignDocumentV1; unitSystem: UnitSystem; selectedId?: string; selectedCount?:number; selectedElement?:{objectId:string}&SubElement; editingDefinitionId?: string; editingObjectId?: string; onSelect: (id?: string, additive?: boolean, subtractive?: boolean, shiftOnly?:boolean) => void; onSubSelect?:(objectId:string,element?:SubElement)=>void; onEnterDefinition:(id:string)=>void; rectangleAxis?: 'x'|'y'|'z'; rectangleDirection?: 'pointer'|'++'|'-+'|'+-'|'--'; activeTool: string; snap: boolean; exactUm?: number; pivotMode: PivotMode; rotationPivotMode: RotationPivotMode; axisMode: AxisMode; onCommand: (command: DesignCommand) => void; onMeasure: (value?: number) => void; onToolError:(message:string)=>void; preset: 'iso'|'top'|'front'|'right'; projection: 'perspective'|'orthographic'; grid: boolean; axes: boolean; frameRequest: number; toolMeasurement?: ToolMeasurementSession; onToolMeasurementChange:(session?:ToolMeasurementSession)=>void; onRegisterMeasurementActions:(actions?:{commit:()=>void;cancel:()=>void})=>void };
 
 class RendererBoundary extends Component<{ children: ReactNode; projectId: string }, { failed: boolean }> {
   state = { failed: false };

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { rectangleGeometry, transformLocalPoint } from '@/lib/planner/design/geometry';
 import { previewRotate } from './tool-measurements';
-import { geometryCenter, keepGeometryCenter, localizeDelta, rotateAroundAxis, rotateAroundWorkspaceAxis } from './transform-pivot';
+import { geometryCenter, keepGeometryCenter, keepLocalPoint, localizeDelta, resolveRotationPivotLocal, rotateAroundAxis, rotateAroundWorkspaceAxis, rotationGizmoRadiusPixels } from './transform-pivot';
 
 describe('transform pivot and local axis helpers', () => {
   it('finds the geometry center and preserves it when scaling around center', () => {
@@ -46,5 +46,29 @@ describe('transform pivot and local axis helpers', () => {
     const scale:[number,number,number]=[2_000_000,750_000,1_250_000];
     const rotated=previewRotate(pose,scale,center,37,'x','center');
     expect(transformLocalPoint(center,rotated.pose,scale)).toEqual(transformLocalPoint(center,pose,scale));
+  });
+  it('resolves center, origin, and picked-vertex pivots with a safe center fallback', () => {
+    const geometry=rectangleGeometry(100,60,p=>p,20);
+    expect(resolveRotationPivotLocal(geometry,'center')).toEqual([50,30,10]);
+    expect(resolveRotationPivotLocal(geometry,'center',undefined,[0,0,0])).toEqual([0,0,0]);
+    expect(resolveRotationPivotLocal(geometry,'origin')).toEqual([0,0,0]);
+    expect(resolveRotationPivotLocal(geometry,'vertex',[100,60,20])).toEqual([100,60,20]);
+    expect(resolveRotationPivotLocal(geometry,'vertex')).toEqual([50,30,10]);
+  });
+  it('keeps Center and Vertex gizmos compact while Origin encloses the projected object corners', () => {
+    expect(rotationGizmoRadiusPixels('center',120)).toBe(34);
+    expect(rotationGizmoRadiusPixels('vertex',120)).toBe(34);
+    expect(rotationGizmoRadiusPixels('origin',120)).toBe(132);
+    expect(rotationGizmoRadiusPixels('origin',10)).toBe(34);
+  });
+  it('keeps an arbitrary picked corner fixed through preview and commit poses with nonuniform object scale', () => {
+    const geometry=rectangleGeometry(100_000,60_000,p=>p,20_000);
+    const corner:[number,number,number]=[100_000,60_000,20_000];
+    const pose={positionUm:[240_000,-35_000,18_000] as [number,number,number],rotation:[0,0,Math.SQRT1_2,Math.SQRT1_2] as [number,number,number,number]};
+    const scale:[number,number,number]=[2_000_000,750_000,1_250_000];
+    const before=transformLocalPoint(corner,pose,scale);
+    const preview=previewRotate(pose,scale,geometryCenter(geometry),123,'y',corner);
+    expect(transformLocalPoint(corner,preview.pose,scale)).toEqual(before);
+    expect(keepLocalPoint(corner,pose,scale,preview.pose,scale).positionUm).toEqual(preview.pose.positionUm);
   });
 });

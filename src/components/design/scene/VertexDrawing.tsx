@@ -10,7 +10,7 @@ import { parseMeasurement, type ToolMeasurementSession } from '../tool-measureme
 import type { SubElement } from '../sub-selection';
 
 type Props = {
-  design?: DesignDocumentV1; editingDefinitionId?: string; activeTool: string; axis: RectangleAxis; direction: RectangleDirection; snap: boolean; unitSystem: UnitSystem;
+  design?: DesignDocumentV1; editingDefinitionId?: string; selectedId?: string; activeTool: string; axis: RectangleAxis; direction: RectangleDirection; snap: boolean; unitSystem: UnitSystem;
   selectedElement?: { objectId: string } & SubElement;
   onSelect: (id?: string, additive?: boolean, subtractive?: boolean, shiftOnly?: boolean) => void; onSubSelect?: (id: string, element?: SubElement) => void;
   onCommand: (command: DesignCommand) => void; onToolError: (message: string) => void;
@@ -104,9 +104,10 @@ export function VertexDrawing(props: Props) {
       const round = (n: number) => p.snap && !event.altKey ? Math.round(n / 10_000) * 10_000 : n;
       return fromPlane(round(coordinates[0]), round(coordinates[1]), g ? planeCoordinates(g.start, p.axis)[2] : 0, p.axis);
     };
+    const canPickRotationTarget=(target:VertexTarget,p:Props)=>{const object=p.design?.instances.find(item=>item.id===target.objectId)??p.design?.looseObjects.find(item=>item.id===target.objectId);return !!object&&!object.locked;};
     const move = (event: PointerEvent) => {
       const p = current.current;
-      if (p.activeTool === 'select') { setHover(pick(event)); invalidate(); return; }
+      if (p.activeTool === 'select' || p.activeTool === 'rotate') { setHover(pick(event, target => p.activeTool !== 'rotate' || canPickRotationTarget(target,p))); invalidate(); return; }
       if (p.activeTool !== 'rectangle') return;
       const end = point(event), g = gestureRef.current;
       if (!end || !g) return;
@@ -118,9 +119,15 @@ export function VertexDrawing(props: Props) {
       const p = current.current;
       if (event.button !== 0) return;
       if (p.activeTool === 'rectangle' || p.activeTool === 'select') canvas.closest<HTMLElement>('.design-viewport')?.focus();
+      if(p.activeTool==='rotate'){
+        if(!event.altKey)return;
+        const candidate=pick(event, target=>canPickRotationTarget(target,p));if(!candidate)return;
+        event.stopImmediatePropagation();
+        p.onSelect(candidate.objectId,event.shiftKey||event.ctrlKey,event.shiftKey&&event.ctrlKey,event.shiftKey&&!event.ctrlKey);p.onSubSelect?.(candidate.objectId,{type:'vertex',id:candidate.id,...(candidate.localPoint?{positionUm:candidate.localPoint}:{})});return;
+      }
       if (p.activeTool === 'select') {
         const target = pick(event); if (!target) return;
-        event.stopImmediatePropagation(); p.onSelect(target.objectId, event.shiftKey || event.ctrlKey, event.shiftKey && event.ctrlKey, event.shiftKey && !event.ctrlKey); p.onSubSelect?.(target.objectId, { type: 'vertex', id: target.id }); return;
+        event.stopImmediatePropagation(); p.onSelect(target.objectId, event.shiftKey || event.ctrlKey, event.shiftKey && event.ctrlKey, event.shiftKey && !event.ctrlKey); p.onSubSelect?.(target.objectId, { type: 'vertex', id: target.id, ...(target.localPoint?{positionUm:target.localPoint}:{}) }); return;
       }
       if (p.activeTool !== 'rectangle') return;
       event.stopImmediatePropagation();
@@ -131,7 +138,7 @@ export function VertexDrawing(props: Props) {
       p.onToolMeasurementChange({ id, tool: 'Rectangle', canPlace: false, fields: [{ id: 'width', label: `Width (${rectanglePlaneAxes(p.axis)[0]})`, value: '0', unit: p.unitSystem === 'imperial' ? 'in' : 'mm', min: 0.001 }, { id: 'depth', label: `Height (${rectanglePlaneAxes(p.axis)[1]})`, value: '0', unit: p.unitSystem === 'imperial' ? 'in' : 'mm', min: 0.001 }] });
       p.onToolError(`Corner set · ${p.axis.toUpperCase()} plane · X / Y / Z changes plane · choose direction or move pointer · Alt bypasses snapping`);
     };
-    const click = (event: MouseEvent) => { if (current.current.activeTool === 'rectangle' || (current.current.activeTool === 'select' && pick(event as PointerEvent))) event.stopImmediatePropagation(); };
+    const click = (event: MouseEvent) => { if (current.current.activeTool === 'rectangle' || ((current.current.activeTool === 'select'||current.current.activeTool==='rotate') && pick(event as PointerEvent))) event.stopImmediatePropagation(); };
     const leave = () => setHover(undefined);
     canvas.addEventListener('pointermove', move, true); canvas.addEventListener('pointerdown', down, true); canvas.addEventListener('click', click, true); canvas.addEventListener('pointerleave', leave);
     return () => { canvas.removeEventListener('pointermove', move, true); canvas.removeEventListener('pointerdown', down, true); canvas.removeEventListener('click', click, true); canvas.removeEventListener('pointerleave', leave); };

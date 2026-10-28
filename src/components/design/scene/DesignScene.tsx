@@ -1,5 +1,5 @@
 import { VertexDrawing } from './VertexDrawing';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useFrame, useThree, type ThreeEvent } from '@react-three/fiber';
 import { DesignCanvas as Canvas } from './DesignCanvas';
 import { Edges, Grid, Line, OrbitControls } from '@react-three/drei';
@@ -9,14 +9,15 @@ import type { UnitSystem } from '@/lib/planner/model';
 import { getRectangularProfile, umToMeters, metersToUm, rectangularProfileSide, resizeRectangularProfile, setExtrusionDistance, transformLocalPoint } from '@/lib/planner/design/geometry';
 import type { DesignCommand } from '@/lib/planner/design/commands';
 import { buildPlanarGesture, createCapturedPlanarSession, createHitCycle } from '../planar-gesture';
-import { geometryCenter, keepGeometryCenter, localizeDelta, worldToLocalDelta, type AxisMode, type PivotMode, type RotationAxis } from '../transform-pivot';
+import { designVertices } from '../rectangle-plane';
+import { geometryCenter, keepGeometryCenter, localizeDelta, resolveRotationPivotLocal, rotationGizmoRadiusPixels, worldToLocalDelta, type AxisMode, type PivotMode, type RotationAxis, type RotationPivotMode } from '../transform-pivot';
 import { resolveSubElement, type SubElement } from '../sub-selection';
 import { buildModelGeometry } from './mesh-geometry';
 import { isPushPullEndFace, rectangularPushPullFace, shouldShowPushPullFaceIndicator } from '../push-pull';
 import type { ToolMeasurementSession } from '../tool-measurements';
 import { parseMeasurement, previewMove, previewRotate, previewScale } from '../tool-measurements';
 
-type Props = { design?: DesignDocumentV1; unitSystem: UnitSystem; selectedId?: string; selectedCount?:number; selectedElement?:{objectId:string}&SubElement; editingDefinitionId?: string; editingObjectId?: string; onSelect: (id?: string, additive?: boolean, subtractive?: boolean, shiftOnly?:boolean) => void; onSubSelect?: (objectId:string, element?:SubElement)=>void; onEnterDefinition:(id:string)=>void; rectangleAxis?: 'x'|'y'|'z'; rectangleDirection?: 'pointer'|'++'|'-+'|'+-'|'--'; activeTool: string; snap: boolean; exactUm?: number; pivotMode: PivotMode; axisMode: AxisMode; onCommand: (command: DesignCommand) => void; onMeasure: (value?: number) => void; onToolError:(message:string)=>void; preset: 'iso'|'top'|'front'|'right'; projection: 'perspective'|'orthographic'; grid: boolean; axes: boolean; frameRequest: number; toolMeasurement?:ToolMeasurementSession; onToolMeasurementChange:(session?:ToolMeasurementSession)=>void; onRegisterMeasurementActions:(actions?:{commit:()=>void;cancel:()=>void})=>void; onContextLoss: () => void; onContextRestore: () => void };
+type Props = { design?: DesignDocumentV1; unitSystem: UnitSystem; selectedId?: string; selectedCount?:number; selectedElement?:{objectId:string}&SubElement; editingDefinitionId?: string; editingObjectId?: string; onSelect: (id?: string, additive?: boolean, subtractive?: boolean, shiftOnly?:boolean) => void; onSubSelect?: (objectId:string, element?:SubElement)=>void; onEnterDefinition:(id:string)=>void; rectangleAxis?: 'x'|'y'|'z'; rectangleDirection?: 'pointer'|'++'|'-+'|'+-'|'--'; activeTool: string; snap: boolean; exactUm?: number; pivotMode: PivotMode; rotationPivotMode: RotationPivotMode; axisMode: AxisMode; onCommand: (command: DesignCommand) => void; onMeasure: (value?: number) => void; onToolError:(message:string)=>void; preset: 'iso'|'top'|'front'|'right'; projection: 'perspective'|'orthographic'; grid: boolean; axes: boolean; frameRequest: number; toolMeasurement?:ToolMeasurementSession; onToolMeasurementChange:(session?:ToolMeasurementSession)=>void; onRegisterMeasurementActions:(actions?:{commit:()=>void;cancel:()=>void})=>void; onContextLoss: () => void; onContextRestore: () => void };
 const colors = { board: '#bd8a56', selected: '#e6a94e', locked: '#747f86', hover: '#d4a979' };
 function createDotTexture() {
   const canvas=document.createElement('canvas');canvas.width=canvas.height=16;
@@ -203,13 +204,24 @@ function InstanceMesh({ item, geometry, cutSpec, selected, selectedElement, onSe
   return <group position={position} quaternion={quaternion} scale={scale} onDoubleClick={event=>{if(tool==='select'){event.stopPropagation();if('definitionId'in item)onEnterDefinition(item.definitionId);else onEnterDefinition(item.id);}}}><ObjectGeometry geometry={pushPullPreview??geometry} targetId={item.id} color={color} selected={selected} invalid={invalid} preview={!!pushPullPreview} overlay={profileOverlay} onFaceOut={()=>setProfileFaceIndicator(undefined)} onSelect={click} onPushPullPointerDown={pushPullPointerDown} onPushPullPointerMove={pushPullPointerMove} /></group>;
 }
 
-function DrawingPlane({activeTool,snap,exactUm,unitSystem,pivotMode,axisMode,onCommand,onMeasure,onSelect,onToolError,design,selectedId,selectedCount,editingDefinitionId,toolMeasurement,onToolMeasurementChange,onRegisterMeasurementActions}:Pick<Props,'activeTool'|'snap'|'exactUm'|'pivotMode'|'axisMode'|'onCommand'|'onMeasure'|'onSelect'|'onToolError'|'design'|'selectedId'|'selectedCount'|'editingDefinitionId'|'toolMeasurement'|'onToolMeasurementChange'|'onRegisterMeasurementActions'|'unitSystem'>) {
+function DrawingPlane({activeTool,snap,exactUm,unitSystem,pivotMode,rotationPivotMode,axisMode,onCommand,onMeasure,onSelect,onToolError,design,selectedId,selectedCount,selectedElement,editingDefinitionId,toolMeasurement,onToolMeasurementChange,onRegisterMeasurementActions}:Pick<Props,'activeTool'|'snap'|'exactUm'|'pivotMode'|'rotationPivotMode'|'axisMode'|'onCommand'|'onMeasure'|'onSelect'|'onToolError'|'design'|'selectedId'|'selectedCount'|'selectedElement'|'editingDefinitionId'|'toolMeasurement'|'onToolMeasurementChange'|'onRegisterMeasurementActions'|'unitSystem'>) {
   const canvas=useThree(state=>state.gl.domElement);
   const camera=useThree(state=>state.camera);
+  const viewportSize=useThree(state=>state.size);
+  const rotationGizmoRef=useRef<THREE.Group>(null);
   const session=useRef(createCapturedPlanarSession<THREE.Vector3>());
   const completedSessions=useRef(new Set<string>());
   const [measureGesture,setMeasureGesture]=useState<{start:THREE.Vector3;end:THREE.Vector3;sessionId:string}>();
   const [transformGesture,setTransformGesture]=useState<{mode:'move'|'rotate'|'scale';start:THREE.Vector3;end:THREE.Vector3;rotationBaseDegrees:number;rotationDragging?:boolean;rotationPointerId?:number;rotationLastVector?:[number,number,number];rotationLastClientX?:number;rotationDragStartClient?:[number,number];rotationHadPreviewAtStart?:boolean;sessionId:string;target:Instance|LooseObject;geometry:Geometry;centerLocal:[number,number,number];rotationAxis?:RotationAxis}>();
+  const transformGestureRef=useRef(transformGesture);
+  useLayoutEffect(()=>{transformGestureRef.current=transformGesture;},[transformGesture]);
+  const rotationVertices=useMemo(()=>designVertices(design,editingDefinitionId),[design,editingDefinitionId]);
+  const selectedInstance=design?.instances.find(item=>item.id===selectedId&&!item.hidden);
+  const selectedLoose=design?.looseObjects.find(item=>item.id===selectedId&&!item.hidden);
+  const selectedTransformTarget=selectedInstance??selectedLoose;
+  const selectedTransformGeometry=selectedInstance?design?.definitions.find(item=>item.id===selectedInstance.definitionId)?.geometry:selectedLoose?.geometry;
+  const rotationTarget=activeTool==='rotate'&&selectedTransformTarget&&!selectedTransformTarget.locked&&selectedTransformGeometry?selectedTransformTarget:undefined;
+  const rotationGeometry=rotationTarget?selectedTransformGeometry:undefined;
   const measureValue=(gesture=measureGesture)=>{
     if(!gesture)return 0;
     const field=toolMeasurement?.id===gesture.sessionId?toolMeasurement.fields[0]:undefined;
@@ -217,6 +229,38 @@ function DrawingPlane({activeTool,snap,exactUm,unitSystem,pivotMode,axisMode,onC
     if(field?.exact&&typed===undefined)return 0;
     return typed!==undefined?Math.round(typed*(unitSystem==='imperial'?25_400:1_000)):Math.round(gesture.start.distanceTo(gesture.end)*1_000_000);
   };
+  const rotationPivotFor=useCallback((target:Instance|LooseObject,geometry:Geometry):[number,number,number]=>{
+    const vertex=selectedElement?.objectId===target.id&&selectedElement.type==='vertex'?selectedElement:undefined;
+    const vertexLocal=vertex?rotationVertices.find(item=>item.objectId===target.id&&item.id===vertex.id)?.localPoint??geometry.vertices.find(item=>item.id===vertex.id)?.positionUm:undefined;
+    const cutSpec='definitionId'in target?design?.definitions.find(definition=>definition.id===target.definitionId)?.cutSpec:undefined;
+    return resolveRotationPivotLocal(geometry,rotationPivotMode,vertexLocal,cutSpec?.confirmation==='confirmed'?[0,0,0]:undefined);
+  },[selectedElement,rotationVertices,design,rotationPivotMode]);
+  useEffect(()=>{
+    const gesture=transformGestureRef.current;
+    if(gesture?.mode!=='rotate'||!gesture.rotationDragging||gesture.rotationLastClientX===undefined)return;
+    const centerUm=transformLocalPoint(rotationPivotFor(gesture.target,gesture.geometry),gesture.target.pose,gesture.target.scalePpm);
+    const center=new THREE.Vector3(...centerUm.map(umToMeters) as [number,number,number]);
+    const clientY=gesture.rotationDragStartClient?.[1]??0;
+    const point=pointerOnAxisPlane(camera,canvas,center,gesture.rotationAxis??'z',gesture.rotationLastClientX,clientY);
+    setTransformGesture(current=>current?.sessionId===gesture.sessionId?{...current,rotationLastVector:point?.toArray() as [number,number,number]|undefined,rotationDragStartClient:[gesture.rotationLastClientX!,clientY],rotationHadPreviewAtStart:false}:current);
+    // Pivot changes invalidate the previous pointer vector; rebase the ongoing drag at its current screen point.
+  },[rotationPivotFor,camera,canvas]);
+  useFrame(()=>{
+    if(!rotationGizmoRef.current)return;
+    const target=transformGesture?.mode==='rotate'?transformGesture.target:rotationTarget;
+    const geometry=transformGesture?.mode==='rotate'?transformGesture.geometry:rotationGeometry;
+    if(!target||!geometry){rotationGizmoRef.current.visible=false;return;}
+    rotationGizmoRef.current.visible=true;
+    const pivotLocal=rotationPivotFor(target,geometry);
+    const worldPivot=transformLocalPoint(pivotLocal,target.pose,target.scalePpm).map(umToMeters) as [number,number,number];
+    const point=new THREE.Vector3(...worldPivot);
+    const projectedPivot=point.clone().project(camera);
+    const pivotX=(projectedPivot.x+1)*viewportSize.width/2,pivotY=(1-projectedPivot.y)*viewportSize.height/2;
+    const cornerRadius=rotationPivotMode==='origin'?rotationVertices.filter(vertex=>vertex.objectId===target.id).reduce((radius,vertex)=>{const projected=new THREE.Vector3(...vertex.point).project(camera);if(projected.z< -1||projected.z>1)return radius;return Math.max(radius,Math.hypot((projected.x+1)*viewportSize.width/2-pivotX,(1-projected.y)*viewportSize.height/2-pivotY));},0):0;
+    const radiusPixels=rotationGizmoRadiusPixels(rotationPivotMode,cornerRadius);
+    const worldPerPixel=camera instanceof THREE.PerspectiveCamera?2*camera.position.distanceTo(point)*Math.tan(THREE.MathUtils.degToRad(camera.fov/2))/(camera.zoom*viewportSize.height):camera instanceof THREE.OrthographicCamera?(camera.top-camera.bottom)/(camera.zoom*viewportSize.height):0.01;
+    rotationGizmoRef.current.scale.setScalar(Math.max(0.0001,worldPerPixel*radiusPixels));
+  });
   const transformResult=useCallback((gesture=transformGesture,end=gesture?.end)=>{
     if(!gesture||!end)return undefined;
     const {target,geometry,centerLocal,mode}=gesture;const field=toolMeasurement?.id===gesture.sessionId?toolMeasurement.fields[0]:undefined;
@@ -227,13 +271,13 @@ function DrawingPlane({activeTool,snap,exactUm,unitSystem,pivotMode,axisMode,onC
       pose=preview.pose;display=(unitSystem==='imperial'?preview.distanceUm/25_400:preview.distanceUm/1_000).toFixed(unitSystem==='imperial'?3:1);valid=preview.distanceUm>0;
     }else if(mode==='rotate'){
       const rawDegrees=typed??gesture.rotationBaseDegrees;const degrees=typed??(snap?Math.round(rawDegrees/15)*15:rawDegrees);const axis=toolMeasurement?.id===gesture.sessionId?toolMeasurement.rotationAxis:gesture.rotationAxis;display=degrees.toFixed(2);valid=!!axis&&Number.isFinite(degrees)&&Math.abs(degrees)>0;
-      pose=previewRotate(target.pose,scalePpm,centerLocal,axis?degrees:0,axis??'z',pivotMode).pose;
+      pose=previewRotate(target.pose,scalePpm,centerLocal,axis?degrees:0,axis??'z',rotationPivotFor(target,geometry)).pose;
     }else{
       const center=transformLocalPoint(centerLocal,target.pose,target.scalePpm).map(umToMeters) as [number,number,number];const startRadius=Math.hypot(gesture.start.x-center[0],gesture.start.y-center[1]);const endRadius=Math.hypot(end.x-center[0],end.y-center[1]);const factor=typed??(startRadius>1e-6?endRadius/startRadius:0);display=`${factor.toFixed(3)}×`;
       const preview=previewScale(target.pose,target.scalePpm,centerLocal,factor,pivotMode);scalePpm=preview.scalePpm;valid=preview.valid;pose=preview.pose;
     }
     return {pose,scalePpm,display,valid:valid&&!exactInvalid,geometry,target};
-  },[transformGesture,toolMeasurement,axisMode,snap,pivotMode,unitSystem]);
+  },[transformGesture,toolMeasurement,axisMode,snap,pivotMode,unitSystem,rotationPivotFor]);
   const commitTransform=useCallback((gesture=transformGesture,end=gesture?.end)=>{
     const result=transformResult(gesture,end);if(!gesture||completedSessions.current.has(gesture.sessionId))return;if(!result?.valid){onToolError('Enter a valid nonzero value for this transform');return;}completedSessions.current.add(gesture.sessionId);
     const target=gesture.target;const instance=design?.instances.some(item=>item.id===target.id);
@@ -277,7 +321,7 @@ function DrawingPlane({activeTool,snap,exactUm,unitSystem,pivotMode,axisMode,onC
       const transform=(pose:typeof target.pose,scalePpm?:typeof target.scalePpm)=>onCommand(instance?{type:'set-instance-transform',instanceId:target.id,pose,...(scalePpm?{scalePpm}:{}),...(scalePpm?{reason:'instance-scaled' as const}:{})}:{type:'set-loose-transform',objectId:target.id,pose,...(scalePpm?{scalePpm}:{})});
       const geometry=instance?design?.definitions.find(def=>def.id===instance.definitionId)?.geometry:loose?.geometry;const centerLocal=geometry?geometryCenter(geometry):[0,0,0] as [number,number,number];
       if(activeTool==='move'){const raw:[number,number,number]=[metersToUm(b.x-a.x),metersToUm(b.y-a.y),0];const local=axisMode==='local'?worldToLocalDelta(raw,target.pose):raw;const delta:[number,number,number]=[exactUm??(snap?Math.round(local[0]/10_000)*10_000:local[0]),snap?Math.round(local[1]/10_000)*10_000:local[1],0];const worldDelta=axisMode==='local'?localizeDelta(delta,target.pose,'local'):delta;const positionUm=target.pose.positionUm.map((n,i)=>n+worldDelta[i]) as [number,number,number];transform({...target.pose,positionUm});return;}
-      if(activeTool==='rotate'){const rawDegrees=(b.x-a.x)*90;const degrees=exactUm??(snap?Math.round(rawDegrees/15)*15:rawDegrees);const pose={...target.pose,rotation:previewRotate(target.pose,target.scalePpm as [number,number,number],centerLocal,degrees,toolMeasurement?.rotationAxis??'z',pivotMode).pose.rotation};const scale=target.scalePpm as [number,number,number];transform(keepGeometryCenter(centerLocal,target.pose,scale,pose,scale,pivotMode));return;}
+      if(activeTool==='rotate'){const rawDegrees=(b.x-a.x)*90;const degrees=exactUm??(snap?Math.round(rawDegrees/15)*15:rawDegrees);const pivot=rotationPivotFor(target,geometry??{vertices:[],edges:[],faces:[],extrusions:[]});const pose=previewRotate(target.pose,target.scalePpm as [number,number,number],centerLocal,degrees,toolMeasurement?.rotationAxis??'z',pivot).pose;transform(pose);return;}
       const center=transformLocalPoint(centerLocal,target.pose,target.scalePpm).map(umToMeters) as [number,number,number];const radiusA=Math.hypot(a.x-center[0],a.y-center[1]),radiusB=Math.hypot(b.x-center[0],b.y-center[1]);if(exactUm===undefined&&radiusA<0.000001){onToolError('Start Scale away from the geometry center');return;}const scalePpm:[number,number,number]=exactUm===undefined?target.scalePpm.map(value=>Math.round(value*radiusB/radiusA)) as [number,number,number]:[exactUm,exactUm,exactUm];transform(keepGeometryCenter(centerLocal,target.pose,target.scalePpm,target.pose,scalePpm,pivotMode),scalePpm);return;
     }
     onSelect(undefined);
@@ -290,13 +334,17 @@ function DrawingPlane({activeTool,snap,exactUm,unitSystem,pivotMode,axisMode,onC
     if(!measureGesture)return;const end=event.point.clone();setMeasureGesture(current=>current?{...current,end}:current);
     if(toolMeasurement?.id===measureGesture.sessionId){const field=toolMeasurement.fields[0];if(!field.exact){const value=Math.round(measureGesture.start.distanceTo(end)*1_000_000);onToolMeasurementChange({...toolMeasurement,fields:[{...field,value:(unitSystem==='imperial'?value/25_400:value/1_000).toFixed(unitSystem==='imperial'?3:1)}],canPlace:value>0});}}
   };
+  const startTransformSession=(target:Instance|LooseObject,geometry:Geometry,start:THREE.Vector3,mode:'move'|'rotate'|'scale',id:string,rotationAxis?:RotationAxis)=>{
+    const gesture={mode,start:start.clone(),end:start.clone(),rotationBaseDegrees:0,sessionId:id,target,geometry,centerLocal:geometryCenter(geometry)} as const;
+    setTransformGesture(gesture);onToolMeasurementChange({id,tool:mode[0].toUpperCase()+mode.slice(1),rotationAxis,canPlace:false,fields:[{id:'value',label:mode==='move'?'Length':mode==='rotate'?'Angle':'Scale',value:mode==='scale'?'1':'0',unit:mode==='move'?(unitSystem==='imperial'?'in':'mm'):mode==='rotate'?'°':'×',min:mode==='move'||mode==='scale'?0.001:undefined}]});
+    return gesture;
+  };
   const beginTransform=(event:ThreeEvent<PointerEvent>)=>{
     const instance=design?.instances.find(item=>item.id===selectedId);const loose=design?.looseObjects.find(item=>item.id===selectedId);const target=instance??loose;
     if(!target){onToolError('Select a component or loose object before transforming');return;}
     if(target.locked){onToolError('This entity is locked');return;}
     const geometry=instance?design?.definitions.find(def=>def.id===instance.definitionId)?.geometry:loose?.geometry;if(!geometry){onToolError('Transform target has no editable geometry');return;}
-    const mode=activeTool as 'move'|'rotate'|'scale';const id=`${mode}-${target.id}-${Date.now()}`;const gesture={mode,start:event.point.clone(),end:event.point.clone(),rotationBaseDegrees:0,sessionId:id,target,geometry,centerLocal:geometryCenter(geometry)} as const;
-    setTransformGesture(gesture);onToolMeasurementChange({id,tool:mode[0].toUpperCase()+mode.slice(1),canPlace:false,fields:[{id:'value',label:mode==='move'?'Length':mode==='rotate'?'Angle':'Scale',value:mode==='scale'?'1':'0',unit:mode==='move'?(unitSystem === 'imperial' ? 'in' : 'mm'):mode==='rotate'?'°':'×',min:mode==='move'||mode==='scale'?0.001:undefined}]});
+    const mode=activeTool as 'move'|'rotate'|'scale';startTransformSession(target,geometry,event.point,mode,`${mode}-${target.id}-${globalThis.crypto.randomUUID()}`);
     onToolError(mode==='rotate'?'Choose an axis ring, then drag to preview':'Move start set · move to preview or enter a value');
   };
   const updateTransformPointer=(event:ThreeEvent<PointerEvent>)=>{
@@ -305,9 +353,11 @@ function DrawingPlane({activeTool,snap,exactUm,unitSystem,pivotMode,axisMode,onC
     if(toolMeasurement?.id===updated.sessionId){const field=toolMeasurement.fields[0];if(!field.exact){const value=updated.mode==='scale'?result.display.replace('×',''):result.display;onToolMeasurementChange({...toolMeasurement,fields:[{...field,value}],canPlace:result.valid});}}
   };
   const startRotationRingDrag=(axis:RotationAxis,event:ThreeEvent<PointerEvent>)=>{
-    const gesture=transformGesture;if(!gesture||gesture.mode!=='rotate'||event.button!==0)return;
+    if(event.button!==0)return;
+    const gesture=transformGesture?.mode==='rotate'?transformGesture:rotationTarget&&rotationGeometry?startTransformSession(rotationTarget,rotationGeometry,event.point,'rotate',`rotate-${rotationTarget.id}-${globalThis.crypto.randomUUID()}`,axis):undefined;
+    if(!gesture)return;
     event.stopPropagation();event.nativeEvent.preventDefault();(event.target as unknown as {setPointerCapture?:(id:number)=>void}).setPointerCapture?.(event.pointerId);
-    const centerUm=transformLocalPoint(gesture.centerLocal,gesture.target.pose,gesture.target.scalePpm);
+    const centerUm=transformLocalPoint(rotationPivotFor(gesture.target,gesture.geometry),gesture.target.pose,gesture.target.scalePpm);
     const center=new THREE.Vector3(...centerUm.map(umToMeters) as [number,number,number]);
     const pointer=pointerOnAxisPlane(camera,canvas,center,axis,event.nativeEvent.clientX,event.nativeEvent.clientY);
     const field=toolMeasurement?.id===gesture.sessionId?toolMeasurement.fields[0]:undefined;
@@ -325,7 +375,7 @@ function DrawingPlane({activeTool,snap,exactUm,unitSystem,pivotMode,axisMode,onC
     const move=(event:PointerEvent)=>{
       if(event.pointerId!==transformGesture.rotationPointerId)return;
       const axis=transformGesture.rotationAxis!;
-      const centerUm=transformLocalPoint(transformGesture.centerLocal,transformGesture.target.pose,transformGesture.target.scalePpm);
+      const centerUm=transformLocalPoint(rotationPivotFor(transformGesture.target,transformGesture.geometry),transformGesture.target.pose,transformGesture.target.scalePpm);
       const center=new THREE.Vector3(...centerUm.map(umToMeters) as [number,number,number]);
       const point=pointerOnAxisPlane(camera,canvas,center,axis,event.clientX,event.clientY);
       const last=transformGesture.rotationLastVector?new THREE.Vector3(...transformGesture.rotationLastVector):undefined;
@@ -343,7 +393,7 @@ function DrawingPlane({activeTool,snap,exactUm,unitSystem,pivotMode,axisMode,onC
     window.addEventListener('pointerup',end);
     window.addEventListener('pointercancel',end);
     return()=>{window.removeEventListener('pointermove',move);window.removeEventListener('pointerup',end);window.removeEventListener('pointercancel',end);};
-  },[canvas,camera,transformGesture,toolMeasurement,onToolMeasurementChange,transformResult,snap,commitTransform]);
+  },[canvas,camera,transformGesture,toolMeasurement,onToolMeasurementChange,transformResult,snap,commitTransform,rotationPivotFor]);
   useEffect(()=>{if(transformGesture&&toolMeasurement?.id===transformGesture.sessionId&&toolMeasurement.fields[0]?.exact){const result=transformResult(transformGesture);if(result&&(result.valid!==toolMeasurement.canPlace||!!toolMeasurement.fields[0]?.error===result.valid))onToolMeasurementChange({...toolMeasurement,canPlace:result.valid,fields:toolMeasurement.fields.map(field=>({...field,error:result.valid?undefined:'Value is outside the supported range'}))});}});
   const measurePreview=(()=>{
     if(activeTool!=='measure'||!measureGesture)return undefined;
@@ -356,15 +406,14 @@ function DrawingPlane({activeTool,snap,exactUm,unitSystem,pivotMode,axisMode,onC
       <planeGeometry args={[200,200]} /><meshBasicMaterial transparent opacity={0} depthWrite={false} />
     </mesh>
     {measurePreview&&<Line points={[measurePreview.start,measurePreview.end]} color="#d18a45" lineWidth={2} dashed dashSize={0.08} gapSize={0.04} raycast={()=>null} />}
-    {transformGesture&&(()=>{const result=transformResult();const previewPose=result?.valid?result.pose:transformGesture.target.pose;const previewScale=result?.valid?result.scalePpm:transformGesture.target.scalePpm as [number,number,number];const center=transformLocalPoint(transformGesture.centerLocal,previewPose,previewScale).map(umToMeters) as [number,number,number];const ringRadius=Math.max(.28,transformGesture.geometry.vertices.reduce((max,vertex)=>Math.max(max,Math.hypot(...vertex.positionUm.map((value,index)=>(value-transformGesture.centerLocal[index])*previewScale[index]/1_000_000_000_000))),0)*1.25);const selectedAxis=toolMeasurement?.id===transformGesture.sessionId?toolMeasurement.rotationAxis:transformGesture.rotationAxis;return <>
-      {result?.valid&&<group position={result.pose.positionUm.map(umToMeters) as [number,number,number]} quaternion={result.pose.rotation as [number,number,number,number]} scale={result.scalePpm.map(value=>value/1_000_000) as [number,number,number]}><ObjectGeometry geometry={result.geometry} targetId={result.target.id} color={colors.selected} selected={false} preview onSelect={event=>event.stopPropagation()} /></group>}
-      {transformGesture.mode==='rotate'&&<group position={center}>
-        {(['x','y','z'] as const).map((axis,index)=>{const color=axis==='x'?'#ee6666':axis==='y'?'#65c886':'#64b5f6';const radius=ringRadius*(1+index*.16);return <mesh key={axis} rotation={axis==='x'?[0,Math.PI/2,0]:axis==='y'?[Math.PI/2,0,0]:[0,0,0]} onPointerDown={event=>startRotationRingDrag(axis,event)}>
-          <torusGeometry args={[radius,Math.max(.025,ringRadius*.045),12,120]} />
-          <meshBasicMaterial color={selectedAxis===axis?'#fff4bd':color} transparent opacity={selectedAxis===axis?1:.88} depthWrite={false} />
-        </mesh>;})}
-      </group>}
-    </>;})()}
+    {transformGesture&&(()=>{const result=transformResult();return result?.valid?<group position={result.pose.positionUm.map(umToMeters) as [number,number,number]} quaternion={result.pose.rotation as [number,number,number,number]} scale={result.scalePpm.map(value=>value/1_000_000) as [number,number,number]}><ObjectGeometry geometry={result.geometry} targetId={result.target.id} color={colors.selected} selected={false} preview onSelect={event=>event.stopPropagation()} /></group>:null;})()}
+    {rotationTarget&&rotationGeometry&&(()=>{const center=transformLocalPoint(rotationPivotFor(rotationTarget,rotationGeometry),rotationTarget.pose,rotationTarget.scalePpm).map(umToMeters) as [number,number,number];const selectedAxis=toolMeasurement?.tool==='Rotate'?toolMeasurement.rotationAxis:transformGesture?.mode==='rotate'?transformGesture.rotationAxis:undefined;return <group ref={rotationGizmoRef} position={center} renderOrder={20}>
+        <mesh raycast={()=>null}><sphereGeometry args={[.13,12,8]} /><meshBasicMaterial color="#fff4bd" depthTest={false} /></mesh>
+        {(['x','y','z'] as const).map((axis,index)=>{const color=axis==='x'?'#ee6666':axis==='y'?'#65c886':'#64b5f6';const radius=1+index*.16;const rotation=axis==='x'?[0,Math.PI/2,0] as [number,number,number]:axis==='y'?[Math.PI/2,0,0] as [number,number,number]:[0,0,0] as [number,number,number];return <group key={axis} rotation={rotation}>
+          <mesh raycast={()=>null} renderOrder={21}><torusGeometry args={[radius,.035,8,96]} /><meshBasicMaterial color={selectedAxis===axis?'#fff4bd':color} transparent opacity={selectedAxis===axis?1:.92} depthTest={false} depthWrite={false} /></mesh>
+          <mesh onPointerDown={event=>startRotationRingDrag(axis,event)} renderOrder={22}><torusGeometry args={[radius,.2,6,96]} /><meshBasicMaterial transparent opacity={0} depthTest={false} depthWrite={false} /></mesh>
+        </group>;})}
+      </group>;})()}
 
   </>;
 }
@@ -410,7 +459,7 @@ function CameraSetup({ preset, design, frameRequest }: Pick<Props, 'preset'|'des
   return null;
 }
 
-export function DesignScene({ rectangleAxis = 'y', rectangleDirection = 'pointer', design, unitSystem, selectedId, selectedCount, selectedElement, editingDefinitionId, editingObjectId, onSelect, onSubSelect, onEnterDefinition, activeTool, snap, exactUm, pivotMode, axisMode, onCommand, onMeasure, onToolError, preset, projection, grid, axes, frameRequest, toolMeasurement, onToolMeasurementChange, onRegisterMeasurementActions, onContextLoss, onContextRestore }: Props) {
+export function DesignScene({ rectangleAxis = 'y', rectangleDirection = 'pointer', design, unitSystem, selectedId, selectedCount, selectedElement, editingDefinitionId, editingObjectId, onSelect, onSubSelect, onEnterDefinition, activeTool, snap, exactUm, pivotMode, rotationPivotMode, axisMode, onCommand, onMeasure, onToolError, preset, projection, grid, axes, frameRequest, toolMeasurement, onToolMeasurementChange, onRegisterMeasurementActions, onContextLoss, onContextRestore }: Props) {
   const definitionById = new Map(design?.definitions.map(d => [d.id, d]) ?? []);
   const placed = new Set(design?.instances.map(i => i.definitionId) ?? []);
   const hitCycle=useRef(createHitCycle());
@@ -425,8 +474,8 @@ export function DesignScene({ rectangleAxis = 'y', rectangleDirection = 'pointer
     <ContextLifecycle onContextLoss={onContextLoss} onContextRestore={onContextRestore} />
     <CameraSetup preset={preset} design={design} frameRequest={frameRequest} />
     <OrbitControls makeDefault enableDamping dampingFactor={0.12} minDistance={0.25} maxDistance={80} zoomToCursor mouseButtons={{LEFT:activeTool==='orbit'?THREE.MOUSE.ROTATE:activeTool==='pan'?THREE.MOUSE.PAN:undefined,MIDDLE:THREE.MOUSE.ROTATE,RIGHT:THREE.MOUSE.PAN}} />
-    {activeTool!=='rectangle'&&<DrawingPlane key={activeTool} activeTool={activeTool} snap={snap} unitSystem={unitSystem} exactUm={exactUm} pivotMode={pivotMode} axisMode={axisMode} onCommand={onCommand} onMeasure={onMeasure} onSelect={onSelect} onToolError={onToolError} design={design} selectedId={selectedId} selectedCount={selectedCount} editingDefinitionId={editingDefinitionId} toolMeasurement={toolMeasurement} onToolMeasurementChange={onToolMeasurementChange} onRegisterMeasurementActions={onRegisterMeasurementActions} />}
-    <VertexDrawing key={`vertices-${activeTool}`} design={design} editingDefinitionId={editingDefinitionId} activeTool={activeTool} axis={rectangleAxis} direction={rectangleDirection} snap={snap} unitSystem={unitSystem} selectedElement={selectedElement} onSelect={onSelect} onSubSelect={onSubSelect} onCommand={onCommand} onToolError={onToolError} toolMeasurement={toolMeasurement} onToolMeasurementChange={onToolMeasurementChange} onRegisterMeasurementActions={onRegisterMeasurementActions} />
+    {activeTool!=='rectangle'&&<DrawingPlane key={activeTool} activeTool={activeTool} snap={snap} unitSystem={unitSystem} exactUm={exactUm} pivotMode={pivotMode} rotationPivotMode={rotationPivotMode} selectedElement={selectedElement} axisMode={axisMode} onCommand={onCommand} onMeasure={onMeasure} onSelect={onSelect} onToolError={onToolError} design={design} selectedId={selectedId} selectedCount={selectedCount} editingDefinitionId={editingDefinitionId} toolMeasurement={toolMeasurement} onToolMeasurementChange={onToolMeasurementChange} onRegisterMeasurementActions={onRegisterMeasurementActions} />}
+    <VertexDrawing key={`vertices-${activeTool}`} design={design} editingDefinitionId={editingDefinitionId} selectedId={selectedId} activeTool={activeTool} axis={rectangleAxis} direction={rectangleDirection} snap={snap} unitSystem={unitSystem} selectedElement={selectedElement} onSelect={onSelect} onSubSelect={onSubSelect} onCommand={onCommand} onToolError={onToolError} toolMeasurement={toolMeasurement} onToolMeasurementChange={onToolMeasurementChange} onRegisterMeasurementActions={onRegisterMeasurementActions} />
     {grid && <Grid args={[30, 30]} cellSize={0.25} cellThickness={0.75} cellColor="#8297a1" sectionSize={1} sectionThickness={1.5} sectionColor="#476878" fadeDistance={30} infiniteGrid />}
     {axes && <axesHelper args={[1]} />}
     {design?.instances.filter(i => !i.hidden && (!editingDefinitionId||i.definitionId===editingDefinitionId)).map(instance => {

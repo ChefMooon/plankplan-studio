@@ -2,8 +2,12 @@ import type { Geometry, Pose, ScalePpm } from '@/lib/planner/design/schema';
 import { transformLocalPoint } from '@/lib/planner/design/geometry';
 
 export type PivotMode = 'origin' | 'center';
+export type RotationPivotMode = 'center' | 'vertex' | 'origin';
 export type AxisMode = 'world' | 'local';
 export type RotationAxis = 'x' | 'y' | 'z';
+export function rotationGizmoRadiusPixels(mode:RotationPivotMode,furthestCornerPixels=0):number {
+  return mode==='origin'?Math.max(34,furthestCornerPixels+12):34;
+}
 
 export function geometryCenter(geometry: Geometry): [number, number, number] {
   if (!geometry.vertices.length) return [0, 0, 0];
@@ -20,12 +24,25 @@ export function geometryCenter(geometry: Geometry): [number, number, number] {
   ];
 }
 
+export function resolveRotationPivotLocal(geometry: Geometry, mode: RotationPivotMode, vertexLocal?: readonly [number,number,number], centerOverride?: readonly [number,number,number]): [number,number,number] {
+  if(mode==='origin')return [0,0,0];
+  if(mode==='vertex'&&vertexLocal)return [...vertexLocal];
+  return centerOverride?[...centerOverride]:geometryCenter(geometry);
+}
+
 /** Reposition after rotation/scaling to keep the selected center fixed in world space. */
 export function keepGeometryCenter(center: readonly [number, number, number], oldPose: Pose, oldScale: ScalePpm, nextPose: Pose, nextScale: ScalePpm, pivot: PivotMode): Pose {
   if (pivot === 'origin') return nextPose;
   const worldCenter = transformLocalPoint([...center] as [number, number, number], oldPose, oldScale);
   const offset = transformLocalPoint([...center] as [number, number, number], { ...nextPose, positionUm: [0, 0, 0] }, nextScale);
   return { ...nextPose, positionUm: worldCenter.map((value, i) => value - offset[i]) as [number, number, number] };
+}
+
+/** Reposition a transformed object so an arbitrary local pivot remains fixed in world space. */
+export function keepLocalPoint(pivotLocal: readonly [number, number, number], oldPose: Pose, oldScale: ScalePpm, nextPose: Pose, nextScale: ScalePpm): Pose {
+  const worldPoint = transformLocalPoint([...pivotLocal] as [number, number, number], oldPose, oldScale);
+  const nextOffset = transformLocalPoint([...pivotLocal] as [number, number, number], { ...nextPose, positionUm: [0, 0, 0] }, nextScale);
+  return { ...nextPose, positionUm: worldPoint.map((value, index) => value - nextOffset[index]) as [number, number, number] };
 }
 
 /** Rotates a translation delta into the selected local frame without changing its magnitude. */

@@ -33,7 +33,7 @@ export function updateMeasurementField(session: ToolMeasurementSession, id: stri
   return { ...session, fields: session.fields.map(field => field.id === id ? { ...field, value, error: undefined } : field) };
 }
 import type { Pose, ScalePpm } from '@/lib/planner/design/schema';
-import { keepGeometryCenter, localizeDelta, rotateAroundWorkspaceAxis, worldToLocalDelta, type AxisMode, type PivotMode, type RotationAxis } from './transform-pivot';
+import { keepGeometryCenter, keepLocalPoint, localizeDelta, rotateAroundWorkspaceAxis, worldToLocalDelta, type AxisMode, type PivotMode, type RotationAxis } from './transform-pivot';
 
 export function previewMove(pose: Pose, rawWorldDelta: readonly [number,number,number], axisMode: AxisMode, snap: boolean, exactDistanceUm?: number) {
   let delta = axisMode === 'local' ? worldToLocalDelta(rawWorldDelta, pose) : [...rawWorldDelta] as [number,number,number];
@@ -46,9 +46,10 @@ export function previewMove(pose: Pose, rawWorldDelta: readonly [number,number,n
   return { pose: { ...pose, positionUm: pose.positionUm.map((value,index) => value + worldDelta[index]) as Pose['positionUm'] }, distanceUm: Math.hypot(...delta) };
 }
 
-export function previewRotate(pose: Pose, scalePpm: ScalePpm, centerLocal: readonly [number,number,number], degrees: number, axis: RotationAxis, pivotMode: PivotMode) {
+export function previewRotate(pose: Pose, scalePpm: ScalePpm, centerLocal: readonly [number,number,number], degrees: number, axis: RotationAxis, pivotMode: PivotMode | readonly [number,number,number]) {
   const rotation = rotateAroundWorkspaceAxis(pose.rotation, degrees * Math.PI / 180, axis);
-  const nextPose = keepGeometryCenter(centerLocal, pose, scalePpm, { ...pose, rotation }, scalePpm, pivotMode);
+  const rotated={...pose,rotation};
+  const nextPose = typeof pivotMode==='string'?keepGeometryCenter(centerLocal, pose, scalePpm, rotated, scalePpm, pivotMode):keepLocalPoint(pivotMode,pose,scalePpm,rotated,scalePpm);
   return { pose: nextPose, valid: Number.isFinite(degrees) && Math.abs(degrees) > 0 };
 }
 

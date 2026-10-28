@@ -19,7 +19,7 @@ export function directRectangleEnd(start: readonly number[], end: readonly numbe
   const vSign = (direction[1] === '+' ? 1 : -1) * (axis === 'y' ? -1 : 1);
   return fromPlane(a[0] + uSign * Math.max(1, Math.abs(b[0] - a[0])), a[1] + vSign * Math.max(1, Math.abs(b[1] - a[1])), a[2], axis);
 }
-export type VertexTarget = { objectId: string; id: string; point: [number, number, number] };
+export type VertexTarget = { objectId: string; id: string; point: [number, number, number]; localPoint?: [number,number,number] };
 export function planeCoordinates(point: readonly number[], axis: RectangleAxis): [number, number, number] {
   return axis === 'x' ? [point[2], point[1], point[0]] : axis === 'y' ? [point[0], -point[2], point[1]] : [point[0], point[1], point[2]];
 }
@@ -54,7 +54,7 @@ export function designVertices(design?: DesignDocumentV1, editingDefinitionId?: 
   const result: VertexTarget[] = [];
   const add = (objectId: string, geometry: Geometry, pose: DesignDocumentV1['instances'][number]['pose'], scale: readonly [number, number, number], cutSpec?: DesignDocumentV1['definitions'][number]['cutSpec']) => {
     const corners = cutSpec?.confirmation === 'confirmed' ? [-1, 1].flatMap(x => [-1, 1].flatMap(y => [-1, 1].map(z => ({ id: `corner-${x}-${y}-${z}`, point: [x * cutSpec.lengthUm / 2, y * cutSpec.widthUm / 2, z * cutSpec.thicknessUm / 2] as [number, number, number] })))) : geometryCorners(geometry);
-    for (const corner of corners) result.push({ objectId, id: corner.id, point: new Vector3(...corner.point).multiply(new Vector3(...scale.map(n => n / 1_000_000))).applyQuaternion(new Quaternion(...pose.rotation)).add(new Vector3(...pose.positionUm)).toArray().map(n => umToMeters(Math.round(n))) as [number, number, number] });
+    for (const corner of corners) result.push({ objectId, id: corner.id, localPoint: [...corner.point], point: new Vector3(...corner.point).multiply(new Vector3(...scale.map(n => n / 1_000_000))).applyQuaternion(new Quaternion(...pose.rotation)).add(new Vector3(...pose.positionUm)).toArray().map(n => umToMeters(Math.round(n))) as [number, number, number] });
   };
   for (const item of design.instances.filter(i => !i.hidden && (!editingDefinitionId || i.definitionId === editingDefinitionId))) {
     const def = design.definitions.find(d => d.id === item.definitionId);
