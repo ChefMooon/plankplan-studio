@@ -193,10 +193,12 @@ describe('local project workflow', () => {
     await user.click(screen.getByRole('link', { name: 'Open cutlist for Shop stool' }));
     expect(await screen.findByDisplayValue('Seat rail')).toBeInTheDocument();
     await user.click(screen.getByRole('link', { name: /all projects/i }));
-    await user.click(await screen.findByRole('button', { name: 'Duplicate Shop stool' }));
+    await user.click(await screen.findByRole('button', { name: 'Actions for Shop stool' }));
+    await user.click(await screen.findByRole('menuitem', { name: 'Duplicate' }));
     expect(await screen.findByText('Shop stool copy')).toBeInTheDocument();
-    const deleteButton = screen.getByRole('button', { name: 'Delete Shop stool copy' });
+    const deleteButton = screen.getByRole('button', { name: 'Actions for Shop stool copy' });
     await user.click(deleteButton);
+    await user.click(await screen.findByRole('menuitem', { name: 'Delete' }));
     let deleteDialog = await screen.findByRole('dialog', { name: 'Delete Shop stool copy?' });
     expect(within(deleteDialog).getByText(/all its Design and Cutlist data/)).toBeInTheDocument();
     expect(within(deleteDialog).getByRole('button', { name: 'Cancel' })).toHaveFocus();
@@ -208,11 +210,65 @@ describe('local project workflow', () => {
     await waitFor(() => expect(deleteButton).toHaveFocus());
     expect(await savedProject('Shop stool copy')).toBeDefined();
     await user.click(deleteButton);
+    await user.click(await screen.findByRole('menuitem', { name: 'Delete' }));
     deleteDialog = await screen.findByRole('dialog', { name: 'Delete Shop stool copy?' });
     await user.click(within(deleteDialog).getByRole('button', { name: 'Delete' }));
     await waitFor(() => expect(screen.queryByText('Shop stool copy')).not.toBeInTheDocument());
     await waitFor(async () => expect(await savedProject('Shop stool copy')).toBeUndefined());
-    await waitFor(() => expect(document.activeElement).toHaveClass('project-delete'));
+    await waitFor(() => expect((document.activeElement as HTMLElement).id.startsWith('project-actions-')).toBe(true));
+  });
+
+  it('edits project details from the card menu and persists them to that project', async () => {
+    const user = userEvent.setup();
+    await renderApp();
+    await startCutlistProject(user, 'Dashboard info');
+    await user.click(screen.getByRole('link', { name: /all projects/i }));
+    const trigger = await screen.findByRole('button', { name: 'Actions for Dashboard info' });
+    await user.click(trigger);
+    await user.click(await screen.findByRole('menuitem', { name: 'Project info' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Project Info' });
+    await waitFor(() => expect(within(dialog).getByRole('button', { name: 'Save' })).toBeEnabled());
+    expect(within(dialog).getByRole('textbox', { name: 'Project name' })).toHaveFocus();
+    await user.clear(within(dialog).getByRole('textbox', { name: 'Project name' }));
+    await user.type(within(dialog).getByRole('textbox', { name: 'Project name' }), 'Renamed dashboard project');
+    await user.type(within(dialog).getByRole('textbox', { name: 'Notes' }), 'Saved from the card menu');
+    await user.click(within(dialog).getByRole('combobox', { name: 'Project units' }));
+    await user.click(await screen.findByRole('option', { name: /Metric/ }));
+    await user.click(within(dialog).getByRole('button', { name: 'Save' }));
+    await waitFor(() => expect(dialog).not.toBeInTheDocument());
+    expect(await screen.findByText('Renamed dashboard project')).toBeInTheDocument();
+    await waitFor(async () => expect(await savedProject('Renamed dashboard project')).toMatchObject({ notes: 'Saved from the card menu', unitSystem: 'metric' }));
+    expect(screen.queryByText('Dashboard info')).not.toBeInTheDocument();
+  });
+
+  it('keeps the draft and reports a conflict when the project changes after info opens', async () => {
+    const user = userEvent.setup();
+    await renderApp();
+    await startCutlistProject(user, 'Conflict source');
+    const original = await savedProject('Conflict source');
+    expect(original).toBeDefined();
+    const originalRead = await projectRepository.get({ namespaceId: 'local', projectId: original!.id });
+    if (!originalRead.ok) throw new Error('Could not read test project.');
+    await user.click(screen.getByRole('link', { name: /all projects/i }));
+    const trigger = await screen.findByRole('button', { name: 'Actions for Conflict source' });
+    await user.click(trigger);
+    await user.click(await screen.findByRole('menuitem', { name: 'Project info' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Project Info' });
+    await waitFor(() => expect(within(dialog).getByRole('button', { name: 'Save' })).toBeEnabled());
+
+    const external = { ...originalRead.value, name: 'External update', updatedAt: new Date().toISOString() };
+    const externalSave = await projectRepository.save({ namespaceId: 'local', projectId: original!.id }, external, originalRead.token);
+    expect(externalSave.ok).toBe(true);
+    const nameInput = within(dialog).getByRole('textbox', { name: 'Project name' });
+    await user.clear(nameInput);
+    await user.type(nameInput, 'My unsaved draft');
+    await user.click(within(dialog).getByRole('button', { name: 'Save' }));
+
+    expect(await within(dialog).findByRole('alert')).toHaveTextContent(/changed elsewhere/i);
+    expect(nameInput).toHaveValue('My unsaved draft');
+    expect(await savedProject('External update')).toBeDefined();
+    await user.click(within(dialog).getByRole('button', { name: 'Cancel' }));
+    await waitFor(() => expect(trigger).toHaveFocus());
   });
 
   it('adds unassigned parts without stock and remembers the selected material for new parts', async () => {

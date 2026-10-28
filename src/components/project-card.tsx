@@ -1,6 +1,7 @@
-import { ArrowRight, Copy, Cube, ListChecks, Trash } from '@phosphor-icons/react';
+import { ArrowRight, Copy, Cube, DotsThree, Info, ListChecks, Trash } from '@phosphor-icons/react';
 import { Link } from '@tanstack/react-router';
-import { Tooltip } from 'radix-ui';
+import { DropdownMenu } from 'radix-ui';
+import { useRef } from 'react';
 import type { Project } from '@/lib/planner/model';
 import { ProjectCardPreview } from '@/components/ProjectCardPreview';
 
@@ -8,27 +9,25 @@ interface ProjectCardProps {
   project: Project;
   onDuplicate: () => void;
   onDelete: () => void;
+  onInfo: () => void;
 }
 
-export function ProjectCard({ project, onDuplicate, onDelete }: ProjectCardProps) {
+export function ProjectCard({ project, onDuplicate, onDelete, onInfo }: ProjectCardProps) {
+  const infoOpened = useRef(false);
   const materials = project.materials.map(material => material.name).join(', ');
 
   return <article className="project-card">
     <div className="project-thumb">
       <ProjectCardPreview project={project}/>
       <div className="project-tools">
-        <Tooltip.Provider delayDuration={250}>
-          {[{ label: 'Duplicate', Icon: Copy, action: onDuplicate }, { label: 'Delete', Icon: Trash, action: onDelete }].map(({ label, Icon, action }) =>
-            <Tooltip.Root key={label}>
-              <Tooltip.Trigger asChild>
-                <button id={label === 'Delete' ? `project-delete-${project.id}` : undefined} type="button" className={`project-icon-button ${label === 'Delete' ? 'project-delete' : ''}`} aria-label={`${label} ${project.name}`} onClick={action}>
-                  <Icon size={18} aria-hidden="true"/>
-                </button>
-              </Tooltip.Trigger>
-              <Tooltip.Portal><Tooltip.Content className="project-tooltip" sideOffset={6}>{label} project<Tooltip.Arrow className="project-tooltip-arrow"/></Tooltip.Content></Tooltip.Portal>
-            </Tooltip.Root>,
-          )}
-        </Tooltip.Provider>
+        <DropdownMenu.Root modal={false}>
+          <DropdownMenu.Trigger asChild><button id={`project-actions-${project.id}`} type="button" className="project-icon-button project-actions-trigger" aria-label={`Actions for ${project.name}`}><DotsThree size={22} weight="bold" aria-hidden="true"/></button></DropdownMenu.Trigger>
+          <DropdownMenu.Portal><DropdownMenu.Content className="project-actions-menu" sideOffset={6} align="end" onCloseAutoFocus={event => { if (infoOpened.current) { event.preventDefault(); infoOpened.current = false; } }}>
+            <DropdownMenu.Item className="project-actions-item" onSelect={() => { infoOpened.current = true; onInfo(); }}><Info size={17} aria-hidden="true"/><span>Project info</span></DropdownMenu.Item>
+            <DropdownMenu.Item className="project-actions-item" onSelect={onDuplicate}><Copy size={17} aria-hidden="true"/><span>Duplicate</span></DropdownMenu.Item>
+            <DropdownMenu.Item className="project-actions-item project-actions-delete" onSelect={onDelete}><Trash size={17} aria-hidden="true"/><span>Delete</span></DropdownMenu.Item>
+          </DropdownMenu.Content></DropdownMenu.Portal>
+        </DropdownMenu.Root>
       </div>
     </div>
     <div className="project-body">

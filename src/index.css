@@ -782,6 +782,11 @@ button,a,input,select { outline-offset:3px; }
 .project-timber span:nth-child(2){margin-left:12px;margin-right:-8px}.project-timber span:nth-child(3){margin-left:4px;margin-right:5px}
 .project-tools{position:absolute;top:10px;right:10px;display:flex;gap:6px}
 .project-icon-button{display:grid;place-items:center;width:36px;height:36px;padding:0;border:1px solid var(--pp-border);border-radius:7px;color:var(--pp-muted);background:var(--pp-surface);cursor:pointer;-webkit-tap-highlight-color:transparent}
+.project-actions-menu{z-index:60;min-width:176px;padding:5px;border:1px solid var(--pp-border);border-radius:8px;background:var(--pp-surface);color:var(--pp-text);box-shadow:0 8px 24px #0002}
+.project-actions-item{display:flex;align-items:center;gap:9px;min-height:38px;padding:0 10px;border-radius:5px;font-size:13px;cursor:pointer;outline:none;user-select:none}
+.project-actions-item[data-highlighted]{background:var(--pp-raised);color:var(--pp-blue)}
+.project-actions-delete{color:var(--pp-danger)}
+.project-actions-delete[data-highlighted]{background:var(--pp-danger-bg);color:var(--pp-danger)}
 .project-body{display:flex;flex:1;flex-direction:column;min-width:0;padding:18px}
 .project-body h3{margin:0;color:var(--pp-navy);font-size:16px;line-height:1.5;font-weight:650;overflow-wrap:anywhere}
 .project-body .project-materials{margin:4px 0 12px;color:var(--pp-muted);font-size:12px;line-height:1.5;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;overflow-wrap:anywhere}
