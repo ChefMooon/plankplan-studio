@@ -11,7 +11,7 @@ import type { DesignCommand } from '@/lib/planner/design/commands';
 import { buildPlanarGesture, createCapturedPlanarSession, createHitCycle } from '../planar-gesture';
 import { geometryCenter, keepGeometryCenter, localizeDelta, worldToLocalDelta, type AxisMode, type PivotMode, type RotationAxis } from '../transform-pivot';
 import { resolveSubElement, type SubElement } from '../sub-selection';
-import { appendTrianglePositions } from './mesh-geometry';
+import { buildModelGeometry } from './mesh-geometry';
 import { isPushPullEndFace, rectangularPushPullFace, shouldShowPushPullFaceIndicator } from '../push-pull';
 import type { ToolMeasurementSession } from '../tool-measurements';
 import { parseMeasurement, previewMove, previewRotate, previewScale } from '../tool-measurements';
@@ -52,32 +52,7 @@ function ObjectGeometry({ geometry, targetId, color, selected, invalid = false, 
   const dotTexture=useMemo(()=>createDotTexture(),[]);const meshRef=useRef<THREE.Mesh>(null);const {camera,size}=useThree();
   useFrame(()=>{if(!overlay||!meshRef.current)return;const worldPosition=meshRef.current.getWorldPosition(new THREE.Vector3());const scale=meshRef.current.getWorldScale(new THREE.Vector3());const planeScale=axis==='x'?[scale.z,scale.y]:axis==='y'?[scale.x,scale.z]:[scale.x,scale.y];const pitch=dotSpacingWorld(camera,worldPosition,size.height);dotTexture.repeat.set(Math.max(1,indicatorSize[0]*planeScale[0]/pitch),Math.max(1,indicatorSize[1]*planeScale[1]/pitch));});
   useEffect(()=>()=>dotTexture.dispose(),[dotTexture]);
-  const built = useMemo(() => {
-    const vertices = new Map(geometry.vertices.map(v => [v.id, v.positionUm]));
-    const positions: number[] = [];
-    for (const face of geometry.faces) {
-      const points = face.vertexIds.map(id => vertices.get(id)).filter((p): p is [number, number, number] => !!p);
-      if (points.length < 3) continue;
-      const vectors = points.map(p => new THREE.Vector3(...p.map(umToMeters) as [number, number, number]));
-      const normal = new THREE.Vector3().subVectors(vectors[1], vectors[0]).cross(new THREE.Vector3().subVectors(vectors[2], vectors[0])).normalize();
-      const base = vectors[0];
-      const axisU = new THREE.Vector3().subVectors(vectors[1], base).normalize();
-      const axisV = new THREE.Vector3().crossVectors(normal, axisU).normalize();
-      const shape = new THREE.Shape(vectors.map(v => new THREE.Vector2(v.clone().sub(base).dot(axisU), v.clone().sub(base).dot(axisV))));
-      const extrusion = geometry.extrusions.find(e => e.faceId === face.id);
-      const local = extrusion ? new THREE.ExtrudeGeometry(shape, { depth: Math.abs(umToMeters(extrusion.distanceUm)), bevelEnabled: false }) : new THREE.ShapeGeometry(shape);
-      if (extrusion && extrusion.distanceUm < 0) local.translate(0, 0, umToMeters(extrusion.distanceUm));
-      const basis = new THREE.Matrix4().makeBasis(axisU, axisV, normal);
-      basis.setPosition(base);
-      local.applyMatrix4(basis);
-      appendTrianglePositions(positions, local);
-      local.dispose();
-    }
-    const result = new THREE.BufferGeometry();
-    result.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
-    result.computeVertexNormals();
-    return result;
-  }, [geometry]);
+  const built = useMemo(() => buildModelGeometry(geometry), [geometry]);
   return <mesh ref={meshRef} geometry={built} userData={{designTargetId:targetId}} onPointerDown={onPushPullPointerDown} onPointerMove={onPushPullPointerMove} onClick={(event) => { event.stopPropagation(); onSelect(event); }} onPointerOver={(event) => { event.stopPropagation(); setHovered(true); }} onPointerOut={() => {setHovered(false);onFaceOut?.();}} castShadow receiveShadow>
     <meshStandardMaterial color={preview?'#e6a94e':invalid ? '#c56b62' : selected ? colors.selected : hovered ? colors.hover : color} roughness={0.78} side={THREE.DoubleSide} transparent={preview} opacity={preview?0.5:1} depthWrite={!preview} />
     {invalid && <Edges scale={1} color="#a52f2f" threshold={12} />}

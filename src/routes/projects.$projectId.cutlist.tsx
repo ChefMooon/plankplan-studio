@@ -58,7 +58,7 @@ function Cutlist() {
   const [projectSettingsExpanded, setProjectSettingsExpanded] = useState(getProjectSettingsExpanded);
   const [dimensionDrafts, setDimensionDrafts] = useState<Record<string, string>>({});
   const [projectInfoOpen, setProjectInfoOpen] = useState(false);
-  const [projectInfoDraft, setProjectInfoDraft] = useState<ProjectInfoDraft>({ name: '', notes: '', unitSystem: 'imperial' });
+  const [projectInfoDraft, setProjectInfoDraft] = useState<ProjectInfoDraft>({ name: '', notes: '', unitSystem: 'imperial', previewView: 'auto' });
   const [projectInfoError, setProjectInfoError] = useState('');
   const [draggingItem, setDraggingItem] = useState<string | null>(null);
   const [draggingKind, setDraggingKind] = useState<'parts' | 'materials' | 'stocks' | null>(null);
@@ -76,7 +76,7 @@ function Cutlist() {
   },[projectId]);
   const project = all.find(p => p.id === projectId);
   useEffect(() => {
-    if (project) setShellProject(project.name, saveStatus || 'Saved locally', () => { setProjectInfoDraft({ name: project.name, notes: project.notes ?? '', unitSystem: project.unitSystem }); setProjectInfoError(''); setProjectInfoOpen(true); });
+    if (project) setShellProject(project.name, saveStatus || 'Saved locally', () => { setProjectInfoDraft({ name: project.name, notes: project.notes ?? '', unitSystem: project.unitSystem, previewView: project.previewView ?? 'auto' }); setProjectInfoError(''); setProjectInfoOpen(true); });
     else if (loadStatus.startsWith('Project not found') || loadStatus.startsWith('Project could not')) setShellStatus(loadStatus);
   }, [project, saveStatus, loadStatus, setShellProject, setShellStatus]);
   const update = (nextProject: Project) => {
@@ -96,7 +96,7 @@ function Cutlist() {
     if (!name) { setProjectInfoError('Enter a project name.'); return; }
     if (name.length > 256) { setProjectInfoError('Project names must be 256 characters or fewer.'); return; }
     if (projectInfoDraft.notes.length > 16384) { setProjectInfoError('Notes must be 16,384 characters or fewer.'); return; }
-    const nextProject = { ...currentProject, name, unitSystem: projectInfoDraft.unitSystem };
+    const nextProject = { ...currentProject, name, unitSystem: projectInfoDraft.unitSystem, previewView: projectInfoDraft.previewView };
     if (projectInfoDraft.notes) nextProject.notes = projectInfoDraft.notes;
     else delete nextProject.notes;
     update(nextProject);
@@ -267,7 +267,7 @@ function Cutlist() {
       setDimensionDrafts({});
       window.setTimeout(restoreImportFocus, 0);
     }} />
-    <ProjectInfoDialog open={projectInfoOpen} onOpenChange={setProjectInfoOpen} draft={projectInfoDraft} onDraftChange={setProjectInfoDraft} error={projectInfoError} onSave={() => saveProjectInfo(project)} />
+    <ProjectInfoDialog open={projectInfoOpen} onOpenChange={setProjectInfoOpen} project={project} draft={projectInfoDraft} onDraftChange={setProjectInfoDraft} error={projectInfoError} onSave={() => saveProjectInfo(project)} />
     <DeleteConfirmationDialog deletion={deletionTarget} onOpenChange={open => { if (!open) setPendingDeletion(null); }} restoreFocus={() => { const triggerId = deletionTriggerId.current; if (triggerId) document.getElementById(triggerId)?.focus(); }} onConfirm={() => {
       const deletion = pendingDeletion;
       if (!deletion) return;

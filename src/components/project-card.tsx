@@ -2,6 +2,7 @@ import { ArrowRight, Copy, Cube, ListChecks, Trash } from '@phosphor-icons/react
 import { Link } from '@tanstack/react-router';
 import { Tooltip } from 'radix-ui';
 import type { Project } from '@/lib/planner/model';
+import { ProjectCardPreview } from '@/components/ProjectCardPreview';
 
 interface ProjectCardProps {
   project: Project;
@@ -14,7 +15,7 @@ export function ProjectCard({ project, onDuplicate, onDelete }: ProjectCardProps
 
   return <article className="project-card">
     <div className="project-thumb">
-      <div className="project-timber" aria-hidden="true"><span/><span/><span/></div>
+      <ProjectCardPreview project={project}/>
       <div className="project-tools">
         <Tooltip.Provider delayDuration={250}>
           {[{ label: 'Duplicate', Icon: Copy, action: onDuplicate }, { label: 'Delete', Icon: Trash, action: onDelete }].map(({ label, Icon, action }) =>

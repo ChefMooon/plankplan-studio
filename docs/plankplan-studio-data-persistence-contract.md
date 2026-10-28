@@ -65,6 +65,7 @@ type ProjectDocumentV2 = {
   id: string;
   name: string;
   notes?: string;
+  previewView?: 'auto' | 'cutlist' | 'iso' | 'top' | 'front' | 'right'; // dashboard-only presentation preference; absent means auto
   unitSystem: 'imperial' | 'metric';
   kerf: Dimension; // zero allowed
   trim: Dimension; // zero allowed
@@ -81,6 +82,10 @@ type ProjectDocumentV2 = {
   design?: DesignDocumentV1;
 };
 ```
+
+`previewView` is an optional, validated project presentation preference within schema v2. Existing v1 and v2 files without it remain valid and render the automatic dashboard view; import, export, copy, and restore preserve it when present. It does not affect design geometry, cutlist planning, or renderer state. Since v2 rejects unknown fields, older application versions that predate this field may reject newer exports containing it; a future incompatible schema change must use the normal versioned migration path rather than silently dropping project data.
+
+The `cutlist` value selects the current project's cutlist illustration; if its parts are removed, the preview shows the empty state until parts are added again. It does not identify a particular cutlist. If projects later support multiple cutlists, introduce an explicit, versioned cutlist identity and migrate this preference deliberately rather than assuming this value identifies a specific future cutlist.
 
 `DesignDocumentV1` is an independently versioned renderer-free domain document. The owner approved its exact records, geometry rules, transforms and protective limits on 2026-10-22 in [implementation-plan decision D2](plans/3d-workspace/3d-workspace-plan.md#d2-approved-concrete-design-schema). That section is the authoritative detailed design-schema definition extending this contract; do not accept arbitrary JSON or serialize renderer objects. The schema decision is closed; implementation and validation remain pending.
 

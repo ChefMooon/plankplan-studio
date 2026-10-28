@@ -8,7 +8,8 @@ export type Material = { id: string; name: string; type: MaterialKind; stocks: S
 export type EditorOrder = { parts?: string[]; materials?: string[]; stocks?: Record<string, string[]> };
 import { validateDesignDocument, type DesignDocumentV1, type Issue } from './design/schema';
 import { MAX_PROJECT_BYTES, readBoundedProjectInput, serializeProjectDocument, utf8ByteLength } from './serialization';
-export type Project = { schemaVersion: 2; id: string; name: string; notes?: string; unitSystem: UnitSystem; kerf: Dimension; trim: Dimension; minOffcutLinear: Dimension; minOffcutSheet: { shortSideUm: number; longSideUm: number }; sheetLayout?: 'cheapest' | 'simplestCuts'; currency: 'CAD' | 'USD' | 'EUR' | 'GBP'; taxRate?: number; parts: Part[]; materials: Material[]; editorOrder?: EditorOrder; createdAt: string; updatedAt: string; design?: DesignDocumentV1 };
+export type ProjectPreviewView = 'auto' | 'cutlist' | 'iso' | 'top' | 'front' | 'right';
+export type Project = { schemaVersion: 2; id: string; name: string; notes?: string; previewView?: ProjectPreviewView; unitSystem: UnitSystem; kerf: Dimension; trim: Dimension; minOffcutLinear: Dimension; minOffcutSheet: { shortSideUm: number; longSideUm: number }; sheetLayout?: 'cheapest' | 'simplestCuts'; currency: 'CAD' | 'USD' | 'EUR' | 'GBP'; taxRate?: number; parts: Part[]; materials: Material[]; editorOrder?: EditorOrder; createdAt: string; updatedAt: string; design?: DesignDocumentV1 };
 export type LinearPlan = { cuts: { partId: string; lengthUm: number }[]; stockId: string; stockCount: number; usedUm: number; wasteUm: number; costCents: number; ownedUsed: number };
 export type PlanWarning = { code: string; message: string; partId?: string };
 export type LinearResult = { plans: LinearPlan[]; warnings: PlanWarning[]; totalCostCents: number; valid: boolean };
@@ -48,7 +49,7 @@ export function validateProjectDocument(value: unknown): Issue[] {
   const add = (code: string, path: string) => issues.push({ code, path, severity: 'error' });
   const rec = (v: unknown): v is Record<string, unknown> => !!v && typeof v === 'object' && !Array.isArray(v);
   if (!rec(value)) return [{ code: 'invalid-record', path: '$', severity: 'error' }];
-  const allowed = ['schemaVersion','id','name','notes','unitSystem','kerf','trim','minOffcutLinear','minOffcutSheet','sheetLayout','currency','taxRate','parts','materials','editorOrder','createdAt','updatedAt','design'];
+  const allowed = ['schemaVersion','id','name','notes','previewView','unitSystem','kerf','trim','minOffcutLinear','minOffcutSheet','sheetLayout','currency','taxRate','parts','materials','editorOrder','createdAt','updatedAt','design'];
   for (const k of Object.keys(value)) if (!allowed.includes(k)) add('unknown-field', `$.${k}`);
   if (value.schemaVersion !== 2) add('unsupported-version', '$.schemaVersion');
   const str = (v: unknown, max: number): v is string => typeof v === 'string' && v.length <= max;
@@ -56,6 +57,7 @@ export function validateProjectDocument(value: unknown): Issue[] {
   const count = (v: unknown, zero = false) => Number.isSafeInteger(v) && Number(v) >= (zero ? 0 : 1) && Number(v) <= 10000;
   if (!str(value.id,128) || !value.id || !str(value.name,256) || !value.name.trim()) add('invalid-identity','$');
   if (value.notes !== undefined && !str(value.notes,16384)) add('invalid-text','$.notes');
+  if (value.previewView !== undefined && !['auto','cutlist','iso','top','front','right'].includes(String(value.previewView))) add('invalid-discriminant','$.previewView');
   if (value.unitSystem !== 'imperial' && value.unitSystem !== 'metric') add('invalid-unit-system','$.unitSystem');
   if (!dim(value.kerf,true) || !dim(value.trim,true) || !dim(value.minOffcutLinear,true)) add('invalid-dimension','$.kerf');
   if (!rec(value.minOffcutSheet) || !Number.isSafeInteger(value.minOffcutSheet.shortSideUm) || !Number.isSafeInteger(value.minOffcutSheet.longSideUm) || Number(value.minOffcutSheet.shortSideUm)<0 || Number(value.minOffcutSheet.shortSideUm)>Number(value.minOffcutSheet.longSideUm)) add('invalid-offcut','$.minOffcutSheet');

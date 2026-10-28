@@ -75,7 +75,7 @@ export function DesignWorkspace({ project, onCommit, localGeneration = 0, saveSt
   const measurementActions=useRef<{commit:()=>void;cancel:()=>void}|undefined>(undefined);
   const [helpOpen,setHelpOpen]=useState(false);
   const [projectInfoOpen,setProjectInfoOpen]=useState(false);
-  const [projectInfoDraft,setProjectInfoDraft]=useState<ProjectInfoDraft>({name:project.name,notes:project.notes??'',unitSystem:project.unitSystem});
+  const [projectInfoDraft,setProjectInfoDraft]=useState<ProjectInfoDraft>({name:project.name,notes:project.notes??'',unitSystem:project.unitSystem,previewView:project.previewView??'auto'});
   const [projectInfoError,setProjectInfoError]=useState('');
   const [projectInfoSaving,setProjectInfoSaving]=useState(false);
   const [helpQuery,setHelpQuery]=useState('');
@@ -126,20 +126,20 @@ export function DesignWorkspace({ project, onCommit, localGeneration = 0, saveSt
     const definition = d.definitions.find(x => x.id === selectedId);
     return definition ? { id: definition.id, name: definition.name, type: 'Definition', state: definition.cutSpec?.confirmation === 'requires-confirmation' ? 'Needs dimension confirmation' : 'Shared definition', dimensions: definition.cutSpec } : undefined;
   }, [working.design, selectedId]);
-  const openProjectInfo=()=>{measurementActions.current?.cancel();setToolMeasurement(undefined);setMeasurement(undefined);setNumeric('');setProjectInfoDraft({name:working.name,notes:working.notes??'',unitSystem:working.unitSystem});setProjectInfoError('');setProjectInfoOpen(true);};
+  const openProjectInfo=()=>{measurementActions.current?.cancel();setToolMeasurement(undefined);setMeasurement(undefined);setNumeric('');setProjectInfoDraft({name:working.name,notes:working.notes??'',unitSystem:working.unitSystem,previewView:working.previewView??'auto'});setProjectInfoError('');setProjectInfoOpen(true);};
   const saveProjectInfo=async()=>{
     const name=projectInfoDraft.name.trim();
     if(!name){setProjectInfoError('Enter a project name.');return;}
     if(name.length>256){setProjectInfoError('Project names must be 256 characters or fewer.');return;}
     if(projectInfoDraft.notes.length>16384){setProjectInfoError('Notes must be 16,384 characters or fewer.');return;}
     if(saveStatus.startsWith('Conflict')){setProjectInfoError('Reload this project before saving changes.');return;}
-    const next={...working,name,notes:projectInfoDraft.notes||undefined,unitSystem:projectInfoDraft.unitSystem,updatedAt:new Date().toISOString()};
+    const next={...working,name,notes:projectInfoDraft.notes||undefined,unitSystem:projectInfoDraft.unitSystem,previewView:projectInfoDraft.previewView,updatedAt:new Date().toISOString()};
     setProjectInfoSaving(true);
     try {
       const saved=onCommit ? await onCommit(next) : true;
       if(!saved){setProjectInfoError('Project information was not saved. Resolve the save issue and try again.');return;}
       setWorking(next);
-      setHistory(old=>({...old,entries:old.entries.map(entry=>({ ...entry,before:{...entry.before,name,notes:next.notes,unitSystem:next.unitSystem},after:{...entry.after,name,notes:next.notes,unitSystem:next.unitSystem}}))}));
+      setHistory(old=>({...old,entries:old.entries.map(entry=>({ ...entry,before:{...entry.before,name,notes:next.notes,unitSystem:next.unitSystem,previewView:next.previewView},after:{...entry.after,name,notes:next.notes,unitSystem:next.unitSystem,previewView:next.previewView}}))}));
       if(projectInfoDraft.unitSystem!==working.unitSystem){measurementActions.current?.cancel();setToolMeasurement(undefined);setMeasurement(undefined);setNumeric('');setProjectionPreview(undefined);setProjectionDecisions({});setEditSequence(value=>value+1);}
       setProjectInfoOpen(false);
       setNotice('Project information saved.');
@@ -318,6 +318,6 @@ export function DesignWorkspace({ project, onCommit, localGeneration = 0, saveSt
     </section>
     {helpOpen && <div role="dialog" aria-modal="true" aria-labelledby="shortcut-title" className="design-help-dialog" onKeyDown={event=>{if(event.key==='Escape'){event.preventDefault();setHelpOpen(false);return;}if(event.key==='Tab'){const elements=Array.from(event.currentTarget.querySelectorAll<HTMLElement>('input,button,[href],[tabindex]:not([tabindex="-1"])')).filter(element=>!element.hasAttribute('disabled'));const first=elements[0],last=elements[elements.length-1];if(event.shiftKey&&document.activeElement===first){event.preventDefault();last?.focus();}else if(!event.shiftKey&&document.activeElement===last){event.preventDefault();first?.focus();}}}}><h2 id="shortcut-title">Workspace shortcuts</h2><input autoFocus aria-label="Search shortcuts" placeholder="Search shortcuts" value={helpQuery} onChange={event=>setHelpQuery(event.target.value)} /><ul>{[...tools.map(tool=>({name:tool.label,key:keyLabel(tool.key)})),{name:'Rectangle drawing plane',key:'X / Y / Z'},{name:'Make Component',key:'G'},{name:'Undo',key:'Ctrl/Cmd+Z'},{name:'Redo',key:'Ctrl/Cmd+Shift+Z'},{name:'Duplicate',key:'Ctrl/Cmd+Shift+D'},{name:'Delete',key:'Delete'},{name:'Context menu',key:'Shift+F10 / Menu'}].filter(row=>`${row.name} ${row.key}`.toLowerCase().includes(helpQuery.toLowerCase())).map(row=><li key={row.name}>{row.name}<kbd>{row.key}</kbd></li>)}</ul><button type="button" onClick={()=>setHelpOpen(false)}>Close</button></div>}
     {document.getElementById('design-project-info-action') ? createPortal(<ProjectInfoButton onClick={openProjectInfo}/>, document.getElementById('design-project-info-action')!) : <ProjectInfoButton onClick={openProjectInfo}/>}
-    <ProjectInfoDialog open={projectInfoOpen} onOpenChange={setProjectInfoOpen} draft={projectInfoDraft} onDraftChange={setProjectInfoDraft} error={projectInfoError} saving={projectInfoSaving} onSave={() => void saveProjectInfo()} />
+    <ProjectInfoDialog open={projectInfoOpen} onOpenChange={setProjectInfoOpen} project={working} draft={projectInfoDraft} onDraftChange={setProjectInfoDraft} error={projectInfoError} saving={projectInfoSaving} onSave={() => void saveProjectInfo()} />
   </section>;
 }

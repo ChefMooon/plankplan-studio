@@ -24,6 +24,17 @@ describe('planner units and serialization', () => {
     expect(() => boardFootCents({ widthUm: umFromInches(1), thicknessUm: umFromInches(1), length: { um: umFromInches(12) } })).toThrow(/rate/i);
   });
 
+  it('round trips a validated dashboard preview preference while defaulting older documents to automatic', () => {
+    const source={schemaVersion:1,id:'preview-project',name:'Preview',unitSystem:'metric',kerf:{um:0},trim:{um:0},parts:[],materials:[],updatedAt:'2026-10-22T00:00:00.000Z'};
+    expect(importProject(JSON.stringify(source))).not.toHaveProperty('previewView');
+    const project=importProject(JSON.stringify({...source,previewView:'right'}));
+    expect(project.previewView).toBe('right');
+    expect(importProject(exportProject(project)).previewView).toBe('right');
+    const cutlist=importProject(JSON.stringify({...source,previewView:'cutlist'}));
+    expect(importProject(exportProject(cutlist)).previewView).toBe('cutlist');
+    expect(()=>importProject(JSON.stringify({...source,previewView:'diagonal'}))).toThrow(/previewView/i);
+  });
+
   it('migrates every documented v1 default, keeps editorOrder and does not add design', () => {
     const early={schemaVersion:1,id:'legacy-id',name:'Early',unitSystem:'imperial',kerf:{um:0},trim:{um:0},parts:[],materials:[{id:'m',name:'Pine',stocks:[]}],updatedAt:'2026-10-22T12:00:00.000Z',editorOrder:{parts:['old-part']}};
     const migrated=importProject(JSON.stringify(early));
