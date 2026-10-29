@@ -13,9 +13,10 @@ describe('Push/Pull face eligibility', () => {
 
   it('shows the face indicator for complete shapes whenever Push/Pull is active', () => {
     const complete = rectangleGeometry(100_000, 80_000, prefix => `${prefix}-complete`, 20_000);
-    const incomplete = rectangleGeometry(100_000, 80_000, prefix => `${prefix}-incomplete`);
+    let id = 0;
+    const incomplete = rectangleGeometry(100_000, 80_000, prefix => `${prefix}-${id++}`);
     expect(shouldShowPushPullFaceIndicator(complete, undefined, 'push-pull')).toBe(true);
-    expect(shouldShowPushPullFaceIndicator(incomplete, undefined, 'push-pull')).toBe(false);
+    expect(shouldShowPushPullFaceIndicator(incomplete, undefined, 'push-pull')).toBe(true);
     expect(shouldShowPushPullFaceIndicator(complete, 'confirmed', 'push-pull')).toBe(true);
     expect(shouldShowPushPullFaceIndicator(complete, undefined, 'select')).toBe(false);
     expect(shouldShowPushPullFaceIndicator(incomplete, 'confirmed', 'push-pull')).toBe(true);
@@ -38,6 +39,14 @@ describe('generated rectangular face indicators', () => {
     expect(rectangularPushPullFace(geometry,[0.04,0.04,-0.02],[0,0,-1])).toEqual({axis:'z',side:-1});
     expect(rectangularPushPullFace(geometry,[0.04,0.04,0],[0,0,1])).toEqual({axis:'z',side:1});
     expect(rectangularPushPullFace(geometry,[0.04,0.04,0.01],[0,0,1])).toBeUndefined();
-    expect(rectangularPushPullFace(makeRectangle(0),[0.04,0.04,0],[0,0,1])).toBeUndefined();
+    expect(rectangularPushPullFace(makeRectangle(0),[0.04,0.04,0],[0,0,1])).toEqual({axis:'z',side:1});
+    expect(rectangularPushPullFace(makeRectangle(0),[0.04,0.04,0],[0,0,-1])).toEqual({axis:'z',side:-1});
+  });
+  it('resolves source and cap by hit position even when the face normal points through the back', () => {
+    const geometry=makeRectangle(20_000);
+    expect(rectangularPushPullFace(geometry,[0.04,0.04,0],[0,0,1])).toEqual({axis:'z',side:-1});
+    expect(rectangularPushPullFace(geometry,[0.04,0.04,0],[0,0,-1])).toEqual({axis:'z',side:-1});
+    expect(rectangularPushPullFace(geometry,[0.04,0.04,0.02],[0,0,1])).toEqual({axis:'z',side:1});
+    expect(rectangularPushPullFace(geometry,[0.04,0.04,0.02],[0,0,-1])).toEqual({axis:'z',side:1});
   });
 });

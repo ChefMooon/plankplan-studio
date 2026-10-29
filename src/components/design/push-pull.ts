@@ -20,7 +20,7 @@ export function isPushPullEndFace(geometry: Geometry, faceId: string, point: rea
 }
 
 export function shouldShowPushPullFaceIndicator(geometry:Geometry,confirmation:string|undefined,activeTool:string):boolean {
-  const complete=confirmation==='confirmed'||geometry.extrusions.length>0;
+  const complete=confirmation==='confirmed'||geometry.extrusions.length>0||!!getRectangularProfile(geometry);
   return activeTool==='push-pull'&&complete;
 }
 
@@ -29,9 +29,11 @@ export function rectangularPushPullFace(geometry:Geometry,point:readonly [number
   const side=rectangularProfileSide(geometry,point,normal);
   if(side)return side;
   const rect=getRectangularProfile(geometry);
-  if(!rect?.depthUm||Math.abs(normal[2])<0.8)return;
-  const distance=geometry.extrusions[0].distanceUm;
-  const sign=normal[2]>0?1:-1;
-  const endZ=rect.z+(sign>0?Math.max(0,distance):Math.min(0,distance));
-  return Math.abs(point[2]*1_000_000-endZ)<=2_000?{axis:'z',side:sign}:undefined;
+  if(!rect)return;
+  if(Math.abs(normal[2])<0.8)return;
+  const distance=geometry.extrusions[0]?.distanceUm??0;
+  const coordinate=point[2]*1_000_000;
+  if(!distance)return Math.abs(coordinate-rect.z)<=2_000?{axis:'z',side:(Math.sign(normal[2])||1) as -1|1}:undefined;
+  if(Math.abs(coordinate-rect.z)<=2_000)return{axis:'z',side:(-Math.sign(distance)) as -1|1};
+  return Math.abs(coordinate-(rect.z+distance))<=2_000?{axis:'z',side:Math.sign(distance) as -1|1}:undefined;
 }
