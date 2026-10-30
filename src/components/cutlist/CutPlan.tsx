@@ -25,6 +25,14 @@ function formatPlanStockLabel(materialName: string, stockName: string, isGeneric
   return stockDescription ? `${materialName} · ${stockDescription}` : materialName;
 }
 
+const planViews: [string, string][] = [
+  ['all', 'All'],
+  ['cuts', 'Cuts & diagrams'],
+  ['materials', 'Materials & offcuts'],
+  ['shopping', 'Shopping'],
+  ['cost', 'Cost'],
+];
+
 interface CutPlanProps {
   project: Project;
   mixedResult: ReturnType<typeof optimizeMixedProject> | null;
@@ -206,7 +214,7 @@ export function CutPlan({ project, mixedResult, expanded, onExpandedChange }: Cu
           role="tablist"
           aria-label="Cut plan views"
           onKeyDown={(event) => {
-            const views = ['all', 'shopping', 'cuts', 'cost', 'materials'];
+            const views = planViews.map(([value]) => value);
             const index = views.indexOf(planView);
             let next: number;
             if (event.key === 'ArrowRight') next = (index + 1) % views.length;
@@ -219,13 +227,7 @@ export function CutPlan({ project, mixedResult, expanded, onExpandedChange }: Cu
             document.getElementById(`plan-tab-${views[next]}`)?.focus();
           }}
         >
-          {[
-            ['all', 'All'],
-            ['shopping', 'Shopping'],
-            ['cuts', 'Cuts & diagrams'],
-            ['cost', 'Cost'],
-            ['materials', 'Materials & offcuts'],
-          ].map(([value, label]) => (
+          {planViews.map(([value, label]) => (
             <button
               type="button"
               role="tab"
@@ -254,102 +256,10 @@ export function CutPlan({ project, mixedResult, expanded, onExpandedChange }: Cu
                   Partial plan only. The warnings above identify parts that still need available stock.
                 </p>
               )}
-              <section className="plan-section plan-cost">
-                <h3>Cost breakdown</h3>
-                <div className="cost-total">
-                  <span>
-                    {isPartialPlan ? 'Partial ' : 'Estimated '}
-                    {hasUnspecifiedPrices
-                      ? 'priced stock subtotal · generic prices excluded'
-                      : 'purchase subtotal'}
-                  </span>
-                  <strong>{money(combinedCost)}</strong>
-                </div>
-                <div className="shopping-row">
-                  <span>Tax ({project.taxRate ?? 0}%)</span>
-                  <strong>{money(taxCents)}</strong>
-                </div>
-                <div className="shopping-row">
-                  <b>
-                    Estimated total
-                    {isPartialPlan ? ' · partial plan' : ''}
-                    {hasUnspecifiedPrices ? ' · priced stock only' : ''}
-                  </b>
-                  <strong>{money(combinedCost + taxCents)}</strong>
-                </div>
-                <p className="muted">
-                  Manual prices · tax is an estimate and does not affect stock selection.
-                  {hasUnspecifiedPrices ? ' Totals exclude stock with unspecified prices.' : ''}
-                  {isPartialPlan ? ' Parts without a stock plan are not included.' : ''}
-                </p>
-                <h3>Cost by material</h3>
-                {[...materialTotals].map(([materialId, total]) => {
-                  const material = (mixedResult?.planningProject.materials ?? project.materials).find(
-                    (m) => m.id === materialId,
-                  );
-                  const unspecified = material?.stocks.some((stock) =>
-                    mixedResult?.genericStockIds.has(stock.id),
-                  );
-                  return (
-                    <div className="shopping-row" key={materialId}>
-                      <span>{material?.name}</span>
-                      <strong>{unspecified ? 'Price unspecified' : money(total.cost)}</strong>
-                    </div>
-                  );
-                })}
-              </section>
-              <section className="plan-section plan-materials">
-                <h3>Material subtotals · waste</h3>
-                {[...materialTotals].map(([materialId, total]) => (
-                  <div className="shopping-row" key={materialId}>
-                    <b>
-                      {
-                        (mixedResult?.planningProject.materials ?? project.materials).find(
-                          (m) => m.id === materialId,
-                        )?.name
-                      }
-                    </b>
-                    <span>
-                      {total.count}{' '}
-                      {(mixedResult?.planningProject.materials ?? project.materials).find(
-                        (m) => m.id === materialId,
-                      )?.type === 'sheet'
-                        ? 'sheets'
-                        : 'boards'}{' '}
-                      · {total.stockLength ? ((total.waste / total.stockLength) * 100).toFixed(1) : '0.0'}%
-                      waste
-                    </span>
-                  </div>
-                ))}
-              </section>
-              <section className="plan-section plan-shopping">
-                <h3>Shopping list</h3>
-                {[...shopping].map(([stockId, row]) => {
-                  const entry = stockMap.get(stockId);
-                  if (!entry) return null;
-                  return (
-                    <div className="shopping-row" key={stockId}>
-                      <b>
-                        {formatPlanStockLabel(
-                          entry.material.name,
-                          entry.stock.name,
-                          mixedResult?.genericStockIds.has(stockId) ?? false,
-                        )}
-                      </b>
-                      <span>
-                        {row.count} {entry.material.type === 'sheet' ? 'sheets' : 'boards'} · {row.owned}{' '}
-                        owned · {row.count - row.owned} to buy
-                      </span>
-                      <strong>
-                        {mixedResult?.genericStockIds.has(stockId) ? 'Price unspecified' : money(row.cost)}
-                      </strong>
-                    </div>
-                  );
-                })}
-              </section>
               <section className="plan-section plan-cuts">
                 <h3>Cut list and diagrams</h3>
                 {!hasCurrentPlans && <p className="muted">No stock plans remain.</p>}
+                {linearGroups.length > 0 && <h3>Linear layouts · cut order</h3>}
                 {linearGroups.length > 0 && <div className="sheet-cut-actions">
                   <button type="button" className="secondary compact" aria-label="Expand all board cuts" onClick={() => setExpandedBoards(new Set(linearKeys))}>Expand all</button>
                   <button type="button" className="secondary compact" aria-label="Collapse all board cuts" onClick={() => setExpandedBoards(new Set())}>Collapse all</button>
@@ -414,7 +324,7 @@ export function CutPlan({ project, mixedResult, expanded, onExpandedChange }: Cu
                   );
                 })}
                 </PlanPresence>
-                <h3>Sheet layouts · cut order</h3>
+                {sheetGroups.length > 0 && <h3>Sheet layouts · cut order</h3>}
                 {sheetGroups.length > 0 && <div className="sheet-cut-actions">
                   <button type="button" className="secondary compact" aria-label="Expand all cut orders" onClick={() => setExpandedSheets(new Set(sheetKeys))}>Expand all</button>
                   <button type="button" className="secondary compact" aria-label="Collapse all cut orders" onClick={() => setExpandedSheets(new Set())}>Collapse all</button>
@@ -494,6 +404,30 @@ export function CutPlan({ project, mixedResult, expanded, onExpandedChange }: Cu
                 })}
                 </PlanPresence>
               </section>
+              <section className="plan-section plan-materials">
+                <h3>Material subtotals · waste</h3>
+                {[...materialTotals].map(([materialId, total]) => (
+                  <div className="shopping-row" key={materialId}>
+                    <b>
+                      {
+                        (mixedResult?.planningProject.materials ?? project.materials).find(
+                          (m) => m.id === materialId,
+                        )?.name
+                      }
+                    </b>
+                    <span>
+                      {total.count}{' '}
+                      {(mixedResult?.planningProject.materials ?? project.materials).find(
+                        (m) => m.id === materialId,
+                      )?.type === 'sheet'
+                        ? 'sheets'
+                        : 'boards'}{' '}
+                      · {total.stockLength ? ((total.waste / total.stockLength) * 100).toFixed(1) : '0.0'}%
+                      waste
+                    </span>
+                  </div>
+                ))}
+              </section>
               <section className="plan-section plan-materials offcuts-inventory">
                 <h3>Usable offcuts · at least {formatDim(project.minOffcutLinear.um)}</h3>
                 {result?.plans.flatMap((p) => {
@@ -530,7 +464,7 @@ export function CutPlan({ project, mixedResult, expanded, onExpandedChange }: Cu
                                   mixedResult?.genericStockIds.has(plan.stockId) ?? false,
                                 )
                               : ''}
-                            · sheet offcut
+                            {' · sheet offcut'}
                           </span>
                           <strong>
                             {formatDim(offcut.width)} × {formatDim(offcut.height)}
@@ -540,6 +474,75 @@ export function CutPlan({ project, mixedResult, expanded, onExpandedChange }: Cu
                     }),
                   )}
                 </div>
+              </section>
+              <section className="plan-section plan-shopping">
+                <h3>Shopping list</h3>
+                {[...shopping].map(([stockId, row]) => {
+                  const entry = stockMap.get(stockId);
+                  if (!entry) return null;
+                  return (
+                    <div className="shopping-row" key={stockId}>
+                      <b>
+                        {formatPlanStockLabel(
+                          entry.material.name,
+                          entry.stock.name,
+                          mixedResult?.genericStockIds.has(stockId) ?? false,
+                        )}
+                      </b>
+                      <span>
+                        {row.count} {entry.material.type === 'sheet' ? 'sheets' : 'boards'} · {row.owned}{' '}
+                        owned · {row.count - row.owned} to buy
+                      </span>
+                      <strong>
+                        {mixedResult?.genericStockIds.has(stockId) ? 'Price unspecified' : money(row.cost)}
+                      </strong>
+                    </div>
+                  );
+                })}
+              </section>
+              <section className="plan-section plan-cost">
+                <h3>Cost breakdown</h3>
+                <div className="cost-total">
+                  <span>
+                    {isPartialPlan ? 'Partial ' : 'Estimated '}
+                    {hasUnspecifiedPrices
+                      ? 'priced stock subtotal · generic prices excluded'
+                      : 'purchase subtotal'}
+                  </span>
+                  <strong>{money(combinedCost)}</strong>
+                </div>
+                <div className="shopping-row">
+                  <span>Tax ({project.taxRate ?? 0}%)</span>
+                  <strong>{money(taxCents)}</strong>
+                </div>
+                <div className="shopping-row">
+                  <b>
+                    Estimated total
+                    {isPartialPlan ? ' · partial plan' : ''}
+                    {hasUnspecifiedPrices ? ' · priced stock only' : ''}
+                  </b>
+                  <strong>{money(combinedCost + taxCents)}</strong>
+                </div>
+                <p className="muted">
+                  Manual prices · tax is an estimate and does not affect stock selection.
+                  {hasUnspecifiedPrices ? ' Totals exclude stock with unspecified prices.' : ''}
+                  {isPartialPlan ? ' Parts without a stock plan are not included.' : ''}
+                </p>
+                <h3>Cost by material</h3>
+                {[...materialTotals].map(([materialId, total]) => {
+                  const material = (mixedResult?.planningProject.materials ?? project.materials).find(
+                    (m) => m.id === materialId,
+                  );
+                  const unspecified = material?.stocks.some((stock) =>
+                    mixedResult?.genericStockIds.has(stock.id),
+                  );
+                  return (
+                    <div className="shopping-row" key={materialId}>
+                      <span>{material?.name}</span>
+                      <strong>{unspecified ? 'Price unspecified' : money(total.cost)}</strong>
+                    </div>
+                  );
+                })}
               </section>
             </>
           ) : (

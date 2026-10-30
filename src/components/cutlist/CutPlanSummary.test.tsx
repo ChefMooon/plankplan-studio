@@ -75,11 +75,54 @@ it('keeps linear and sheet summaries informative without duplicating prices', ()
   expect(summaries[1]).toHaveTextContent('Plywood · 4 × 8 sheet');
   expect(summaries[1]).toHaveTextContent('1 sheet required');
   expect(summaries[1]).toHaveTextContent(/Full-length strips|Guillotine layout/);
+  expect(screen.getByRole('heading', { name: 'Linear layouts · cut order' })).toBeInTheDocument();
+  expect(screen.getByRole('heading', { name: 'Sheet layouts · cut order' })).toBeInTheDocument();
   expect(summaries[1]).not.toHaveTextContent(/\d+ parts?|\d+ offcuts?/);
   summaries.forEach((summary) => {
     expect(summary).not.toHaveTextContent(/Price unspecified|Buy cost|\$\d/);
   });
   expect(container.querySelector('.cut-plan-summary')).not.toBeInTheDocument();
+
+  const tabs = screen.getAllByRole('tab');
+  expect(tabs.map((tab) => tab.textContent)).toEqual([
+    'All',
+    'Cuts & diagrams',
+    'Materials & offcuts',
+    'Shopping',
+    'Cost',
+  ]);
+  expect(
+    [...container.querySelectorAll('.cut-plan-content > .plan-section')].map((section) =>
+      section.classList.contains('offcuts-inventory')
+        ? 'offcuts-inventory'
+        : [...section.classList].find(
+            (className) => className.startsWith('plan-') && className !== 'plan-section',
+          ),
+    ),
+  ).toEqual(['plan-cuts', 'plan-materials', 'offcuts-inventory', 'plan-shopping', 'plan-cost']);
+  const offcutsInventory = container.querySelector('.offcuts-inventory');
+  expect(offcutsInventory).toHaveTextContent('Pine · 8 ft board');
+  expect(offcutsInventory).toHaveTextContent('sheet offcut');
+  expect(offcutsInventory).toHaveTextContent('Plywood · 4 × 8 sheet · sheet offcut');
+
+  const tablist = screen.getByRole('tablist');
+  fireEvent.keyDown(tablist, { key: 'ArrowRight' });
+  expect(tabs[1]).toHaveFocus();
+  expect(tabs[1]).toHaveAttribute('aria-selected', 'true');
+  expect(tabs[1]).toHaveAttribute('tabindex', '0');
+  expect(tabs[0]).toHaveAttribute('tabindex', '-1');
+  fireEvent.keyDown(tablist, { key: 'ArrowRight' });
+  expect(tabs[2]).toHaveFocus();
+  fireEvent.keyDown(tablist, { key: 'Home' });
+  expect(tabs[0]).toHaveFocus();
+  fireEvent.keyDown(tablist, { key: 'ArrowLeft' });
+  expect(tabs[4]).toHaveFocus();
+  fireEvent.keyDown(tablist, { key: 'ArrowRight' });
+  expect(tabs[0]).toHaveFocus();
+  fireEvent.keyDown(tablist, { key: 'End' });
+  expect(tabs[4]).toHaveFocus();
+  fireEvent.keyDown(tablist, { key: 'ArrowLeft' });
+  expect(tabs[3]).toHaveFocus();
 
   fireEvent.click(screen.getByRole('tab', { name: 'Cost' }));
   const costSection = container.querySelector('.plan-cost');
@@ -95,6 +138,62 @@ it('keeps linear and sheet summaries informative without duplicating prices', ()
   const materialsSection = container.querySelector('.plan-materials:not(.offcuts-inventory)');
   expect(materialsSection).toHaveTextContent('Material subtotals · waste');
   expect(materialsSection).not.toHaveTextContent(/\$\d|Price unspecified/);
+  expect(container.querySelector('.offcuts-inventory')).toHaveTextContent('Pine · 8 ft board');
+  expect(container.querySelector('.offcuts-inventory')).toHaveTextContent('sheet offcut');
+});
+
+it('omits the sheet-layout heading when the plan only has linear boards', () => {
+  const project = createProject();
+  project.parts = [
+    {
+      id: 'rail',
+      name: 'Rail',
+      kind: 'linear',
+      materialId: '',
+      length: { um: 24 * 25_400 },
+      quantity: 1,
+    },
+  ];
+
+  render(
+    <CutPlan
+      project={project}
+      mixedResult={optimizeMixedProject(project)}
+      expanded={false}
+      onExpandedChange={() => {}}
+    />,
+  );
+
+  expect(screen.getByRole('heading', { name: 'Cut list and diagrams' })).toBeInTheDocument();
+  expect(screen.getByRole('heading', { name: 'Linear layouts · cut order' })).toBeInTheDocument();
+  expect(screen.queryByRole('heading', { name: 'Sheet layouts · cut order' })).not.toBeInTheDocument();
+});
+
+it('shows only the sheet-layout heading when the plan only has panels', () => {
+  const project = createProject();
+  project.parts = [
+    {
+      id: 'panel',
+      name: 'Panel',
+      kind: 'sheet',
+      materialId: '',
+      length: { um: 24 * 25_400 },
+      width: { um: 18 * 25_400 },
+      quantity: 1,
+    },
+  ];
+
+  render(
+    <CutPlan
+      project={project}
+      mixedResult={optimizeMixedProject(project)}
+      expanded={false}
+      onExpandedChange={() => {}}
+    />,
+  );
+
+  expect(screen.getByRole('heading', { name: 'Sheet layouts · cut order' })).toBeInTheDocument();
+  expect(screen.queryByRole('heading', { name: 'Linear layouts · cut order' })).not.toBeInTheDocument();
 });
 
 it('keeps plural quantities and partial, unspecified-price qualifiers in their proper sections', () => {

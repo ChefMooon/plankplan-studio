@@ -1105,8 +1105,6 @@ button,a,input,select { outline-offset:3px; }
 .cut-details-card .sheet-cut-toggle svg { width:13px; height:13px; }
 .cut-details-summary { margin-left:auto; color:var(--pp-muted); font-weight:500; text-align:right; }
 .sheet-offcut-details { padding:0 7px 5px; font-size:11px; color:var(--pp-muted); }
-.cut-plan-content.view-all .sheet-offcuts-materials-only { display:none; }
-.cut-plan-content.view-all .offcuts-inventory { display:none; }
 .cut-details-card .linear-cut-details { padding:0 7px 5px; }
 .cut-details-card .sheet-cut-order { margin:0; padding:0 8px 6px 26px; font-size:12px; }
 .linear-cut-details[hidden] { display:none; }
