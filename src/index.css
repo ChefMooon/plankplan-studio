@@ -1098,3 +1098,34 @@ button,a,input,select { outline-offset:3px; }
 
 .cut-plan-summary{padding:10px 12px;background:var(--pp-raised);border-radius:8px;font-size:13px}.cut-plan-summary span{color:var(--pp-muted)}
  .cut-plan-tabs{flex-wrap:wrap;overflow:visible}
+
+/* Diagram edits use short, visual-only layers. Current SVG content stays authoritative. */
+@keyframes cut-plan-grow { from { opacity: 0; transform: scaleX(.06); } to { opacity: 1; transform: scaleX(1); } }
+@keyframes cut-plan-shrink { from { opacity: 1; transform: scaleX(1); } to { opacity: 0; transform: scaleX(.06); } }
+@keyframes cut-plan-linear-grow { from { transform: scaleX(0); } to { transform: scaleX(1); } }
+@keyframes cut-plan-linear-shrink { from { transform: scaleX(1); } to { transform: scaleX(0); } }
+@keyframes cut-plan-sheet-grow { from { transform: scale(0); } to { transform: scale(1); } }
+@keyframes cut-plan-sheet-shrink { from { transform: scale(1); } to { transform: scale(0); } }
+@keyframes cut-plan-crossfade { from { opacity: 0; } to { opacity: 1; } }
+@keyframes cut-plan-stock-enter { from { opacity: 0; transform: scale(.985); } to { opacity: 1; transform: scale(1); } }
+@keyframes cut-plan-stock-exit { from { opacity: 1; transform: scale(1); } to { opacity: 0; transform: scale(.985); } }
+.cut-plan-part-enter,.cut-plan-part-exit { transform-box: fill-box; transform-origin: center; animation: cut-plan-grow 180ms cubic-bezier(.2,0,0,1) both; }
+[data-cut-plan-piece] { transform-box: fill-box; transform-origin: left top; }
+.cut-plan-part-exit { animation-name: cut-plan-shrink; pointer-events: none; }
+.cut-diagram .cut-plan-part-enter,.cut-diagram .cut-plan-part-exit { transform-origin: left center; animation-name: cut-plan-linear-grow; }
+.cut-diagram .cut-plan-part-exit { animation-name: cut-plan-linear-shrink; }
+.sheet-diagram .cut-plan-part-enter,.sheet-diagram .cut-plan-part-exit { transform-origin: left top; animation-name: cut-plan-sheet-grow; }
+.sheet-diagram .cut-plan-part-exit { animation-name: cut-plan-sheet-shrink; }
+.cut-plan-diagram-crossfade { animation: cut-plan-crossfade 180ms ease-out both; }
+.cut-plan-stock-enter { animation: cut-plan-stock-enter 180ms ease-out both; }
+.cut-plan-stock-enter .cut-diagram > g:first-of-type { transform-box: fill-box; transform-origin: left center; animation: cut-plan-linear-grow 180ms cubic-bezier(.2,0,0,1) 180ms both; }
+.cut-plan-stock-enter .sheet-diagram > g:first-of-type { transform-box: fill-box; transform-origin: left top; animation: cut-plan-sheet-grow 180ms cubic-bezier(.2,0,0,1) 180ms both; }
+.cut-plan-exit-layer { display: contents; }
+.cut-plan-stock-exit { animation: cut-plan-stock-exit 180ms ease-out both; pointer-events: none; }
+@media (prefers-reduced-motion: reduce) {
+  .cut-plan-part-enter,.cut-plan-part-exit,.cut-plan-diagram-crossfade,.cut-plan-stock-enter,.cut-plan-stock-exit,.cut-plan-stock-enter .cut-diagram > g:first-of-type,.cut-plan-stock-enter .sheet-diagram > g:first-of-type { animation: none !important; }
+}
+@media print {
+  .cut-plan-part-enter,.cut-plan-part-exit,.cut-plan-diagram-crossfade,.cut-plan-stock-enter,.cut-plan-stock-exit,.cut-plan-stock-enter .cut-diagram > g:first-of-type,.cut-plan-stock-enter .sheet-diagram > g:first-of-type { animation: none !important; transform: none !important; }
+  .cut-plan-part-exit,.cut-plan-exit-layer { display: none !important; }
+}

@@ -1,7 +1,10 @@
-import { useState } from 'react';
+import { Children, cloneElement, isValidElement, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
 import type { Project } from '@/lib/planner/model';
 import type { SheetCutTree } from '@/lib/planner/sheet';
 import { optimizeMixedProject } from '@/lib/planner/combined';
+import { LinearCutDiagram } from './LinearCutDiagram';
+import { SheetCutDiagram } from './SheetCutDiagram';
+import { getPlanPresenceDiff, type PlanPresenceRecord } from './cutPlanMotion';
 
 function sheetCutOrder(tree: SheetCutTree, format: (um: number) => string, out: string[] = []): string[] {
   if (tree.type !== 'cut') return out;
@@ -25,6 +28,30 @@ export function CutPlan({ project, mixedResult, expanded, onExpandedChange }: Cu
   const [planView, setPlanView] = useState('all');
   const result = mixedResult?.linear ?? null;
   const sheetResult = mixedResult?.sheets ?? null;
+  const hasCurrentPlans = !!(result?.plans.length || sheetResult?.plans.length);
+  const [priorPlanState, setPriorPlanState] = useState({ projectId: project.id, hasPlans: hasCurrentPlans });
+  const firstPlanFromEmpty = priorPlanState.projectId === project.id && !priorPlanState.hasPlans && hasCurrentPlans;
+  useLayoutEffect(() => {
+    if (priorPlanState.projectId !== project.id || priorPlanState.hasPlans !== hasCurrentPlans) {
+      // Capture the transition before paint so the first stock starts hidden.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setPriorPlanState({ projectId: project.id, hasPlans: hasCurrentPlans });
+    }
+  }, [project.id, hasCurrentPlans, priorPlanState]);
+  const [retainPlanSections, setRetainPlanSections] = useState(hasCurrentPlans);
+  const retentionTimer = useRef<number | null>(null);
+  useEffect(() => {
+    if (hasCurrentPlans) {
+      if (retentionTimer.current !== null) window.clearTimeout(retentionTimer.current);
+      // Keep the presence layer mounted across the final plan removal.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setRetainPlanSections(true);
+      return;
+    }
+    if (!retainPlanSections) return;
+    retentionTimer.current = window.setTimeout(() => setRetainPlanSections(false), 220);
+    return () => { if (retentionTimer.current !== null) window.clearTimeout(retentionTimer.current); };
+  }, [hasCurrentPlans, retainPlanSections]);
   const formatDim = (um: number) =>
     `${project.unitSystem === 'imperial' ? (um / 25400).toFixed(2) : (um / 1000).toFixed(1)} ${project.unitSystem === 'imperial' ? 'in' : 'mm'}`;
   const stockMap = new Map(
@@ -204,7 +231,7 @@ export function CutPlan({ project, mixedResult, expanded, onExpandedChange }: Cu
           aria-labelledby={`plan-tab-${planView}`}
           className={`cut-plan-content view-${planView}`}
         >
-          {result?.plans.length || sheetResult?.plans.length ? (
+          {hasCurrentPlans || retainPlanSections ? (
             <>
               {!(result?.valid && sheetResult?.valid) && (
                 <p className="warning" role="status">
@@ -304,11 +331,20 @@ export function CutPlan({ project, mixedResult, expanded, onExpandedChange }: Cu
               </section>
               <section className="plan-section plan-cuts">
                 <h3>Cut list and diagrams</h3>
+                {!hasCurrentPlans && <p className="muted">No stock plans remain.</p>}
+                <PlanPresence
+                  key={project.id}
+                  animateInitial={firstPlanFromEmpty}
+                  keys={(result?.plans ?? []).map((plan, index) => `${plan.stockId}-${index}`)}
+                  records={(result?.plans ?? []).map((plan) => ({ stockId: plan.stockId, geometry: JSON.stringify(plan.cuts.map((cut) => [cut.partId, cut.lengthUm])) }))}
+                >
                 {result?.plans.map((p, i) => {
                   const entry = stockMap.get(p.stockId);
                   if (!entry) return null;
-                  const scale = 700 / entry.stock.length.um;
-                  let x = project.trim.um * scale;
+                  const parts = p.cuts.map((cut) => {
+                    const part = project.parts.find((item) => item.id === cut.partId);
+                    return { partId: cut.partId, length: cut.lengthUm, name: part?.name ?? 'Part' };
+                  });
                   return (
                     <article className="plan-card" key={`${p.stockId}-${i}`}>
                       <div className="plan-row">
@@ -321,50 +357,7 @@ export function CutPlan({ project, mixedResult, expanded, onExpandedChange }: Cu
                             : `Buy cost ${money(p.costCents)}`}
                         </span>
                       </div>
-                      <svg
-                        className="cut-diagram"
-                        viewBox="0 0 720 68"
-                        role="img"
-                        aria-label={`Cut diagram for ${entry.stock.name}`}
-                      >
-                        <rect
-                          x="4"
-                          y="12"
-                          width="712"
-                          height="34"
-                          rx="4"
-                          className="stock-outline"
-                          fill="#e5f0f6"
-                          stroke="#9cb7c7"
-                        />
-                        {p.cuts.map((c) => {
-                          const width = Math.max(2, c.lengthUm * scale);
-                          const current = x;
-                          x += width + project.kerf.um * scale;
-                          return (
-                            <g key={`${c.partId}-${current}`}>
-                              <rect
-                                x={4 + current}
-                                y="12"
-                                width={width}
-                                height="34"
-                                className="part-block"
-                                fill="#276a91"
-                                stroke="white"
-                              />
-                              <text
-                                x={4 + current + width / 2}
-                                y="34"
-                                textAnchor="middle"
-                                fill="white"
-                                fontSize="10"
-                              >
-                                {project.parts.find((q) => q.id === c.partId)?.name ?? 'Part'}
-                              </text>
-                            </g>
-                          );
-                        })}
-                      </svg>
+                      <LinearCutDiagram key={`${project.id}-${p.stockId}-${i}`} stockId={p.stockId} stockLength={entry.stock.length.um} trim={project.trim.um} kerf={project.kerf.um} parts={parts} stockName={entry.stock.name} />
                       <div className="diagram-legend">
                         {p.cuts.map((c, cutIndex) => (
                           <span key={`${c.partId}-label-${cutIndex}`}>
@@ -376,7 +369,14 @@ export function CutPlan({ project, mixedResult, expanded, onExpandedChange }: Cu
                     </article>
                   );
                 })}
+                </PlanPresence>
                 <h3>Sheet layouts · cut order</h3>
+                <PlanPresence
+                  key={`${project.id}-sheets`}
+                  animateInitial={firstPlanFromEmpty}
+                  keys={(sheetResult?.plans ?? []).map((plan, index) => `${plan.stockId}-${index}`)}
+                  records={(sheetResult?.plans ?? []).map((plan) => ({ stockId: plan.stockId, geometry: JSON.stringify(plan.placements.map((placement) => [placement.partId, placement.rect.x, placement.rect.y, placement.rect.width, placement.rect.height, placement.rotated])) }))}
+                >
                 {sheetResult?.plans.map((plan, index) => {
                   const entry = stockMap.get(plan.stockId);
                   if (!entry) return null;
@@ -398,49 +398,7 @@ export function CutPlan({ project, mixedResult, expanded, onExpandedChange }: Cu
                               : `Buy cost ${money(plan.costCents)}`}
                         </span>
                       </div>
-                      <svg
-                        className="sheet-diagram"
-                        viewBox={`0 0 ${stockWidth * scale + 12} ${stockHeight * scale + 12}`}
-                        role="img"
-                        aria-label={`Sheet layout ${index + 1} for ${entry.stock.name}`}
-                      >
-                        <rect
-                          x="4"
-                          y="4"
-                          width={stockWidth * scale}
-                          height={stockHeight * scale}
-                          className="stock-outline"
-                          fill="#e5f0f6"
-                          stroke="#9cb7c7"
-                        />
-                        {plan.placements.map((placement, partIndex) => {
-                          const part = project.parts.find((p) => p.id === placement.partId);
-                          return (
-                            <g key={`${placement.partId}-${partIndex}`}>
-                              <rect
-                                x={4 + placement.rect.x * scale}
-                                y={4 + placement.rect.y * scale}
-                                width={placement.rect.width * scale}
-                                height={placement.rect.height * scale}
-                                className="part-block"
-                                fill="#276a91"
-                                stroke="white"
-                              />
-                              <text
-                                x={4 + (placement.rect.x + placement.rect.width / 2) * scale}
-                                y={4 + (placement.rect.y + placement.rect.height / 2) * scale}
-                                textAnchor="middle"
-                                dominantBaseline="middle"
-                                fill="white"
-                                fontSize="10"
-                              >
-                                {part?.name ?? 'Part'}
-                                {placement.rotated ? ' ↻' : ''}
-                              </text>
-                            </g>
-                          );
-                        })}
-                      </svg>
+                      <SheetCutDiagram key={`${project.id}-${plan.stockId}-${index}`} plan={plan} stockId={plan.stockId} stockName={entry.stock.name} stockWidth={stockWidth} stockHeight={stockHeight} scale={scale} partNames={new Map(project.parts.map((part) => [part.id, part.name]))} />
                       <ol className="sheet-cut-order" aria-label="Sheet cut order">
                         {sheetCutOrder(plan.cutTree, formatDim).map((step, i) => (
                           <li key={i}>{step}</li>
@@ -457,6 +415,7 @@ export function CutPlan({ project, mixedResult, expanded, onExpandedChange }: Cu
                     </article>
                   );
                 })}
+                </PlanPresence>
               </section>
               <section className="plan-section plan-materials">
                 <h3>Usable offcuts · at least {formatDim(project.minOffcutLinear.um)}</h3>
@@ -498,4 +457,70 @@ export function CutPlan({ project, mixedResult, expanded, onExpandedChange }: Cu
       </section>
     </aside>
   );
+}
+
+function PlanPresence({ children, keys, records, animateInitial = false }: { children: ReactNode; keys: string[]; records: PlanPresenceRecord[]; animateInitial?: boolean }) {
+  const currentNodes = Children.toArray(children);
+  const signature = JSON.stringify(records);
+  const previous = useRef<{ signature: string; keys: string[]; records: PlanPresenceRecord[]; nodes: ReactNode[] } | null>(null);
+  const [entering, setEntering] = useState<Set<string>>(new Set());
+  const [exiting, setExiting] = useState<ReactNode[]>([]);
+  const timeout = useRef<number | null>(null);
+
+  useEffect(() => {
+    const prior = previous.current;
+    if (prior?.signature === signature) previous.current = { signature, keys, records, nodes: currentNodes };
+  }, [signature, keys, records, currentNodes]);
+
+  useLayoutEffect(() => {
+    const prior = previous.current;
+    if (!prior || prior.signature === signature) {
+      previous.current = { signature, keys, records, nodes: currentNodes };
+      if (!prior && animateInitial && keys.length && !window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+        setEntering(new Set(keys));
+        timeout.current = window.setTimeout(() => setEntering(new Set()), 400);
+        return () => { if (timeout.current !== null) window.clearTimeout(timeout.current); };
+      }
+      return;
+    }
+    previous.current = { signature, keys, records, nodes: currentNodes };
+    if (timeout.current !== null) window.clearTimeout(timeout.current);
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+    const diff = getPlanPresenceDiff(prior.records, records);
+    const removed = diff.exiting.map((index) => prior.nodes[index]).filter((node) => node !== undefined);
+    const added = diff.entering.map((index) => keys[index]).filter((key): key is string => key !== undefined);
+    if (!removed.length && !added.length) return;
+    setExiting(removed);
+    setEntering(new Set(added));
+    timeout.current = window.setTimeout(() => { setExiting([]); setEntering(new Set()); }, 400);
+    return () => { if (timeout.current !== null) window.clearTimeout(timeout.current); };
+    // The snapshot refresh effect above keeps current child nodes up to date without
+    // restarting this transition timer on ordinary renders.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [signature]);
+
+  useEffect(() => {
+    const media = window.matchMedia('(prefers-reduced-motion: reduce)');
+    const stop = () => {
+      if (!media.matches) return;
+      if (timeout.current !== null) window.clearTimeout(timeout.current);
+      setExiting([]); setEntering(new Set());
+    };
+    media.addEventListener('change', stop);
+    return () => media.removeEventListener('change', stop);
+  }, []);
+
+  const visible = currentNodes.map((node, index) => {
+    const key = keys[index];
+    if (!entering.has(key) || !isValidElement<{ className?: string }>(node)) return node;
+    return cloneElement(node, { className: `${node.props.className ?? ''} cut-plan-stock-enter`.trim() });
+  });
+  return <>
+    {visible}
+    {exiting.length > 0 && <div className="cut-plan-exit-layer" aria-hidden="true">
+      {exiting.map((node, index) => isValidElement<{ className?: string }>(node)
+        ? cloneElement(node, { key: `stock-exit-${index}`, className: `${node.props.className ?? ''} cut-plan-stock-exit`.trim() })
+        : node)}
+    </div>}
+  </>;
 }
