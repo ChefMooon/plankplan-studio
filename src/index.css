@@ -1092,3 +1092,9 @@ button,a,input,select { outline-offset:3px; }
   .design-measurement-box { flex-wrap: nowrap; }
   .design-measurement-input-wrap input { width: 74px; }
 }
+
+/* Cut plan focus and views */
+.cut-plan-heading{display:flex;align-items:start;justify-content:space-between;gap:12px}.cut-plan-heading h2{margin-bottom:20px}.cut-plan-tabs{display:flex;gap:4px;overflow-x:auto;border-bottom:1px solid var(--pp-border);margin:16px 0}.cut-plan-tabs button{flex:none;border:0;border-bottom:2px solid transparent;background:transparent;color:var(--pp-muted);padding:10px 9px;font-size:12px;font-weight:650;cursor:pointer}.cut-plan-tabs button.active{color:var(--pp-text);border-bottom-color:var(--pp-blue)}.cut-plan-tabs button:focus-visible{outline:2px solid var(--pp-blue);outline-offset:-2px}.plan-section{min-width:0}.cut-plan-content:not(.view-all) .plan-section{display:none}.cut-plan-content.view-shopping .plan-shopping,.cut-plan-content.view-cuts .plan-cuts,.cut-plan-content.view-cost .plan-cost,.cut-plan-content.view-materials .plan-materials{display:block}.workspace-grid.plan-expanded{grid-template-columns:minmax(0,1fr)}.plan-expanded .editor-column{display:none}.plan-expanded .result-panel{position:static}.plan-expanded .cut-diagram{width:100%}@media print{.cut-plan-tabs,.plan-mode-action{display:none!important}.cut-plan-content .plan-section{display:block!important}.result-panel.panel{break-inside:auto}.workspace-grid.plan-expanded{display:block}}
+
+.cut-plan-summary{padding:10px 12px;background:var(--pp-raised);border-radius:8px;font-size:13px}.cut-plan-summary span{color:var(--pp-muted)}
+ .cut-plan-tabs{flex-wrap:wrap;overflow:visible}

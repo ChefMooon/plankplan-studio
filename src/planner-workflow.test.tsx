@@ -33,6 +33,25 @@ async function startCutlistProject(user: ReturnType<typeof userEvent.setup>, nam
 }
 
 describe('local project workflow', () => {
+  it('keeps the selected plan view when expanding and returning to editing', async () => {
+    const user = userEvent.setup(); await renderApp();
+    await startCutlistProject(user);
+    await user.click(screen.getByRole('button', { name: /add part/i }));
+    const diagram = screen.getByRole('img', { name: /cut diagram/i });
+    await user.click(screen.getByRole('tab', { name: /cuts & diagrams/i }));
+    expect(screen.getByRole('img', { name: /cut diagram/i })).toBe(diagram);
+    await user.click(screen.getByRole('tab', { name: 'All' }));
+    expect(screen.getByRole('img', { name: /cut diagram/i })).toBe(diagram);
+    await user.click(screen.getByRole('tab', { name: 'Cost' }));
+    expect(screen.getByRole('heading', { name: 'Cost breakdown' })).toBeVisible();
+    await user.click(screen.getByRole('button', { name: 'Expand plan' }));
+    expect(screen.getByRole('tab', { name: 'Cost' })).toHaveAttribute('aria-selected', 'true');
+    expect(screen.getByRole('heading', { name: 'What are you making?' }).closest('.workspace-grid')).toHaveClass('plan-expanded');
+    await user.click(screen.getByRole('button', { name: 'Back to editing' }));
+    expect(screen.getByRole('tab', { name: 'Cost' })).toHaveAttribute('aria-selected', 'true');
+    expect(screen.getByRole('heading', { name: 'What are you making?' })).toBeVisible();
+  });
+
   it('stays on the dashboard when project creation cannot be saved', async () => {
     const user = userEvent.setup();
     const router = await renderApp();
