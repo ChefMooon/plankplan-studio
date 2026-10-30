@@ -403,7 +403,7 @@ describe('local project workflow', () => {
     fireEvent.change(screen.getByRole('spinbutton', { name: 'Stock purchase limit' }), { target: { value: '0' } });
     expect(await screen.findByText(/Estimated purchase subtotal/)).toBeInTheDocument();
     expect(await screen.findByRole('img', { name: /cut diagram for/i })).toBeInTheDocument();
-    expect(await screen.findByText(/Offcut:/)).toBeInTheDocument();
+    expect(await screen.findByText(/Offcut:/, { selector: '.cut-details-summary' })).toBeInTheDocument();
     await waitFor(async () => expect((await savedProject('Stock workflow'))?.materials[0].stocks[0]).toMatchObject({ ownedQuantity: 1, quantityLimit: 0, price: { cents: 1250 } }));
   });
 

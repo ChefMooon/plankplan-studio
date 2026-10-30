@@ -18,6 +18,13 @@ function sheetCutOrder(tree: SheetCutTree, format: (um: number) => string, out: 
   return out;
 }
 
+function formatPlanStockLabel(materialName: string, stockName: string, isGeneric: boolean): string {
+  const prefix = `${materialName} · `;
+  let stockDescription = stockName.startsWith(prefix) ? stockName.slice(prefix.length) : stockName;
+  if (isGeneric) stockDescription = stockDescription.replace(/ · price unspecified$/i, '');
+  return stockDescription ? `${materialName} · ${stockDescription}` : materialName;
+}
+
 interface CutPlanProps {
   project: Project;
   mixedResult: ReturnType<typeof optimizeMixedProject> | null;
@@ -45,6 +52,8 @@ export function CutPlan({ project, mixedResult, expanded, onExpandedChange }: Cu
   const [boardOffcutState, setBoardOffcutState] = useState<{ projectId: string; expanded: Set<string> }>({ projectId: project.id, expanded: new Set() });
   const expandedBoardOffcuts = boardOffcutState.projectId === project.id ? boardOffcutState.expanded : new Set<string>();
   const hasCurrentPlans = !!(result?.plans.length || sheetResult?.plans.length);
+  const isPartialPlan = !(result?.valid && sheetResult?.valid);
+  const hasUnspecifiedPrices = !!mixedResult?.genericStockIds.size;
   const [priorPlanState, setPriorPlanState] = useState({ projectId: project.id, hasPlans: hasCurrentPlans });
   const firstPlanFromEmpty = priorPlanState.projectId === project.id && !priorPlanState.hasPlans && hasCurrentPlans;
   useLayoutEffect(() => {
@@ -164,7 +173,7 @@ export function CutPlan({ project, mixedResult, expanded, onExpandedChange }: Cu
             {expanded ? 'Back to editing' : 'Expand plan'}
           </button>
         </div>
-        {!!mixedResult?.genericStockIds.size && (
+        {hasUnspecifiedPrices && (
           <p className="muted">
             Generic stock uses 96″ boards grouped by size, or 48″ × 96″ panels with unspecified thickness.
             Prices are unspecified; totals below cover priced stock only.
@@ -192,15 +201,6 @@ export function CutPlan({ project, mixedResult, expanded, onExpandedChange }: Cu
             ⚠ {w.message}
           </p>
         ))}
-        {!!(result?.plans.length || sheetResult?.plans.length) && (
-          <p className="cut-plan-summary">
-            <strong>Estimated total: {money(combinedCost + taxCents)}</strong>
-            <span>
-              {mixedResult?.genericStockIds.size ? ' · excludes unspecified prices' : ''}
-              {!(result?.valid && sheetResult?.valid) ? ' · partial plan' : ''}
-            </span>
-          </p>
-        )}
         <div
           className="cut-plan-tabs"
           role="tablist"
@@ -258,11 +258,10 @@ export function CutPlan({ project, mixedResult, expanded, onExpandedChange }: Cu
                 <h3>Cost breakdown</h3>
                 <div className="cost-total">
                   <span>
-                    {mixedResult?.genericStockIds.size
-                      ? 'Priced stock subtotal · generic prices excluded'
-                      : result?.valid && sheetResult?.valid
-                        ? 'Estimated purchase subtotal'
-                        : 'Partial purchase subtotal'}
+                    {isPartialPlan ? 'Partial ' : 'Estimated '}
+                    {hasUnspecifiedPrices
+                      ? 'priced stock subtotal · generic prices excluded'
+                      : 'purchase subtotal'}
                   </span>
                   <strong>{money(combinedCost)}</strong>
                 </div>
@@ -271,11 +270,17 @@ export function CutPlan({ project, mixedResult, expanded, onExpandedChange }: Cu
                   <strong>{money(taxCents)}</strong>
                 </div>
                 <div className="shopping-row">
-                  <b>Estimated total</b>
+                  <b>
+                    Estimated total
+                    {isPartialPlan ? ' · partial plan' : ''}
+                    {hasUnspecifiedPrices ? ' · priced stock only' : ''}
+                  </b>
                   <strong>{money(combinedCost + taxCents)}</strong>
                 </div>
                 <p className="muted">
                   Manual prices · tax is an estimate and does not affect stock selection.
+                  {hasUnspecifiedPrices ? ' Totals exclude stock with unspecified prices.' : ''}
+                  {isPartialPlan ? ' Parts without a stock plan are not included.' : ''}
                 </p>
                 <h3>Cost by material</h3>
                 {[...materialTotals].map(([materialId, total]) => {
@@ -314,13 +319,6 @@ export function CutPlan({ project, mixedResult, expanded, onExpandedChange }: Cu
                       · {total.stockLength ? ((total.waste / total.stockLength) * 100).toFixed(1) : '0.0'}%
                       waste
                     </span>
-                    <strong>
-                      {(mixedResult?.planningProject.materials ?? project.materials)
-                        .find((m) => m.id === materialId)
-                        ?.stocks.some((stock) => mixedResult?.genericStockIds.has(stock.id))
-                        ? 'Price unspecified'
-                        : money(total.cost)}
-                    </strong>
                   </div>
                 ))}
               </section>
@@ -332,7 +330,11 @@ export function CutPlan({ project, mixedResult, expanded, onExpandedChange }: Cu
                   return (
                     <div className="shopping-row" key={stockId}>
                       <b>
-                        {entry.material.name} · {entry.stock.name}
+                        {formatPlanStockLabel(
+                          entry.material.name,
+                          entry.stock.name,
+                          mixedResult?.genericStockIds.has(stockId) ?? false,
+                        )}
                       </b>
                       <span>
                         {row.count} {entry.material.type === 'sheet' ? 'sheets' : 'boards'} · {row.owned}{' '}
@@ -358,7 +360,7 @@ export function CutPlan({ project, mixedResult, expanded, onExpandedChange }: Cu
                   keys={linearKeys}
                   records={linearGroups.map(({ plan, geometry }) => ({ stockId: plan.stockId, geometry }))}
                 >
-                {linearGroups.map(({ plan: p, count, costCents, owned }, i) => {
+                {linearGroups.map(({ plan: p, count }, i) => {
                   const entry = stockMap.get(p.stockId);
                   if (!entry) return null;
                   const parts = p.cuts.map((cut) => {
@@ -375,16 +377,15 @@ export function CutPlan({ project, mixedResult, expanded, onExpandedChange }: Cu
                     <article className="plan-card" key={`${p.stockId}-${i}`}>
                       <div className="plan-row">
                         <b>
-                          {entry.material.name} · {entry.stock.name}
+                          {formatPlanStockLabel(
+                            entry.material.name,
+                            entry.stock.name,
+                            mixedResult?.genericStockIds.has(p.stockId) ?? false,
+                          )}
                         </b>
                         <strong>{count} {count === 1 ? 'board' : 'boards'} required</strong>
-                        <span>
-                          {mixedResult?.genericStockIds.has(p.stockId)
-                            ? 'Price unspecified'
-                            : `Buy cost ${money(costCents)}${owned ? ` · ${owned} owned` : ''}`}
-                        </span>
                       </div>
-                      <LinearCutDiagram key={`${project.id}-${p.stockId}-${i}`} stockId={p.stockId} stockLength={entry.stock.length.um} trim={project.trim.um} kerf={project.kerf.um} parts={parts} stockName={entry.stock.name} />
+                      <LinearCutDiagram key={`${project.id}-${p.stockId}-${i}`} stockId={p.stockId} stockLength={entry.stock.length.um} trim={project.trim.um} kerf={project.kerf.um} parts={parts} stockName={formatPlanStockLabel(entry.material.name, entry.stock.name, mixedResult?.genericStockIds.has(p.stockId) ?? false)} />
                       <div className="cut-details-card">
                       <button type="button" className="collapse-toggle sheet-cut-toggle linear-cut-toggle" aria-expanded={isExpanded} aria-controls={cutDetailsId} onClick={() => {
                         const next = new Set(expandedBoards);
@@ -424,7 +425,7 @@ export function CutPlan({ project, mixedResult, expanded, onExpandedChange }: Cu
                   keys={sheetGroups.map(({ plan }, index) => `${plan.stockId}-${index}`)}
                   records={sheetGroups.map(({ plan, geometry }) => ({ stockId: plan.stockId, geometry }))}
                 >
-                {sheetGroups.map(({ plan, count, costCents, owned }, index) => {
+                {sheetGroups.map(({ plan, count }, index) => {
                   const entry = stockMap.get(plan.stockId);
                   if (!entry) return null;
                   const stockWidth = entry.stock.widthUm ?? 1;
@@ -439,17 +440,29 @@ export function CutPlan({ project, mixedResult, expanded, onExpandedChange }: Cu
                     <article className="plan-card sheet-plan" key={`sheet-${index}`}>
                       <div className="plan-row">
                         <b>
-                          {entry.material.name} · {entry.stock.name}
+                          {formatPlanStockLabel(
+                            entry.material.name,
+                            entry.stock.name,
+                            mixedResult?.genericStockIds.has(plan.stockId) ?? false,
+                          )}
                         </b>
                         <strong>{count} {count === 1 ? 'sheet' : 'sheets'} required</strong>
-                        <span>
-                          {plan.layout === 'strips' ? 'Full-length strips' : 'Guillotine layout'} ·{' '}
-                          {mixedResult?.genericStockIds.has(plan.stockId)
-                            ? 'Price unspecified'
-                            : `Buy cost ${money(costCents)}${owned ? ` · ${owned} owned` : ''}`}
-                        </span>
+                        <span>{plan.layout === 'strips' ? 'Full-length strips' : 'Guillotine layout'}</span>
                       </div>
-                      <SheetCutDiagram key={`${project.id}-${plan.stockId}-${index}`} plan={plan} stockId={plan.stockId} stockName={entry.stock.name} stockWidth={stockWidth} stockHeight={stockHeight} scale={scale} partNames={new Map(project.parts.map((part) => [part.id, part.name]))} />
+                      <SheetCutDiagram
+                        key={`${project.id}-${plan.stockId}-${index}`}
+                        plan={plan}
+                        stockId={plan.stockId}
+                        stockName={formatPlanStockLabel(
+                          entry.material.name,
+                          entry.stock.name,
+                          mixedResult?.genericStockIds.has(plan.stockId) ?? false,
+                        )}
+                        stockWidth={stockWidth}
+                        stockHeight={stockHeight}
+                        scale={scale}
+                        partNames={new Map(project.parts.map((part) => [part.id, part.name]))}
+                      />
                       <div className="cut-details-card">
                       <button type="button" className="collapse-toggle sheet-cut-toggle" aria-expanded={isExpanded} aria-controls={cutOrderId} onClick={() => {
                         const next = new Set(expandedSheets);
@@ -489,7 +502,11 @@ export function CutPlan({ project, mixedResult, expanded, onExpandedChange }: Cu
                     ? [
                         <div className="shopping-row" key={`offcut-${p.stockId}-${p.wasteUm}`}>
                           <span>
-                            {entry.material.name} · {entry.stock.name}
+                            {formatPlanStockLabel(
+                              entry.material.name,
+                              entry.stock.name,
+                              mixedResult?.genericStockIds.has(p.stockId) ?? false,
+                            )}
                           </span>
                           <strong>{formatDim(p.wasteUm)}</strong>
                         </div>,
@@ -499,19 +516,30 @@ export function CutPlan({ project, mixedResult, expanded, onExpandedChange }: Cu
                 {!result?.plans.some((p) => p.wasteUm >= project.minOffcutLinear.um) && (
                   <p className="muted">No linear offcuts meet the minimum usable length.</p>
                 )}
-                <div className="sheet-offcuts-materials-only">{sheetResult?.plans.flatMap((plan, index) =>
-                  plan.offcuts.map((offcut, i) => (
-                    <div className="shopping-row" key={`sheet-offcut-${index}-${i}`}>
-                      <span>
-                        {stockMap.get(plan.stockId)?.material.name} · {stockMap.get(plan.stockId)?.stock.name}{' '}
-                        · sheet offcut
-                      </span>
-                      <strong>
-                        {formatDim(offcut.width)} × {formatDim(offcut.height)}
-                      </strong>
-                    </div>
-                  )),
-                )}</div>
+                <div className="sheet-offcuts-materials-only">
+                  {sheetResult?.plans.flatMap((plan, index) =>
+                    plan.offcuts.map((offcut, i) => {
+                      const entry = stockMap.get(plan.stockId);
+                      return (
+                        <div className="shopping-row" key={`sheet-offcut-${index}-${i}`}>
+                          <span>
+                            {entry
+                              ? formatPlanStockLabel(
+                                  entry.material.name,
+                                  entry.stock.name,
+                                  mixedResult?.genericStockIds.has(plan.stockId) ?? false,
+                                )
+                              : ''}
+                            · sheet offcut
+                          </span>
+                          <strong>
+                            {formatDim(offcut.width)} × {formatDim(offcut.height)}
+                          </strong>
+                        </div>
+                      );
+                    }),
+                  )}
+                </div>
               </section>
             </>
           ) : (
