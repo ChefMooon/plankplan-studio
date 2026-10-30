@@ -27,7 +27,7 @@ function ThemeState() {
 }
 
 describe('ThemeProvider', () => {
-  afterEach(() => vi.unstubAllGlobals())
+  afterEach(() => { vi.useRealTimers(); vi.unstubAllGlobals() })
 
   it('uses and persists stored preference, then syncs the document', () => {
     window.localStorage.setItem(THEME_STORAGE_KEY, 'dark')
@@ -59,6 +59,31 @@ describe('ThemeProvider', () => {
     expect(screen.getByLabelText('theme state')).toHaveTextContent('light/light')
     act(() => media.emit(false))
     expect(screen.getByLabelText('theme state')).toHaveTextContent('light/light')
+  })
+
+  it('keeps the screen theme during printing and resyncs after screen media returns', () => {
+    vi.useFakeTimers()
+    const media = createMediaQuery(true)
+    vi.stubGlobal('matchMedia', vi.fn(() => media))
+    const { unmount } = render(<ThemeProvider><ThemeState /></ThemeProvider>)
+
+    act(() => {
+      window.dispatchEvent(new Event('beforeprint'))
+      media.emit(false)
+    })
+    expect(screen.getByLabelText('theme state')).toHaveTextContent('system/dark')
+    expect(document.documentElement).toHaveClass('dark')
+
+    act(() => {
+      window.dispatchEvent(new Event('afterprint'))
+      media.emit(true)
+      vi.runAllTimers()
+    })
+    expect(screen.getByLabelText('theme state')).toHaveTextContent('system/dark')
+    act(() => media.emit(false))
+    expect(screen.getByLabelText('theme state')).toHaveTextContent('system/light')
+    unmount()
+    vi.useRealTimers()
   })
 
   it('removes the system preference listener on unmount', () => {

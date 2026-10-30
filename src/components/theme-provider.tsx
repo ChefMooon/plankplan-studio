@@ -42,6 +42,8 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)')
+    let printing = false
+    let resyncTimer: number | undefined
 
     const syncTheme = () => {
       const nextResolvedTheme = getResolvedTheme(theme)
@@ -52,13 +54,32 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
     syncTheme()
 
     const handleSystemThemeChange = () => {
-      if (theme === 'system') {
+      if (theme === 'system' && !printing) {
         syncTheme()
       }
     }
 
+    const handleBeforePrint = () => {
+      window.clearTimeout(resyncTimer)
+      printing = true
+    }
+    const handleAfterPrint = () => {
+      // Let the browser restore screen media before reading its color preference.
+      resyncTimer = window.setTimeout(() => {
+        printing = false
+        if (theme === 'system') syncTheme()
+      }, 0)
+    }
+
     mediaQuery.addEventListener('change', handleSystemThemeChange)
-    return () => mediaQuery.removeEventListener('change', handleSystemThemeChange)
+    window.addEventListener('beforeprint', handleBeforePrint)
+    window.addEventListener('afterprint', handleAfterPrint)
+    return () => {
+      mediaQuery.removeEventListener('change', handleSystemThemeChange)
+      window.removeEventListener('beforeprint', handleBeforePrint)
+      window.removeEventListener('afterprint', handleAfterPrint)
+      window.clearTimeout(resyncTimer)
+    }
   }, [theme])
 
   const setTheme = (nextTheme: Theme) => {
