@@ -462,7 +462,7 @@ export function CutPlan({ project, mixedResult, expanded, onExpandedChange }: Cu
   );
 }
 
-function PlanPresence({ children, keys, records, animateInitial = false }: { children: ReactNode; keys: string[]; records: PlanPresenceRecord[]; animateInitial?: boolean }) {
+export function PlanPresence({ children, keys, records, animateInitial = false }: { children: ReactNode; keys: string[]; records: PlanPresenceRecord[]; animateInitial?: boolean }) {
   const currentNodes = Children.toArray(children);
   const signature = JSON.stringify(records);
   const previous = useRef<{ signature: string; keys: string[]; records: PlanPresenceRecord[]; nodes: ReactNode[] } | null>(null);
@@ -488,6 +488,10 @@ function PlanPresence({ children, keys, records, animateInitial = false }: { chi
     }
     previous.current = { signature, keys, records, nodes: currentNodes };
     if (timeout.current !== null) window.clearTimeout(timeout.current);
+    // A new update supersedes any outgoing cards, even if this change does
+    // not itself add or remove a card. Otherwise invisible exits occupy space.
+    setExiting([]);
+    setEntering(new Set());
     if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
     const diff = getPlanPresenceDiff(prior.records, records);
     const removed = diff.exiting.map((index) => prior.nodes[index]).filter((node) => node !== undefined);
