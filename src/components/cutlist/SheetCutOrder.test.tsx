@@ -1,0 +1,33 @@
+import { render, screen } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
+import { expect, it } from 'vitest';
+import { createProject } from '@/lib/planner/storage';
+import { optimizeMixedProject } from '@/lib/planner/combined';
+import { CutPlan } from './CutPlan';
+
+it('starts sheet cut orders collapsed and supports individual and bulk controls', async () => {
+  const user = userEvent.setup();
+  const project = createProject();
+  project.parts.push({ kind: 'sheet', id: 'panel', name: 'Panel', materialId: '', length: { um: 600000 }, width: { um: 300000 }, quantity: 1 });
+  const result = optimizeMixedProject(project);
+  const first = result.sheets.plans[0];
+  result.sheets.plans.push({ ...first, layout: first.layout === 'strips' ? 'guillotine' : 'strips' });
+  render(<CutPlan project={project} mixedResult={result} expanded={false} onExpandedChange={() => {}} />);
+  const toggles = screen.getAllByRole('button', { name: /^Cut order/ });
+  expect(toggles).toHaveLength(2);
+  expect(toggles[0]).toHaveAttribute('aria-expanded', 'false');
+  expect(screen.queryByRole('list', { name: 'Cut order for sheet layout 1' })).not.toBeInTheDocument();
+  await user.click(toggles[0]);
+  expect(toggles[0]).toHaveAttribute('aria-expanded', 'true');
+  expect(toggles[1]).toHaveAttribute('aria-expanded', 'false');
+  const offcuts = screen.getAllByRole('button', { name: /^Usable offcuts/ });
+  expect(offcuts).toHaveLength(2);
+  expect(offcuts[0]).toHaveAttribute('aria-expanded', 'false');
+  await user.click(offcuts[0]);
+  expect(offcuts[0]).toHaveAttribute('aria-expanded', 'true');
+  expect(offcuts[1]).toHaveAttribute('aria-expanded', 'false');
+  await user.click(screen.getByRole('button', { name: 'Expand all cut orders' }));
+  expect(toggles.every((toggle) => toggle.getAttribute('aria-expanded') === 'true')).toBe(true);
+  await user.click(screen.getByRole('button', { name: 'Collapse all cut orders' }));
+  expect(toggles.every((toggle) => toggle.getAttribute('aria-expanded') === 'false')).toBe(true);
+});

@@ -1097,6 +1097,20 @@ button,a,input,select { outline-offset:3px; }
 .cut-plan-heading{display:flex;align-items:start;justify-content:space-between;gap:12px}.cut-plan-heading h2{margin-bottom:20px}.cut-plan-tabs{display:flex;gap:4px;overflow-x:auto;border-bottom:1px solid var(--pp-border);margin:16px 0}.cut-plan-tabs button{flex:none;border:0;border-bottom:2px solid transparent;background:transparent;color:var(--pp-muted);padding:10px 9px;font-size:12px;font-weight:650;cursor:pointer}.cut-plan-tabs button.active{color:var(--pp-text);border-bottom-color:var(--pp-blue)}.cut-plan-tabs button:focus-visible{outline:2px solid var(--pp-blue);outline-offset:-2px}.plan-section{min-width:0}.cut-plan-content:not(.view-all) .plan-section{display:none}.cut-plan-content.view-shopping .plan-shopping,.cut-plan-content.view-cuts .plan-cuts,.cut-plan-content.view-cost .plan-cost,.cut-plan-content.view-materials .plan-materials{display:block}.workspace-grid.plan-expanded{grid-template-columns:minmax(0,1fr)}.plan-expanded .editor-column{display:none}.plan-expanded .result-panel{position:static}.plan-expanded .cut-diagram{width:100%}@media print{.cut-plan-tabs,.plan-mode-action{display:none!important}.cut-plan-content .plan-section{display:block!important}.result-panel.panel{break-inside:auto}.workspace-grid.plan-expanded{display:block}}
 
 .cut-plan-summary{padding:10px 12px;background:var(--pp-raised);border-radius:8px;font-size:13px}.cut-plan-summary span{color:var(--pp-muted)}
+.sheet-cut-actions { display:flex; gap:6px; margin:8px 0; }
+.sheet-cut-actions .compact { min-height:28px; padding:4px 7px; font-size:11px; }
+.cut-details-card { margin:4px 0; border:1px solid var(--pp-border); border-radius:5px; background:var(--pp-raised); }
+.cut-details-card .sheet-cut-toggle { width:100%; min-height:24px; margin:0; padding:2px 5px; border:0; background:transparent; font-size:11px; font-weight:650; }
+.cut-details-card .sheet-cut-toggle:hover { background:var(--pp-surface); }
+.cut-details-card .sheet-cut-toggle svg { width:13px; height:13px; }
+.cut-details-summary { margin-left:auto; color:var(--pp-muted); font-weight:500; text-align:right; }
+.sheet-offcut-details { padding:0 7px 5px; font-size:11px; color:var(--pp-muted); }
+.cut-plan-content.view-all .sheet-offcuts-materials-only { display:none; }
+.cut-plan-content.view-all .offcuts-inventory { display:none; }
+.cut-details-card .linear-cut-details { padding:0 7px 5px; }
+.cut-details-card .sheet-cut-order { margin:0; padding:0 8px 6px 26px; font-size:12px; }
+.linear-cut-details[hidden] { display:none; }
+@media print { .sheet-cut-actions { display:none !important; } .sheet-cut-toggle svg { display:none; } .sheet-cut-content[hidden],.sheet-offcut-details[hidden],.cut-plan-content.view-all .sheet-offcuts-materials-only { display:block !important; } .linear-cut-details[hidden] { display:flex !important; } .cut-details-card { border:0; background:transparent; margin:0; } }
  .cut-plan-tabs{flex-wrap:wrap;overflow:visible}
 
 /* Diagram edits use short, visual-only layers. Current SVG content stays authoritative. */

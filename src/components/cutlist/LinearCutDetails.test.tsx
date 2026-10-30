@@ -1,0 +1,30 @@
+import { render, screen } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
+import { expect, it } from 'vitest';
+import { createProject } from '@/lib/planner/storage';
+import { optimizeMixedProject } from '@/lib/planner/combined';
+import { CutPlan } from './CutPlan';
+
+it('collapses board cuts by default and supports individual and bulk controls', async () => {
+  const user = userEvent.setup();
+  const project = createProject();
+  project.parts.push({ id: 'leg', name: 'Leg', materialId: '', length: { um: 500000 }, quantity: 6 });
+  render(<CutPlan project={project} mixedResult={optimizeMixedProject(project)} expanded={false} onExpandedChange={() => {}} />);
+  const toggles = screen.getAllByRole('button', { name: /^Board cuts/ });
+  expect(toggles).toHaveLength(2);
+  expect(toggles.every((button) => button.getAttribute('aria-expanded') === 'false')).toBe(true);
+  expect(toggles.every((button) => button.textContent?.includes('Offcut:'))).toBe(true);
+  const offcuts = screen.getAllByRole('button', { name: /^Usable offcuts/ });
+  expect(offcuts).toHaveLength(2);
+  expect(offcuts[0]).toHaveAttribute('aria-expanded', 'false');
+  await user.click(offcuts[0]);
+  expect(offcuts[0]).toHaveAttribute('aria-expanded', 'true');
+  expect(offcuts[1]).toHaveAttribute('aria-expanded', 'false');
+  await user.click(toggles[0]);
+  expect(toggles[0]).toHaveAttribute('aria-expanded', 'true');
+  expect(toggles[1]).toHaveAttribute('aria-expanded', 'false');
+  await user.click(screen.getByRole('button', { name: 'Expand all board cuts' }));
+  expect(toggles.every((button) => button.getAttribute('aria-expanded') === 'true')).toBe(true);
+  await user.click(screen.getByRole('button', { name: 'Collapse all board cuts' }));
+  expect(toggles.every((button) => button.getAttribute('aria-expanded') === 'false')).toBe(true);
+});

@@ -6,6 +6,7 @@ import { LinearCutDiagram } from './LinearCutDiagram';
 import { SheetCutDiagram } from './SheetCutDiagram';
 import { getPlanPresenceDiff, type PlanPresenceRecord } from './cutPlanMotion';
 import { groupLinearPlans, groupSheetPlans } from './groupCutPlans';
+import { ChevronDown } from 'lucide-react';
 
 function sheetCutOrder(tree: SheetCutTree, format: (um: number) => string, out: string[] = []): string[] {
   if (tree.type !== 'cut') return out;
@@ -31,6 +32,18 @@ export function CutPlan({ project, mixedResult, expanded, onExpandedChange }: Cu
   const sheetResult = mixedResult?.sheets ?? null;
   const linearGroups = groupLinearPlans(result?.plans ?? []);
   const sheetGroups = groupSheetPlans(sheetResult?.plans ?? []);
+  const [sheetCutState, setSheetCutState] = useState<{ projectId: string; expanded: Set<string> }>({ projectId: project.id, expanded: new Set() });
+  const expandedSheets = sheetCutState.projectId === project.id ? sheetCutState.expanded : new Set<string>();
+  const sheetKeys = sheetGroups.map(({ plan }, index) => `${plan.stockId}-${index}`);
+  const setExpandedSheets = (expanded: Set<string>) => setSheetCutState({ projectId: project.id, expanded });
+  const [sheetOffcutState, setSheetOffcutState] = useState<{ projectId: string; expanded: Set<string> }>({ projectId: project.id, expanded: new Set() });
+  const expandedOffcuts = sheetOffcutState.projectId === project.id ? sheetOffcutState.expanded : new Set<string>();
+  const [linearCutState, setLinearCutState] = useState<{ projectId: string; expanded: Set<string> }>({ projectId: project.id, expanded: new Set() });
+  const expandedBoards = linearCutState.projectId === project.id ? linearCutState.expanded : new Set<string>();
+  const linearKeys = linearGroups.map(({ plan }, index) => `${plan.stockId}-${index}`);
+  const setExpandedBoards = (expanded: Set<string>) => setLinearCutState({ projectId: project.id, expanded });
+  const [boardOffcutState, setBoardOffcutState] = useState<{ projectId: string; expanded: Set<string> }>({ projectId: project.id, expanded: new Set() });
+  const expandedBoardOffcuts = boardOffcutState.projectId === project.id ? boardOffcutState.expanded : new Set<string>();
   const hasCurrentPlans = !!(result?.plans.length || sheetResult?.plans.length);
   const [priorPlanState, setPriorPlanState] = useState({ projectId: project.id, hasPlans: hasCurrentPlans });
   const firstPlanFromEmpty = priorPlanState.projectId === project.id && !priorPlanState.hasPlans && hasCurrentPlans;
@@ -335,10 +348,14 @@ export function CutPlan({ project, mixedResult, expanded, onExpandedChange }: Cu
               <section className="plan-section plan-cuts">
                 <h3>Cut list and diagrams</h3>
                 {!hasCurrentPlans && <p className="muted">No stock plans remain.</p>}
+                {linearGroups.length > 0 && <div className="sheet-cut-actions">
+                  <button type="button" className="secondary compact" aria-label="Expand all board cuts" onClick={() => setExpandedBoards(new Set(linearKeys))}>Expand all</button>
+                  <button type="button" className="secondary compact" aria-label="Collapse all board cuts" onClick={() => setExpandedBoards(new Set())}>Collapse all</button>
+                </div>}
                 <PlanPresence
                   key={project.id}
                   animateInitial={firstPlanFromEmpty}
-                  keys={linearGroups.map(({ plan }, index) => `${plan.stockId}-${index}`)}
+                  keys={linearKeys}
                   records={linearGroups.map(({ plan, geometry }) => ({ stockId: plan.stockId, geometry }))}
                 >
                 {linearGroups.map(({ plan: p, count, costCents, owned }, i) => {
@@ -348,6 +365,12 @@ export function CutPlan({ project, mixedResult, expanded, onExpandedChange }: Cu
                     const part = project.parts.find((item) => item.id === cut.partId);
                     return { partId: cut.partId, length: cut.lengthUm, name: part?.name ?? 'Part' };
                   });
+                  const boardKey = linearKeys[i];
+                  const isExpanded = expandedBoards.has(boardKey);
+                  const cutDetailsId = `linear-cut-details-${i}`;
+                  const offcutId = `linear-offcuts-${i}`;
+                  const offcutUsable = p.wasteUm >= project.minOffcutLinear.um;
+                  const offcutsExpanded = expandedBoardOffcuts.has(boardKey);
                   return (
                     <article className="plan-card" key={`${p.stockId}-${i}`}>
                       <div className="plan-row">
@@ -362,19 +385,39 @@ export function CutPlan({ project, mixedResult, expanded, onExpandedChange }: Cu
                         </span>
                       </div>
                       <LinearCutDiagram key={`${project.id}-${p.stockId}-${i}`} stockId={p.stockId} stockLength={entry.stock.length.um} trim={project.trim.um} kerf={project.kerf.um} parts={parts} stockName={entry.stock.name} />
-                      <div className="diagram-legend">
+                      <div className="cut-details-card">
+                      <button type="button" className="collapse-toggle sheet-cut-toggle linear-cut-toggle" aria-expanded={isExpanded} aria-controls={cutDetailsId} onClick={() => {
+                        const next = new Set(expandedBoards);
+                        if (isExpanded) next.delete(boardKey); else next.add(boardKey);
+                        setExpandedBoards(next);
+                      }}><ChevronDown aria-hidden="true" /><span>Board cuts</span><span className="cut-details-summary">{p.cuts.length} {p.cuts.length === 1 ? 'part' : 'parts'} · Offcut: {formatDim(p.wasteUm)}</span></button>
+                      <div id={cutDetailsId} hidden={!isExpanded} className="diagram-legend linear-cut-details">
                         {p.cuts.map((c, cutIndex) => (
                           <span key={`${c.partId}-label-${cutIndex}`}>
                             {project.parts.find((q) => q.id === c.partId)?.name}: {formatDim(c.lengthUm)}
                           </span>
                         ))}
-                        <span className="offcut">Offcut: {formatDim(p.wasteUm)}</span>
+                      </div>
+                      </div>
+                      <div className="cut-details-card">
+                        <button type="button" className="collapse-toggle sheet-cut-toggle" aria-expanded={offcutsExpanded} aria-controls={offcutId} onClick={() => {
+                          const next = new Set(expandedBoardOffcuts);
+                          if (offcutsExpanded) next.delete(boardKey); else next.add(boardKey);
+                          setBoardOffcutState({ projectId: project.id, expanded: next });
+                        }}><ChevronDown aria-hidden="true" /><span>Usable offcuts</span><span className="cut-details-summary">{offcutUsable ? '1 offcut per board' : 'No usable offcuts'}</span></button>
+                        <div id={offcutId} className="sheet-offcut-details" hidden={!offcutsExpanded}>
+                          {offcutUsable ? `Offcut: ${formatDim(p.wasteUm)}` : 'No offcut meets the minimum usable length.'}
+                        </div>
                       </div>
                     </article>
                   );
                 })}
                 </PlanPresence>
                 <h3>Sheet layouts · cut order</h3>
+                {sheetGroups.length > 0 && <div className="sheet-cut-actions">
+                  <button type="button" className="secondary compact" aria-label="Expand all cut orders" onClick={() => setExpandedSheets(new Set(sheetKeys))}>Expand all</button>
+                  <button type="button" className="secondary compact" aria-label="Collapse all cut orders" onClick={() => setExpandedSheets(new Set())}>Collapse all</button>
+                </div>}
                 <PlanPresence
                   key={`${project.id}-sheets`}
                   animateInitial={firstPlanFromEmpty}
@@ -387,6 +430,11 @@ export function CutPlan({ project, mixedResult, expanded, onExpandedChange }: Cu
                   const stockWidth = entry.stock.widthUm ?? 1;
                   const stockHeight = entry.stock.length.um;
                   const scale = 320 / Math.max(stockWidth, stockHeight);
+                  const sheetKey = sheetKeys[index];
+                  const isExpanded = expandedSheets.has(sheetKey);
+                  const cutOrderId = `sheet-cut-order-${index}`;
+                  const offcutId = `sheet-offcuts-${index}`;
+                  const offcutsExpanded = expandedOffcuts.has(sheetKey);
                   return (
                     <article className="plan-card sheet-plan" key={`sheet-${index}`}>
                       <div className="plan-row">
@@ -402,25 +450,38 @@ export function CutPlan({ project, mixedResult, expanded, onExpandedChange }: Cu
                         </span>
                       </div>
                       <SheetCutDiagram key={`${project.id}-${plan.stockId}-${index}`} plan={plan} stockId={plan.stockId} stockName={entry.stock.name} stockWidth={stockWidth} stockHeight={stockHeight} scale={scale} partNames={new Map(project.parts.map((part) => [part.id, part.name]))} />
-                      <ol className="sheet-cut-order" aria-label="Sheet cut order">
+                      <div className="cut-details-card">
+                      <button type="button" className="collapse-toggle sheet-cut-toggle" aria-expanded={isExpanded} aria-controls={cutOrderId} onClick={() => {
+                        const next = new Set(expandedSheets);
+                        if (isExpanded) next.delete(sheetKey); else next.add(sheetKey);
+                        setExpandedSheets(next);
+                      }}><ChevronDown aria-hidden="true" /><span>Cut order</span><span className="cut-details-summary">{plan.placements.length} {plan.placements.length === 1 ? 'part' : 'parts'} · {plan.offcuts.length} {plan.offcuts.length === 1 ? 'offcut' : 'offcuts'}</span></button>
+                      <div id={cutOrderId} className="sheet-cut-content" hidden={!isExpanded}>
+                      <ol className="sheet-cut-order" aria-label={`Cut order for sheet layout ${index + 1}`}>
                         {sheetCutOrder(plan.cutTree, formatDim).map((step, i) => (
                           <li key={i}>{step}</li>
                         ))}
                       </ol>
-                      <p className="muted">
-                        {plan.placements.length} parts · {plan.offcuts.length} usable offcuts.
-                      </p>
-                      {plan.offcuts.map((offcut, i) => (
-                        <span className="offcut" key={i}>
-                          {formatDim(offcut.width)} × {formatDim(offcut.height)}{' '}
-                        </span>
-                      ))}
+                      </div>
+                      </div>
+                      <div className="cut-details-card">
+                        <button type="button" className="collapse-toggle sheet-cut-toggle" aria-expanded={offcutsExpanded} aria-controls={offcutId} onClick={() => {
+                          const next = new Set(expandedOffcuts);
+                          if (offcutsExpanded) next.delete(sheetKey); else next.add(sheetKey);
+                          setSheetOffcutState({ projectId: project.id, expanded: next });
+                        }}><ChevronDown aria-hidden="true" /><span>Usable offcuts</span><span className="cut-details-summary">{plan.offcuts.length} {plan.offcuts.length === 1 ? 'offcut' : 'offcuts'} per sheet</span></button>
+                        <div id={offcutId} className="sheet-offcut-details" hidden={!offcutsExpanded}>
+                          {plan.offcuts.length ? plan.offcuts.map((offcut, i) => (
+                            <div key={i}>{formatDim(offcut.width)} × {formatDim(offcut.height)}</div>
+                          )) : <span>No usable offcuts.</span>}
+                        </div>
+                      </div>
                     </article>
                   );
                 })}
                 </PlanPresence>
               </section>
-              <section className="plan-section plan-materials">
+              <section className="plan-section plan-materials offcuts-inventory">
                 <h3>Usable offcuts · at least {formatDim(project.minOffcutLinear.um)}</h3>
                 {result?.plans.flatMap((p) => {
                   const entry = stockMap.get(p.stockId);
@@ -438,7 +499,7 @@ export function CutPlan({ project, mixedResult, expanded, onExpandedChange }: Cu
                 {!result?.plans.some((p) => p.wasteUm >= project.minOffcutLinear.um) && (
                   <p className="muted">No linear offcuts meet the minimum usable length.</p>
                 )}
-                {sheetResult?.plans.flatMap((plan, index) =>
+                <div className="sheet-offcuts-materials-only">{sheetResult?.plans.flatMap((plan, index) =>
                   plan.offcuts.map((offcut, i) => (
                     <div className="shopping-row" key={`sheet-offcut-${index}-${i}`}>
                       <span>
@@ -450,7 +511,7 @@ export function CutPlan({ project, mixedResult, expanded, onExpandedChange }: Cu
                       </strong>
                     </div>
                   )),
-                )}
+                )}</div>
               </section>
             </>
           ) : (
