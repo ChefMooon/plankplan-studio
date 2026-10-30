@@ -5,6 +5,7 @@ import { optimizeMixedProject } from '@/lib/planner/combined';
 import { LinearCutDiagram } from './LinearCutDiagram';
 import { SheetCutDiagram } from './SheetCutDiagram';
 import { getPlanPresenceDiff, type PlanPresenceRecord } from './cutPlanMotion';
+import { groupLinearPlans, groupSheetPlans } from './groupCutPlans';
 
 function sheetCutOrder(tree: SheetCutTree, format: (um: number) => string, out: string[] = []): string[] {
   if (tree.type !== 'cut') return out;
@@ -28,6 +29,8 @@ export function CutPlan({ project, mixedResult, expanded, onExpandedChange }: Cu
   const [planView, setPlanView] = useState('all');
   const result = mixedResult?.linear ?? null;
   const sheetResult = mixedResult?.sheets ?? null;
+  const linearGroups = groupLinearPlans(result?.plans ?? []);
+  const sheetGroups = groupSheetPlans(sheetResult?.plans ?? []);
   const hasCurrentPlans = !!(result?.plans.length || sheetResult?.plans.length);
   const [priorPlanState, setPriorPlanState] = useState({ projectId: project.id, hasPlans: hasCurrentPlans });
   const firstPlanFromEmpty = priorPlanState.projectId === project.id && !priorPlanState.hasPlans && hasCurrentPlans;
@@ -335,10 +338,10 @@ export function CutPlan({ project, mixedResult, expanded, onExpandedChange }: Cu
                 <PlanPresence
                   key={project.id}
                   animateInitial={firstPlanFromEmpty}
-                  keys={(result?.plans ?? []).map((plan, index) => `${plan.stockId}-${index}`)}
-                  records={(result?.plans ?? []).map((plan) => ({ stockId: plan.stockId, geometry: JSON.stringify(plan.cuts.map((cut) => [cut.partId, cut.lengthUm])) }))}
+                  keys={linearGroups.map(({ plan }, index) => `${plan.stockId}-${index}`)}
+                  records={linearGroups.map(({ plan, geometry }) => ({ stockId: plan.stockId, geometry }))}
                 >
-                {result?.plans.map((p, i) => {
+                {linearGroups.map(({ plan: p, count, costCents, owned }, i) => {
                   const entry = stockMap.get(p.stockId);
                   if (!entry) return null;
                   const parts = p.cuts.map((cut) => {
@@ -351,10 +354,11 @@ export function CutPlan({ project, mixedResult, expanded, onExpandedChange }: Cu
                         <b>
                           {entry.material.name} · {entry.stock.name}
                         </b>
+                        <strong>{count} {count === 1 ? 'board' : 'boards'} required</strong>
                         <span>
                           {mixedResult?.genericStockIds.has(p.stockId)
                             ? 'Price unspecified'
-                            : `Buy cost ${money(p.costCents)}`}
+                            : `Buy cost ${money(costCents)}${owned ? ` · ${owned} owned` : ''}`}
                         </span>
                       </div>
                       <LinearCutDiagram key={`${project.id}-${p.stockId}-${i}`} stockId={p.stockId} stockLength={entry.stock.length.um} trim={project.trim.um} kerf={project.kerf.um} parts={parts} stockName={entry.stock.name} />
@@ -374,10 +378,10 @@ export function CutPlan({ project, mixedResult, expanded, onExpandedChange }: Cu
                 <PlanPresence
                   key={`${project.id}-sheets`}
                   animateInitial={firstPlanFromEmpty}
-                  keys={(sheetResult?.plans ?? []).map((plan, index) => `${plan.stockId}-${index}`)}
-                  records={(sheetResult?.plans ?? []).map((plan) => ({ stockId: plan.stockId, geometry: JSON.stringify(plan.placements.map((placement) => [placement.partId, placement.rect.x, placement.rect.y, placement.rect.width, placement.rect.height, placement.rotated])) }))}
+                  keys={sheetGroups.map(({ plan }, index) => `${plan.stockId}-${index}`)}
+                  records={sheetGroups.map(({ plan, geometry }) => ({ stockId: plan.stockId, geometry }))}
                 >
-                {sheetResult?.plans.map((plan, index) => {
+                {sheetGroups.map(({ plan, count, costCents, owned }, index) => {
                   const entry = stockMap.get(plan.stockId);
                   if (!entry) return null;
                   const stockWidth = entry.stock.widthUm ?? 1;
@@ -389,13 +393,12 @@ export function CutPlan({ project, mixedResult, expanded, onExpandedChange }: Cu
                         <b>
                           {entry.material.name} · {entry.stock.name}
                         </b>
+                        <strong>{count} {count === 1 ? 'sheet' : 'sheets'} required</strong>
                         <span>
                           {plan.layout === 'strips' ? 'Full-length strips' : 'Guillotine layout'} ·{' '}
                           {mixedResult?.genericStockIds.has(plan.stockId)
                             ? 'Price unspecified'
-                            : plan.ownedUsed
-                              ? 'Owned sheet'
-                              : `Buy cost ${money(plan.costCents)}`}
+                            : `Buy cost ${money(costCents)}${owned ? ` · ${owned} owned` : ''}`}
                         </span>
                       </div>
                       <SheetCutDiagram key={`${project.id}-${plan.stockId}-${index}`} plan={plan} stockId={plan.stockId} stockName={entry.stock.name} stockWidth={stockWidth} stockHeight={stockHeight} scale={scale} partNames={new Map(project.parts.map((part) => [part.id, part.name]))} />
