@@ -52,6 +52,18 @@ describe('local project workflow', () => {
     expect(screen.getByRole('heading', { name: 'What are you making?' })).toBeVisible();
   });
 
+  it('preserves an unfinished dimension draft while the plan expands and returns to editing', async () => {
+    const user = userEvent.setup(); await renderApp();
+    await startCutlistProject(user);
+    await user.click(screen.getByRole('button', { name: /add part/i }));
+    const length = screen.getByRole('textbox', { name: 'Part length' });
+    fireEvent.change(length, { target: { value: '31/' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Expand plan' }));
+    expect(screen.getByRole('textbox', { name: 'Part length' })).toHaveValue('31/');
+    fireEvent.click(screen.getByRole('button', { name: 'Back to editing' }));
+    expect(screen.getByRole('textbox', { name: 'Part length' })).toHaveValue('31/');
+  });
+
   it('stays on the dashboard when project creation cannot be saved', async () => {
     const user = userEvent.setup();
     const router = await renderApp();
