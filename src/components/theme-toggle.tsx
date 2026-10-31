@@ -10,19 +10,34 @@ const themeOptions: { value: Theme; label: string; icon: typeof Monitor }[] = [
 
 export function ThemeToggle() {
   const { theme, setTheme } = useTheme()
+  const currentIndex = themeOptions.findIndex(option => option.value === theme)
+  const nextTheme = themeOptions[(currentIndex + 1) % themeOptions.length]
+  const currentTheme = themeOptions[currentIndex]
+  const CurrentIcon = currentTheme.icon
+  const nextLabel = nextTheme.label
 
   return (
-    <SegmentedControl<Theme>
-      className="theme-picker"
-      aria-label="Color theme"
-      value={theme}
-      onValueChange={setTheme}
-      iconOnly
-      options={themeOptions.map(({ value, label, icon: Icon }) => ({
-        value,
-        label: `${label} theme`,
-        icon: <Icon aria-hidden="true" weight="regular" />,
-      }))}
-    />
+    <>
+      <SegmentedControl<Theme>
+        className="theme-picker"
+        aria-label="Color theme"
+        value={theme}
+        onValueChange={setTheme}
+        iconOnly
+        options={themeOptions.map(({ value, label, icon: Icon }) => ({
+          value,
+          label: `${label} theme`,
+          icon: <Icon aria-hidden="true" weight="regular" />,
+        }))}
+      />
+      <button
+        type="button"
+        className="theme-cycle"
+        aria-label={`Color theme: ${currentTheme.label}. Switch to ${nextLabel} theme`}
+        onClick={() => setTheme(nextTheme.value)}
+      >
+        <CurrentIcon aria-hidden="true" weight="regular" />
+      </button>
+    </>
   )
 }

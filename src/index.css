@@ -498,6 +498,8 @@ button,a,input,select { outline-offset:3px; }
 @media (hover: hover) { .theme-picker .segmented-control-option:hover { background: var(--pp-hover); color: var(--pp-text); } }
 .theme-picker .segmented-control-option[aria-checked="true"] { border-color: var(--pp-border); background: var(--pp-surface); color: var(--pp-navy); box-shadow: 0 1px 2px rgb(0 0 0 / 10%); }
 .theme-picker .segmented-control-option:focus-visible { outline: 3px solid var(--pp-focus); outline-offset: 2px; }
+.theme-cycle { display: none; }
+.local-badge .save-status-icon { display: none; }
 .dark .secondary,
 .dark [data-slot="button"][data-variant="outline"],
 .dark [data-slot="button"][data-variant="secondary"] { border-color: var(--pp-border); }
@@ -570,10 +572,20 @@ button,a,input,select { outline-offset:3px; }
 
 @media (max-width: 760px) {
   .topbar { height: auto; min-height: 74px; padding: 12px 0; flex-wrap: wrap; }
-  .topbar-tools { margin-left: auto; gap: 6px; }
-  .topbar-tools .local-badge { padding: 6px 8px; }
-  .theme-picker .segmented-control-option { width: 32px; min-width: 32px; padding-inline: 5px; }
+  .topbar-tools { display: flex; align-items: center; flex: 0 1 auto; flex-wrap: nowrap; min-width: 0; max-width: 100%; margin-left: auto; gap: 6px; }
+  .topbar-tools .local-badge { min-width: 0; padding: 6px 8px; }
+  .theme-picker { display: none !important; }
+  .theme-cycle { display: inline-flex; flex: 0 0 44px; width: 44px; height: 44px; align-items: center; justify-content: center; border: 1px solid var(--pp-border); border-radius: 9px; background: var(--pp-raised); color: var(--pp-text); cursor: pointer; }
+  .theme-cycle svg { width: 18px; height: 18px; }
+  .theme-cycle:focus-visible { outline: 3px solid var(--pp-focus); outline-offset: 2px; }
+  .topbar-tools > button:not(.theme-cycle) { flex: 0 0 auto; }
   .topbar > strong { display: none; }
+}
+
+@media (max-width: 520px) {
+  .local-badge.compact-save-status { display: inline-flex; box-sizing: border-box; width: 34px; min-width: 34px; height: 34px; align-items: center; justify-content: center; padding: 0; }
+  .compact-save-status .save-status-label { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
+  .compact-save-status .save-status-icon { display: inline-flex; width: 16px; height: 16px; }
 }
 
 @media print {

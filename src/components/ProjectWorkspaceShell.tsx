@@ -3,6 +3,7 @@ import { createContext, useCallback, useContext, useState } from 'react';
 import { Link, Outlet, useMatches } from '@tanstack/react-router';
 import { ThemeToggle } from '@/components/theme-toggle';
 import { ProjectNavigation } from '@/components/ProjectNavigation';
+import { ProjectSaveStatus } from '@/components/ProjectSaveStatus';
 
 type ShellState = { projectName: string; status: string; projectInfo?: () => void; setProject: (name: string, status: string, info?: () => void) => void; setStatus: (status: string) => void };
 const ProjectShellContext = createContext<ShellState | null>(null);
@@ -16,7 +17,7 @@ export function ProjectWorkspaceShell({ projectId }: { projectId: string }) {
   const active = matches.some(match => match.routeId.endsWith('/cutlist')) ? 'cutlist' : 'design';
   const context: ShellState = { ...state, setProject, setStatus };
   return <ProjectShellContext.Provider value={context}><main className={`app-shell workspace ${active === 'design' ? 'design-page' : 'cutlist-page'}`}>
-    <header className="topbar"><Link to="/" className="brand"><img src="/plankplan-studio-stock-mix-v02.svg" alt="" /><span>PlankPlan <b>Studio</b></span></Link><div className="topbar-tools"><span className="local-badge" role="status">{state.status || 'Saved locally'}</span>{state.status.startsWith('Conflict') && <button type="button" onClick={() => window.location.reload()}>Reload project</button>}<ThemeToggle /></div></header>
+    <header className="topbar"><Link to="/" className="brand"><img src="/plankplan-studio-stock-mix-v02.svg" alt="" /><span>PlankPlan <b>Studio</b></span></Link><div className="topbar-tools"><ProjectSaveStatus status={state.status || 'Saved locally'} />{state.status.startsWith('Conflict') && <button type="button" onClick={() => window.location.reload()}>Reload project</button>}<ThemeToggle /></div></header>
     <ProjectNavigation projectId={projectId} projectName={state.projectName} active={active} onProjectInfo={state.projectInfo} />
     <Outlet />
   </main></ProjectShellContext.Provider>;

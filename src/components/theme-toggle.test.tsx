@@ -6,6 +6,28 @@ import { ThemeProvider } from './theme-provider'
 import { ThemeToggle } from './theme-toggle'
 
 describe('ThemeToggle', () => {
+  it('cycles from the stored explicit preference and persists each mobile selection', async () => {
+    const user = userEvent.setup()
+    window.localStorage.setItem(THEME_STORAGE_KEY, 'dark')
+    render(<ThemeProvider><ThemeToggle /></ThemeProvider>)
+
+    const getCycleButton = (name: string) => screen.getByRole('button', { name })
+    const cycleButton = getCycleButton('Color theme: Dark. Switch to System theme')
+    expect(cycleButton.querySelector('svg')).toHaveAttribute('aria-hidden', 'true')
+
+    await user.click(cycleButton)
+    expect(getCycleButton('Color theme: System. Switch to Light theme')).toBeInTheDocument()
+    expect(window.localStorage.getItem(THEME_STORAGE_KEY)).toBe('system')
+
+    await user.click(getCycleButton('Color theme: System. Switch to Light theme'))
+    expect(getCycleButton('Color theme: Light. Switch to Dark theme')).toBeInTheDocument()
+    expect(window.localStorage.getItem(THEME_STORAGE_KEY)).toBe('light')
+
+    await user.click(getCycleButton('Color theme: Light. Switch to Dark theme'))
+    expect(getCycleButton('Color theme: Dark. Switch to System theme')).toBeInTheDocument()
+    expect(window.localStorage.getItem(THEME_STORAGE_KEY)).toBe('dark')
+  })
+
   it('selects a theme directly, exposes the active choice, and persists it', async () => {
     const user = userEvent.setup()
     render(<ThemeProvider><ThemeToggle /></ThemeProvider>)
