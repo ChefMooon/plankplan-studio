@@ -18,21 +18,47 @@ async function savedProject(name: string) { const list=await projectRepository.l
 
 async function startCutlistProject(user: ReturnType<typeof userEvent.setup>, name?: string) {
   const projects = screen.getByRole('region', { name: 'Projects' });
+  const previousCutlistLinks = within(projects).queryAllByRole('link', { name: 'Open cutlist for Untitled project' }).length;
   await user.click(within(projects).getAllByRole('button', { name: 'New project' })[0]);
-  await screen.findByRole('heading', { name: 'What are you making?' });
+  await waitFor(() => expect(within(projects).getAllByRole('link', { name: 'Open cutlist for Untitled project' }).length).toBeGreaterThan(previousCutlistLinks));
   if (name) {
-    await user.click(await screen.findByRole('button', { name: 'Project Info' }));
+    await user.click(within(projects).getAllByRole('button', { name: 'Actions for Untitled project' })[0]);
+    await user.click(await screen.findByRole('menuitem', { name: 'Project info' }));
     const dialog = await screen.findByRole('dialog', { name: 'Project Info' });
     const projectName = within(dialog).getByRole('textbox', { name: 'Project name' });
+    await waitFor(() => expect(projectName).toBeEnabled());
     await user.clear(projectName);
     await user.type(projectName, name);
     await user.click(within(dialog).getByRole('button', { name: 'Save' }));
     await waitFor(() => expect(dialog).not.toBeInTheDocument());
     await waitFor(async () => expect(await savedProject(name)).toBeDefined());
   }
+  await user.click(within(projects).getAllByRole('link', { name: `Open cutlist for ${name ?? 'Untitled project'}` })[0]);
+  await screen.findByRole('heading', { name: 'What are you making?' });
 }
 
 describe('local project workflow', () => {
+  it('creates a project on the dashboard and lets the user choose its workspace', async () => {
+    const user = userEvent.setup();
+    const router = await renderApp();
+    await waitFor(() => expect(screen.queryByText('Loading projects…')).not.toBeInTheDocument());
+
+    const projects = screen.getByRole('region', { name: 'Projects' });
+    const previousCutlistLinks = within(projects).queryAllByRole('link', { name: 'Open cutlist for Untitled project' }).length;
+    await user.click(within(projects).getAllByRole('button', { name: 'New project' })[0]);
+
+    await waitFor(() => expect(within(projects).getAllByRole('link', { name: 'Open cutlist for Untitled project' }).length).toBeGreaterThan(previousCutlistLinks));
+    expect(router.state.location.pathname).toBe('/');
+    expect(screen.queryByRole('heading', { name: 'What are you making?' })).not.toBeInTheDocument();
+    expect(within(projects).getAllByRole('link', { name: 'Open design beta for Untitled project' })[0]).toBeInTheDocument();
+
+    await user.click(within(projects).getAllByRole('link', { name: 'Open design beta for Untitled project' })[0]);
+    await waitFor(() => expect(router.state.location.pathname).toMatch(/\/design$/));
+    expect(await screen.findByRole('tab', { name: 'Components' })).toBeInTheDocument();
+    await user.click(screen.getByRole('link', { name: 'Cutlist' }));
+    await waitFor(() => expect(router.state.location.pathname).toMatch(/\/cutlist$/));
+  });
+
   it('keeps the selected plan view when expanding and returning to editing', async () => {
     const user = userEvent.setup(); await renderApp();
     await startCutlistProject(user);

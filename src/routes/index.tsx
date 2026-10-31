@@ -60,7 +60,7 @@ function Home() {
   useEffect(() => { const scheduleReload=()=>{ queueMicrotask(()=>{ if(pathname==='/')void reload(); }); }; scheduleReload(); const unsubscribe=projectRepository.subscribe('local', scheduleReload); const stopWatching=watchLegacyPayloadChanges(result=>{if(result.state==='needs-recovery')setStatus('Legacy project data changed. Recovery copies were preserved for review.');scheduleReload();}); return () => {unsubscribe();stopWatching();}; }, [pathname]);
   const create = async (name = 'Untitled project') => { const p = createProject(name); const result = await projectRepository.create('local',p); if (!result.ok) { ++reloadSequence.current; setStatus('Project could not be saved. Retry after checking local storage.'); return undefined; } ++reloadSequence.current;setProjects(current => [result.value,...current]); setStatus(''); return result.value; };
   const restore = async (file?: File) => { if (!file) return; try { const imported = importProjectAsNew(await file.text(), projects); const result=await projectRepository.create('local',imported); if(!result.ok)throw new Error('Save failed');++reloadSequence.current;setProjects(current=>[result.value,...current]); setStatus('Project imported as a new copy.'); } catch { setStatus('This project file could not be imported. The saved projects were not changed.'); } };
-  const startProject = () => { void create().then(p => { if (p) void navigate({ to: '/projects/$projectId/cutlist', params: { projectId: p.id } }); }); };
+  const startProject = () => { void create(); };
   const preview = () => { void navigate({ to: '/design-preview' }); };
   const deletionTarget = projects.find(project => project.id === pendingDeletionId);
   const deleteProject = async () => {
