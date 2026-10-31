@@ -1120,7 +1120,7 @@ button,a,input,select { outline-offset:3px; }
   .units-row > label { grid-template-rows:minmax(30px,1fr) 48px; }
   .units-row .number-field { grid-template-rows:minmax(30px,1fr) 48px; }
   .units-row > label > .pp-select-trigger { height:48px; }
-  .units-row .number-stepper > input { height:100%; }
+  .number-stepper > input { height:100%; }
   .part-actions-row { flex-wrap:wrap; }
   .part-main-row .part-quantity-field { flex:1 1 100%; width:auto; min-width:0; max-width:none; }
   .part-quantity-field .number-stepper-arrows { flex-direction:row; width:88px; }
