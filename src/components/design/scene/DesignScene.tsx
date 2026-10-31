@@ -51,9 +51,17 @@ function ContextLifecycle({ onContextLoss, onContextRestore }: Pick<Props, 'onCo
 function configureGroundGridDepth(mesh:THREE.Mesh) {
   const material=Array.isArray(mesh.material)?mesh.material[0]:mesh.material;
   if(!material)return;
-  material.polygonOffset=true;
-  material.polygonOffsetFactor=1;
-  material.polygonOffsetUnits=1;
+  // Draw the blended grid before opaque geometry without writing depth: coplanar
+  // faces then cover it regardless of depth-buffer interpolation differences.
+  material.transparent=false;
+  material.blending=THREE.CustomBlending;
+  material.blendEquation=THREE.AddEquation;
+  material.blendSrc=THREE.SrcAlphaFactor;
+  material.blendDst=THREE.OneMinusSrcAlphaFactor;
+  material.blendSrcAlpha=THREE.OneFactor;
+  material.blendDstAlpha=THREE.OneMinusSrcAlphaFactor;
+  material.depthWrite=false;
+  material.needsUpdate=true;
 }
 
 function ObjectGeometry({ geometry, targetId, color, selected, invalid = false, preview = false, overlay, onFaceOut, onSelect, onPushPullPointerDown, onPushPullPointerMove }: { geometry: Geometry; targetId:string; color: string; selected: boolean; invalid?: boolean; preview?:boolean; overlay?:{axis:'x'|'y'|'z';side:-1|1;active:boolean}; onFaceOut?:()=>void; onSelect: (event:ThreeEvent<MouseEvent>) => void; onPushPullPointerDown?:(event:ThreeEvent<PointerEvent>)=>void; onPushPullPointerMove?:(event:ThreeEvent<PointerEvent>)=>void }) {

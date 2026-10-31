@@ -109,7 +109,7 @@ describe('DesignScene rotation rendering', () => {
     await renderer.unmount();
   });
 
-  it('offsets the real Drei grid behind a flat ground-plane rectangle', async () => {
+  it('renders the blended grid before a flat ground-plane rectangle without writing depth', async () => {
     const renderer = await ReactThreeTestRenderer.create(<DesignScene {...createGroundPlaneProps()} />);
     const grid = renderer.scene.find(node => node.instance instanceof THREE.Mesh && node.instance.material instanceof THREE.ShaderMaterial);
     const gridMesh = grid.instance as THREE.Mesh;
@@ -119,11 +119,19 @@ describe('DesignScene rotation rendering', () => {
     expect(gridMaterial.uniforms).toHaveProperty('cellSize');
     expect(gridMaterial.fragmentShader).toContain('getGrid(float size, float thickness)');
     expect(gridMaterial.vertexShader).toContain('localPosition = position.xzy;');
-    expect(gridMaterial.transparent).toBe(true);
+    expect(gridMaterial.transparent).toBe(false);
+    expect(gridMaterial.blending).toBe(THREE.CustomBlending);
+    expect(gridMaterial.blendEquation).toBe(THREE.AddEquation);
+    expect(gridMaterial.blendSrc).toBe(THREE.SrcAlphaFactor);
+    expect(gridMaterial.blendDst).toBe(THREE.OneMinusSrcAlphaFactor);
+    expect(gridMaterial.blendSrcAlpha).toBe(THREE.OneFactor);
+    expect(gridMaterial.blendDstAlpha).toBe(THREE.OneMinusSrcAlphaFactor);
+    expect(gridMaterial.depthWrite).toBe(false);
     expect(gridMesh.renderOrder).toBe(-1);
-    expect(gridMaterial.polygonOffset).toBe(true);
-    expect(gridMaterial.polygonOffsetFactor).toBe(1);
-    expect(gridMaterial.polygonOffsetUnits).toBe(1);
+    expect(rectangle.renderOrder).toBeGreaterThan(gridMesh.renderOrder);
+    const rectangleMaterial = rectangle.material as THREE.MeshStandardMaterial;
+    expect(rectangleMaterial.transparent).toBe(false);
+    expect(rectangleMaterial.depthWrite).toBe(true);
 
     rectangle.updateWorldMatrix(true, false);
     const positions = rectangle.geometry.getAttribute('position');
