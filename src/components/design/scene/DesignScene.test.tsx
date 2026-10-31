@@ -13,7 +13,9 @@ vi.mock('./DesignCanvas', async importOriginal => ({
 
 vi.mock('@react-three/drei', () => ({
   Edges: () => null,
-  Grid: () => null,
+  Grid: ({ onUpdate, renderOrder }: { onUpdate?: (mesh: THREE.Mesh) => void; renderOrder?: number }) => (
+    <mesh userData={{ designGrid: true }} renderOrder={renderOrder} onUpdate={onUpdate} />
+  ),
   Line: () => null,
   OrbitControls: () => null,
 }));
@@ -79,6 +81,20 @@ describe('DesignScene rotation rendering', () => {
 
     const gizmoSpheres = renderer.scene.findAll(node => node.instance instanceof THREE.Mesh && node.instance.geometry instanceof THREE.SphereGeometry);
     expect(gizmoSpheres).toHaveLength(1);
+
+    await renderer.unmount();
+  });
+
+  it('offsets the grid behind coplanar faces and draws it before translucent previews', async () => {
+    const renderer = await ReactThreeTestRenderer.create(<DesignScene {...createProps()} grid />);
+    const grid = renderer.scene.find(node => node.instance instanceof THREE.Mesh && node.instance.userData.designGrid === true);
+    const gridMesh = grid.instance as THREE.Mesh;
+    const gridMaterial = gridMesh.material as THREE.Material;
+
+    expect(gridMesh.renderOrder).toBe(-1);
+    expect(gridMaterial.polygonOffset).toBe(true);
+    expect(gridMaterial.polygonOffsetFactor).toBe(1);
+    expect(gridMaterial.polygonOffsetUnits).toBe(1);
 
     await renderer.unmount();
   });
