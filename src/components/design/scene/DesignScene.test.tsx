@@ -11,14 +11,16 @@ vi.mock('./DesignCanvas', async importOriginal => ({
   DesignCanvas: ({ children }: { children: ReactNode }) => children,
 }));
 
-vi.mock('@react-three/drei', () => ({
-  Edges: () => null,
-  Grid: ({ onUpdate, renderOrder }: { onUpdate?: (mesh: THREE.Mesh) => void; renderOrder?: number }) => (
-    <mesh userData={{ designGrid: true }} renderOrder={renderOrder} onUpdate={onUpdate} />
-  ),
-  Line: () => null,
-  OrbitControls: () => null,
-}));
+vi.mock('@react-three/drei', async importOriginal => {
+  const actual = await importOriginal<typeof import('@react-three/drei')>();
+  return {
+    ...actual,
+    Edges: () => null,
+    Grid: actual.Grid,
+    Line: () => null,
+    OrbitControls: () => null,
+  };
+});
 
 const createDesign = () => ({
   schemaVersion: 1 as const,
@@ -67,6 +69,28 @@ const createProps = () => ({
   onContextRestore: vi.fn(),
 });
 
+const createGroundPlaneProps = () => {
+  const props = createProps();
+  return {
+    ...props,
+    design: {
+      ...props.design,
+      instances: [],
+      looseObjects: [{
+        id: 'ground-rectangle',
+        name: 'Ground rectangle',
+        geometry: rectangleGeometry(400_000, 300_000, prefix => `${prefix}-${crypto.randomUUID()}`),
+        pose: { positionUm: [0, 0, 0] as [number, number, number], rotation: [Math.SQRT1_2, 0, 0, Math.SQRT1_2] as [number, number, number, number] },
+        scalePpm: [1_000_000, 1_000_000, 1_000_000] as [number, number, number],
+        appearance: { color: '#bd8a56' },
+        hidden: false,
+        locked: false,
+      }],
+    },
+    grid: true,
+  };
+};
+
 describe('DesignScene rotation rendering', () => {
   beforeEach(() => {
     HTMLCanvasElement.prototype.getContext = vi.fn(() => null) as unknown as typeof HTMLCanvasElement.prototype.getContext;
@@ -85,16 +109,29 @@ describe('DesignScene rotation rendering', () => {
     await renderer.unmount();
   });
 
-  it('offsets the grid behind coplanar faces and draws it before translucent previews', async () => {
-    const renderer = await ReactThreeTestRenderer.create(<DesignScene {...createProps()} grid />);
-    const grid = renderer.scene.find(node => node.instance instanceof THREE.Mesh && node.instance.userData.designGrid === true);
+  it('offsets the real Drei grid behind a flat ground-plane rectangle', async () => {
+    const renderer = await ReactThreeTestRenderer.create(<DesignScene {...createGroundPlaneProps()} />);
+    const grid = renderer.scene.find(node => node.instance instanceof THREE.Mesh && node.instance.material instanceof THREE.ShaderMaterial);
     const gridMesh = grid.instance as THREE.Mesh;
-    const gridMaterial = gridMesh.material as THREE.Material;
+    const gridMaterial = gridMesh.material as THREE.ShaderMaterial;
+    const rectangle = renderer.scene.find(node => node.instance instanceof THREE.Mesh && node.instance.userData.designTargetId === 'ground-rectangle').instance as THREE.Mesh;
 
+    expect(gridMaterial.uniforms).toHaveProperty('cellSize');
+    expect(gridMaterial.fragmentShader).toContain('getGrid(float size, float thickness)');
+    expect(gridMaterial.vertexShader).toContain('localPosition = position.xzy;');
+    expect(gridMaterial.transparent).toBe(true);
     expect(gridMesh.renderOrder).toBe(-1);
     expect(gridMaterial.polygonOffset).toBe(true);
     expect(gridMaterial.polygonOffsetFactor).toBe(1);
     expect(gridMaterial.polygonOffsetUnits).toBe(1);
+
+    rectangle.updateWorldMatrix(true, false);
+    const positions = rectangle.geometry.getAttribute('position');
+    expect(positions.count).toBeGreaterThan(0);
+    for (let index = 0; index < positions.count; index += 1) {
+      const point = new THREE.Vector3().fromBufferAttribute(positions, index).applyMatrix4(rectangle.matrixWorld);
+      expect(point.y).toBeCloseTo(0, 6);
+    }
 
     await renderer.unmount();
   });
