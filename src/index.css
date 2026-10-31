@@ -1111,6 +1111,17 @@ button,a,input,select { outline-offset:3px; }
 @media print { .sheet-cut-actions { display:none !important; } .sheet-cut-toggle svg { display:none; } .sheet-cut-content[hidden],.sheet-offcut-details[hidden],.cut-plan-content.view-all .sheet-offcuts-materials-only { display:block !important; } .linear-cut-details[hidden] { display:flex !important; } .cut-details-card { border:0; background:transparent; margin:0; } }
  .cut-plan-tabs{flex-wrap:wrap;overflow:visible}
 
+@media (max-width:760px) {
+  .cut-details-card .sheet-cut-toggle { min-height:44px; }
+  .quick-actions-trigger,
+  .material-heading > .quick-actions-trigger,
+  .part-main-row .quick-actions-trigger { box-sizing:border-box; width:44px; min-width:44px; height:44px; }
+  .quick-actions-menu [role=menuitem] { min-height:44px; }
+  @container part-editor (min-width:700px) {
+    .part-main-row { grid-template-columns:28px minmax(120px,1.2fr) 76px minmax(90px,1fr) minmax(90px,1fr) 70px 34px 44px; }
+  }
+}
+
 /* Diagram edits use short, visual-only layers. Current SVG content stays authoritative. */
 @keyframes cut-plan-grow { from { opacity: 0; transform: scaleX(.06); } to { opacity: 1; transform: scaleX(1); } }
 @keyframes cut-plan-shrink { from { opacity: 1; transform: scaleX(1); } to { opacity: 0; transform: scaleX(.06); } }
