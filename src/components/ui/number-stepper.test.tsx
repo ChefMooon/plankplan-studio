@@ -24,6 +24,12 @@ describe('NumberStepper', () => {
     expect(input).toHaveValue(1);
   });
 
+  it('keeps increment and decrement controls individually accessible as buttons', () => {
+    render(<NumberStepper type="number" value={2} onChange={() => {}} onStep={() => {}} />);
+    expect(screen.getByRole('button', { name: 'Increase Value' })).toHaveAttribute('type', 'button');
+    expect(screen.getByRole('button', { name: 'Decrease Value' })).toHaveAttribute('type', 'button');
+  });
+
   it('applies drag direction and absolute 8px thresholds; tap and cancellation do not add steps', () => {
     render(<Harness />);
     const grip = screen.getByRole('button', { name: 'Drag to adjust Quantity' });

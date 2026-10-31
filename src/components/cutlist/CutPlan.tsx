@@ -41,22 +41,48 @@ interface CutPlanProps {
 }
 
 /** One set of sections serves every screen view and the complete printout. */
+const MOBILE_LAYOUT_QUERY = '(max-width: 760px)';
+
+function matchesMobileLayout(): boolean {
+  return typeof window !== 'undefined'
+    && typeof window.matchMedia === 'function'
+    && window.matchMedia(MOBILE_LAYOUT_QUERY).matches;
+}
+
 export function CutPlan({ project, mixedResult, expanded, onExpandedChange }: CutPlanProps) {
+  const [isMobileLayout, setIsMobileLayout] = useState(matchesMobileLayout);
+  useEffect(() => {
+    if (typeof window.matchMedia !== 'function') return;
+    const mediaQuery = window.matchMedia(MOBILE_LAYOUT_QUERY);
+    const updateLayout = (event: MediaQueryListEvent) => setIsMobileLayout(event.matches);
+    mediaQuery.addEventListener?.('change', updateLayout);
+    if (!mediaQuery.addEventListener) mediaQuery.addListener?.(updateLayout);
+    return () => {
+      mediaQuery.removeEventListener?.('change', updateLayout);
+      if (!mediaQuery.removeEventListener) mediaQuery.removeListener?.(updateLayout);
+    };
+  }, []);
   const [planView, setPlanView] = useState('all');
   const result = mixedResult?.linear ?? null;
   const sheetResult = mixedResult?.sheets ?? null;
   const linearGroups = groupLinearPlans(result?.plans ?? []);
   const sheetGroups = groupSheetPlans(sheetResult?.plans ?? []);
+  const linearKeys = linearGroups.map(({ plan }, index) => `${plan.stockId}-${index}`);
   const [sheetCutState, setSheetCutState] = useState<{ projectId: string; expanded: Set<string> }>({ projectId: project.id, expanded: new Set() });
   const expandedSheets = sheetCutState.projectId === project.id ? sheetCutState.expanded : new Set<string>();
   const sheetKeys = sheetGroups.map(({ plan }, index) => `${plan.stockId}-${index}`);
   const setExpandedSheets = (expanded: Set<string>) => setSheetCutState({ projectId: project.id, expanded });
   const [sheetOffcutState, setSheetOffcutState] = useState<{ projectId: string; expanded: Set<string> }>({ projectId: project.id, expanded: new Set() });
   const expandedOffcuts = sheetOffcutState.projectId === project.id ? sheetOffcutState.expanded : new Set<string>();
-  const [linearCutState, setLinearCutState] = useState<{ projectId: string; expanded: Set<string> }>({ projectId: project.id, expanded: new Set() });
-  const expandedBoards = linearCutState.projectId === project.id ? linearCutState.expanded : new Set<string>();
-  const linearKeys = linearGroups.map(({ plan }, index) => `${plan.stockId}-${index}`);
-  const setExpandedBoards = (expanded: Set<string>) => setLinearCutState({ projectId: project.id, expanded });
+  const [linearCutState, setLinearCutState] = useState<{ projectId: string; isMobileLayout: boolean; expanded: Set<string> }>(() => ({
+    projectId: project.id,
+    isMobileLayout,
+    expanded: isMobileLayout ? new Set(linearKeys) : new Set(),
+  }));
+  const expandedBoards = linearCutState.projectId === project.id && linearCutState.isMobileLayout === isMobileLayout
+    ? linearCutState.expanded
+    : isMobileLayout ? new Set(linearKeys) : new Set<string>();
+  const setExpandedBoards = (expanded: Set<string>) => setLinearCutState({ projectId: project.id, isMobileLayout, expanded });
   const [boardOffcutState, setBoardOffcutState] = useState<{ projectId: string; expanded: Set<string> }>({ projectId: project.id, expanded: new Set() });
   const expandedBoardOffcuts = boardOffcutState.projectId === project.id ? boardOffcutState.expanded : new Set<string>();
   const hasCurrentPlans = !!(result?.plans.length || sheetResult?.plans.length);

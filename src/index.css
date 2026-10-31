@@ -1113,12 +1113,28 @@ button,a,input,select { outline-offset:3px; }
 
 @media (max-width:760px) {
   .cut-details-card .sheet-cut-toggle { min-height:44px; }
+  .number-stepper { height:48px; }
+  .number-stepper-arrows { width:32px; }
+  .number-stepper-arrows button { min-width:32px; min-height:24px; touch-action:manipulation; }
+  .number-stepper-grip { width:32px; min-height:48px; }
+  .units-row > label { grid-template-rows:minmax(30px,1fr) 48px; }
+  .units-row .number-field { grid-template-rows:minmax(30px,1fr) 48px; }
+  .units-row > label > .pp-select-trigger { height:48px; }
+  .units-row .number-stepper > input { height:100%; }
+  .part-actions-row { flex-wrap:wrap; }
+  .part-main-row .part-quantity-field { flex:1 1 100%; width:auto; min-width:0; max-width:none; }
+  .part-quantity-field .number-stepper-arrows { flex-direction:row; width:88px; }
+  .part-quantity-field .number-stepper-arrows button { width:44px; min-width:44px; min-height:44px; }
+  .linear-cut-toggle { flex-wrap:wrap; justify-content:flex-start; }
+  .linear-cut-toggle .cut-details-summary { flex:1 1 100%; margin-left:19px; text-align:left; }
+  .linear-cut-details:not([hidden]) { display:grid; grid-template-columns:minmax(0,1fr); gap:7px; padding:7px 10px 10px; font-size:14px; line-height:1.5; }
+  .linear-cut-details > span { min-width:0; overflow-wrap:anywhere; }
   .quick-actions-trigger,
   .material-heading > .quick-actions-trigger,
   .part-main-row .quick-actions-trigger { box-sizing:border-box; width:44px; min-width:44px; height:44px; }
   .quick-actions-menu [role=menuitem] { min-height:44px; }
   @container part-editor (min-width:700px) {
-    .part-main-row { grid-template-columns:28px minmax(120px,1.2fr) 76px minmax(90px,1fr) minmax(90px,1fr) 70px 34px 44px; }
+    .part-main-row { grid-template-columns:28px minmax(120px,1.2fr) 76px minmax(90px,1fr) minmax(90px,1fr) minmax(110px,1fr) 34px 44px; }
   }
 }
 
