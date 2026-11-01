@@ -1,10 +1,13 @@
 import type { ReactNode } from 'react';
+import { act, useState } from 'react';
 import * as THREE from 'three';
 import ReactThreeTestRenderer from '@react-three/test-renderer';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { rectangleGeometry } from '@/lib/planner/design/geometry';
 import { designCanvasThreeElements } from './design-canvas-elements';
 import { DesignScene } from './DesignScene';
+import type { ToolMeasurementSession } from '../tool-measurements';
+import { projectedMoveAxes, type MoveAxis } from '../move-gesture';
 
 vi.mock('./DesignCanvas', async importOriginal => ({
   ...await importOriginal<typeof import('./DesignCanvas')>(),
@@ -69,6 +72,26 @@ const createProps = () => ({
   onContextRestore: vi.fn(),
 });
 
+type MoveHarnessControls = {
+  setConstraint: (axis: MoveAxis | null | undefined) => void;
+  setShift: (held: boolean) => void;
+  setMeasurement: (session: ToolMeasurementSession | undefined) => void;
+  measurement?: ToolMeasurementSession;
+};
+
+function MoveSceneHarness({ props, onReady }: { props: ReturnType<typeof createProps>; onReady: (controls: MoveHarnessControls) => void }) {
+  const [moveConstraint, setMoveConstraint] = useState<MoveAxis | null>();
+  const [moveShiftHeld, setMoveShiftHeld] = useState(false);
+  const [toolMeasurement, setToolMeasurement] = useState<ToolMeasurementSession>();
+  onReady({setConstraint:setMoveConstraint,setShift:setMoveShiftHeld,setMeasurement:setToolMeasurement,measurement:toolMeasurement});
+  return <DesignScene {...props} selectedId="instance-1" activeTool="move" moveConstraint={moveConstraint} moveShiftHeld={moveShiftHeld} toolMeasurement={toolMeasurement} onToolMeasurementChange={setToolMeasurement} />;
+}
+
+type SceneRenderer = Awaited<ReturnType<typeof ReactThreeTestRenderer.create>>;
+const moveHandle = (renderer: SceneRenderer, axis: MoveAxis) => renderer.scene.find(node => node.instance instanceof THREE.Mesh && node.instance.userData.moveAxis === axis);
+let sceneCanvas: HTMLCanvasElement;
+const fixedBounds = (canvas: HTMLCanvasElement) => { sceneCanvas = canvas; canvas.getBoundingClientRect = () => ({ x: 0, y: 0, left: 0, top: 0, right: 800, bottom: 600, width: 800, height: 600, toJSON: () => ({}) }); };
+
 const createGroundPlaneProps = () => {
   const props = createProps();
   return {
@@ -109,6 +132,18 @@ describe('DesignScene rotation rendering', () => {
     await renderer.unmount();
   });
 
+  it('registers every Three element the scene renders with the design canvas catalogue', async () => {
+    const renderer=await ReactThreeTestRenderer.create(<DesignScene {...createProps()} selectedId="instance-1" activeTool="move"/>);
+    const registered=new Set(Object.values(designCanvasThreeElements));
+    const missing=new Set<string>();
+    renderer.scene.instance.traverse(object=>{
+      const owned=[object,...(object instanceof THREE.Mesh?[object.geometry,...[object.material].flat()]:[])];
+      for(const item of owned)if(item&&!registered.has(item.constructor as never)&&item.constructor!==THREE.Scene&&item.constructor!==THREE.BufferGeometry)missing.add(item.constructor.name);
+    });
+    expect([...missing]).toEqual([]);
+    await renderer.unmount();
+  });
+
   it('renders the blended grid before a flat ground-plane rectangle without writing depth', async () => {
     const renderer = await ReactThreeTestRenderer.create(<DesignScene {...createGroundPlaneProps()} />);
     const grid = renderer.scene.find(node => node.instance instanceof THREE.Mesh && node.instance.material instanceof THREE.ShaderMaterial);
@@ -141,6 +176,200 @@ describe('DesignScene rotation rendering', () => {
       expect(point.y).toBeCloseTo(0, 6);
     }
 
+    await renderer.unmount();
+  });
+
+  it('renders all three move handles and commits one axis drag on release', async () => {
+    const onCommand=vi.fn();
+    const camera=new THREE.PerspectiveCamera(45,4/3,.1,100);
+    camera.position.set(6,5,7);camera.lookAt(0,0,0);camera.updateProjectionMatrix();camera.updateMatrixWorld();
+    const renderer=await ReactThreeTestRenderer.create(<DesignScene {...createProps()} selectedId="instance-1" activeTool="move" onCommand={onCommand}/>,{
+      width:800,height:600,camera,
+      beforeReturn:fixedBounds,
+    });
+    const axes=renderer.scene.findAll(node=>node.instance instanceof THREE.Mesh&&node.instance.geometry instanceof THREE.CylinderGeometry&&(node.instance.geometry as THREE.CylinderGeometry).parameters.height===.54);
+    expect(axes).toHaveLength(3);
+    const xHandle=moveHandle(renderer,'x');
+    camera.updateMatrixWorld();
+    const pivot=new THREE.Vector3(.2,.15,0);
+    const origin=pivot.clone().project(camera);
+    const tip=pivot.clone().add(new THREE.Vector3(.4,0,0)).project(camera);
+    const startX=(origin.x+1)*400,startY=(1-origin.y)*300;
+    const endX=startX+(tip.x-origin.x)*400,endY=startY-(tip.y-origin.y)*300;
+    const nativeEvent={clientX:startX,clientY:startY,button:0,pointerId:77,preventDefault:vi.fn()};
+    await renderer.fireEvent(xHandle,'onPointerDown',{button:0,pointerId:77,nativeEvent});
+    const moveEvent=Object.assign(new Event('pointermove'),{clientX:endX,clientY:endY,pointerId:77});
+    await act(async()=>{window.dispatchEvent(moveEvent);});
+    const upEvent=Object.assign(new Event('pointerup'),{clientX:endX,clientY:endY,pointerId:77});
+    await act(async()=>{window.dispatchEvent(upEvent);});
+    expect(onCommand).toHaveBeenCalledOnce();
+    expect(onCommand.mock.calls[0][0]).toMatchObject({type:'set-instance-transform',instanceId:'instance-1'});
+    const committed=onCommand.mock.calls[0][0] as {pose:{positionUm:number[]}};
+    expect(committed.pose.positionUm[0]).not.toBe(0);
+    expect(committed.pose.positionUm.every(Number.isSafeInteger)).toBe(true);
+    await renderer.unmount();
+  });
+
+  it('moves from a free click-move-click gesture on a constrained axis', async () => {
+    const props = createProps();
+    let controls!: MoveHarnessControls;
+    const camera=new THREE.PerspectiveCamera(45,4/3,.1,100);
+    camera.position.set(6,5,7);camera.lookAt(0,0,0);camera.updateProjectionMatrix();camera.updateMatrixWorld();
+    const renderer=await ReactThreeTestRenderer.create(<MoveSceneHarness props={props} onReady={current=>{controls=current;}}/>,{
+      width:800,height:600,camera,
+      beforeReturn:fixedBounds,
+    });
+    const plane=renderer.scene.find(node=>node.instance instanceof THREE.Mesh&&node.instance.geometry instanceof THREE.PlaneGeometry&&(node.instance.geometry as THREE.PlaneGeometry).parameters.width===200);
+    await renderer.fireEvent(plane,'onPointerDown',{button:0,pointerId:41,point:new THREE.Vector3(0,0,-.002),nativeEvent:{clientX:400,clientY:300,button:0,pointerId:41,preventDefault:vi.fn()}});
+    await act(async()=>{controls.setConstraint('x');});
+    const move=Object.assign(new Event('pointermove'),{clientX:650,clientY:300,pointerId:41});
+    await act(async()=>{window.dispatchEvent(move);});
+    expect(controls.measurement?.fields[0]?.label).toBe('Length (X)');
+    expect(controls.measurement?.canPlace).toBe(true);
+    expect(Number(controls.measurement?.fields[0]?.value)).toBeGreaterThan(0);
+
+    const place=Object.assign(new Event('pointerdown'),{clientX:650,clientY:300,button:0,pointerId:41});
+    await act(async()=>{sceneCanvas.dispatchEvent(place);});
+    expect(props.onCommand).toHaveBeenCalledOnce();
+    const command=props.onCommand.mock.calls[0][0] as {pose:{positionUm:number[]}};
+    expect(command.pose.positionUm[0]).not.toBe(0);
+    expect(command.pose.positionUm.slice(1)).toEqual([0,0]);
+    await renderer.unmount();
+  });
+
+  it('selects the initial Shift axis, releases the lock, and applies exact distance on the chosen axis', async () => {
+    const props=createProps();
+    let controls!:MoveHarnessControls;
+    const camera=new THREE.PerspectiveCamera(45,4/3,.1,100);
+    camera.position.set(6,5,7);camera.lookAt(0,0,0);camera.updateProjectionMatrix();camera.updateMatrixWorld();
+    const renderer=await ReactThreeTestRenderer.create(<MoveSceneHarness props={props} onReady={current=>{controls=current;}}/>,{
+      width:800,height:600,camera,
+      beforeReturn:fixedBounds,
+    });
+    const plane=renderer.scene.find(node=>node.instance instanceof THREE.Mesh&&node.instance.geometry instanceof THREE.PlaneGeometry&&(node.instance.geometry as THREE.PlaneGeometry).parameters.width===200);
+    await renderer.fireEvent(plane,'onPointerDown',{button:0,pointerId:52,point:new THREE.Vector3(0,0,-.002),nativeEvent:{clientX:400,clientY:300,button:0,pointerId:52,preventDefault:vi.fn()}});
+    const session=controls.measurement!;
+    await act(async()=>{controls.setMeasurement({...session,fields:[{...session.fields[0],value:'25',exact:true}]});controls.setShift(true);});
+    const xDirection=projectedMoveAxes(camera,new THREE.Vector3(.2,.15,0),800,600,props.design!.instances[0].pose,'world').get('x')!;
+    const clientX=400+xDirection[0]*80,clientY=300+xDirection[1]*80;
+    const move=Object.assign(new Event('pointermove'),{clientX,clientY,pointerId:52});
+    await act(async()=>{window.dispatchEvent(move);});
+    expect(controls.measurement?.fields[0]?.label).toBe('Length (X)');
+    expect(controls.measurement?.fields[0]?.value).toBe('25');
+    expect(controls.measurement?.canPlace).toBe(true);
+
+    await act(async()=>{controls.setShift(false);});
+    expect(controls.measurement?.fields[0]?.label).toBe('Length');
+    await act(async()=>{controls.setShift(true);});
+    const place=Object.assign(new Event('pointerdown'),{clientX,clientY,button:0,pointerId:52});
+    await act(async()=>{sceneCanvas.dispatchEvent(place);});
+    expect(props.onCommand).toHaveBeenCalledOnce();
+    const command=props.onCommand.mock.calls[0][0] as {pose:{positionUm:number[]}};
+    expect(command.pose.positionUm).toEqual([25_000,0,0]);
+    await renderer.unmount();
+  });
+
+  it('rejects a negative exact distance during constrained movement', async () => {
+    const props=createProps();
+    let controls!:MoveHarnessControls;
+    const camera=new THREE.PerspectiveCamera(45,4/3,.1,100);
+    camera.position.set(6,5,7);camera.lookAt(0,0,0);camera.updateProjectionMatrix();camera.updateMatrixWorld();
+    const renderer=await ReactThreeTestRenderer.create(<MoveSceneHarness props={props} onReady={current=>{controls=current;}}/>,{
+      width:800,height:600,camera,
+      beforeReturn:fixedBounds,
+    });
+    const plane=renderer.scene.find(node=>node.instance instanceof THREE.Mesh&&node.instance.geometry instanceof THREE.PlaneGeometry&&(node.instance.geometry as THREE.PlaneGeometry).parameters.width===200);
+    await renderer.fireEvent(plane,'onPointerDown',{button:0,pointerId:63,point:new THREE.Vector3(0,0,-.002),nativeEvent:{clientX:400,clientY:300,button:0,pointerId:63,preventDefault:vi.fn()}});
+    await act(async()=>{controls.setConstraint('x');});
+    const move=Object.assign(new Event('pointermove'),{clientX:650,clientY:300,pointerId:63});
+    await act(async()=>{window.dispatchEvent(move);});
+    const session=controls.measurement!;
+    await act(async()=>{controls.setMeasurement({...session,fields:[{...session.fields[0],value:'-25',exact:true}]});});
+    expect(controls.measurement?.canPlace).toBe(false);
+    expect(controls.measurement?.fields[0]?.error).toBe('Value is outside the supported range');
+    expect(props.onCommand).not.toHaveBeenCalled();
+    await renderer.unmount();
+  });
+
+  it('cancels a move handle gesture on pointer cancellation without committing', async () => {
+    const props=createProps();
+    const camera=new THREE.PerspectiveCamera(45,4/3,.1,100);
+    camera.position.set(6,5,7);camera.lookAt(0,0,0);camera.updateProjectionMatrix();camera.updateMatrixWorld();
+    const renderer=await ReactThreeTestRenderer.create(<DesignScene {...props} selectedId="instance-1" activeTool="move"/>,{
+      camera,
+      beforeReturn:fixedBounds,
+    });
+    const handle=moveHandle(renderer,'x');
+    const nativeEvent={clientX:400,clientY:300,button:0,pointerId:19,preventDefault:vi.fn()};
+    await renderer.fireEvent(handle,'onPointerDown',{button:0,pointerId:19,nativeEvent});
+    const cancel=Object.assign(new Event('pointercancel'),{clientX:400,clientY:300,pointerId:19});
+    await act(async()=>{window.dispatchEvent(cancel);});
+    expect(props.onCommand).not.toHaveBeenCalled();
+    expect(props.onToolMeasurementChange).toHaveBeenLastCalledWith(undefined);
+    await renderer.unmount();
+  });
+
+  it('reprojects an active handle drag and updates its non-exact measurement when the axis changes', async () => {
+    const props=createProps();
+    const camera=new THREE.PerspectiveCamera(45,4/3,.1,100);
+    camera.position.set(6,5,7);camera.lookAt(0,0,0);camera.updateProjectionMatrix();camera.updateMatrixWorld();
+    const renderer=await ReactThreeTestRenderer.create(<DesignScene {...props} selectedId="instance-1" activeTool="move"/>,{
+      width:800,height:600,camera,
+      beforeReturn:fixedBounds,
+    });
+    const xHandle=moveHandle(renderer,'x');
+    const nativeEvent={clientX:400,clientY:300,button:0,pointerId:88,preventDefault:vi.fn()};
+    await renderer.fireEvent(xHandle,'onPointerDown',{button:0,pointerId:88,nativeEvent});
+    const initialMeasurement=props.onToolMeasurementChange.mock.calls.at(-1)?.[0] as ToolMeasurementSession;
+    const move=Object.assign(new Event('pointermove'),{clientX:520,clientY:260,pointerId:88});
+    await act(async()=>{window.dispatchEvent(move);});
+
+    await renderer.update(<DesignScene {...props} selectedId="instance-1" activeTool="move" moveConstraint="y" toolMeasurement={initialMeasurement}/>);
+    const synchronized=props.onToolMeasurementChange.mock.calls.at(-1)?.[0] as ToolMeasurementSession;
+    expect(synchronized.fields[0]?.label).toBe('Length (Y)');
+    expect(synchronized.canPlace).toBe(true);
+    expect(Number(synchronized.fields[0]?.value)).toBeGreaterThan(0);
+    await renderer.unmount();
+  });
+  it('ignores clicks on overlaid workspace UI while a free move is active', async () => {
+    const props=createProps();
+    let controls!:MoveHarnessControls;
+    const camera=new THREE.PerspectiveCamera(45,4/3,.1,100);
+    camera.position.set(6,5,7);camera.lookAt(0,0,0);camera.updateProjectionMatrix();camera.updateMatrixWorld();
+    const renderer=await ReactThreeTestRenderer.create(<MoveSceneHarness props={props} onReady={current=>{controls=current;}}/>,{width:800,height:600,camera,beforeReturn:fixedBounds});
+    const plane=renderer.scene.find(node=>node.instance instanceof THREE.Mesh&&node.instance.geometry instanceof THREE.PlaneGeometry&&(node.instance.geometry as THREE.PlaneGeometry).parameters.width===200);
+    await renderer.fireEvent(plane,'onPointerDown',{button:0,pointerId:44,point:new THREE.Vector3(0,0,-.002),nativeEvent:{clientX:400,clientY:300,button:0,pointerId:44,preventDefault:vi.fn()}});
+    await act(async()=>{controls.setConstraint('x');});
+    await act(async()=>{window.dispatchEvent(Object.assign(new Event('pointermove'),{clientX:650,clientY:300,pointerId:44}));});
+    const toolButton=document.createElement('button');document.body.append(toolButton);
+    await act(async()=>{toolButton.dispatchEvent(Object.assign(new Event('pointerdown',{bubbles:true}),{clientX:30,clientY:30,button:0,pointerId:44}));});
+    expect(props.onCommand).not.toHaveBeenCalled();
+    expect(controls.measurement).toBeDefined();
+    toolButton.remove();
+    await renderer.unmount();
+  });
+
+  it('cancels a move handle session that is clicked without dragging', async () => {
+    const props=createProps();
+    const camera=new THREE.PerspectiveCamera(45,4/3,.1,100);
+    camera.position.set(6,5,7);camera.lookAt(0,0,0);camera.updateProjectionMatrix();camera.updateMatrixWorld();
+    const renderer=await ReactThreeTestRenderer.create(<DesignScene {...props} selectedId="instance-1" activeTool="move"/>,{width:800,height:600,camera,beforeReturn:fixedBounds});
+    await renderer.fireEvent(moveHandle(renderer,'x'),'onPointerDown',{button:0,pointerId:23,nativeEvent:{clientX:400,clientY:300,button:0,pointerId:23,preventDefault:vi.fn()}});
+    await act(async()=>{window.dispatchEvent(Object.assign(new Event('pointerup'),{clientX:400,clientY:300,pointerId:23}));});
+    expect(props.onToolMeasurementChange).toHaveBeenLastCalledWith(undefined);
+    props.onToolMeasurementChange.mockClear();
+    await act(async()=>{window.dispatchEvent(Object.assign(new Event('pointermove'),{clientX:600,clientY:280,pointerId:23}));});
+    expect(props.onToolMeasurementChange).not.toHaveBeenCalled();
+    expect(props.onCommand).not.toHaveBeenCalled();
+    await renderer.unmount();
+  });
+
+  it('clears the selection when empty ground is clicked with the Select tool', async () => {
+    const props=createProps();
+    const renderer=await ReactThreeTestRenderer.create(<DesignScene {...props} selectedId="instance-1"/>);
+    const plane=renderer.scene.find(node=>node.instance instanceof THREE.Mesh&&node.instance.geometry instanceof THREE.PlaneGeometry&&(node.instance.geometry as THREE.PlaneGeometry).parameters.width===200);
+    await renderer.fireEvent(plane,'onClick',{shiftKey:false,ctrlKey:false});
+    expect(props.onSelect).toHaveBeenCalledWith(undefined,false,false,false);
     await renderer.unmount();
   });
 });

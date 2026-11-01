@@ -22,12 +22,22 @@ Let a woodworker model a project, inspect its assembly, and intentionally derive
 
 - A project may have no design or an optional local design document. Opening Design on a new manual project does not create a model. Project data uses the versioned IndexedDB repository and local recovery path; there are no accounts, cloud synchronization or cross-device saves.
 - The project workspace includes Select, Eraser, Line, Rectangle, Push/Pull, Move, Rotate, Scale, Paint, Orbit, Pan and Tape Measure, plus a semantic component list, entity properties, five information drawers, shortcut help, undo/redo and a keyboard context menu. Camera/display/snap preferences are local UI state; measurements are transient.
-- The implemented gestures are bounded: Line draws on the XY plane; Rectangle draws on the selected world-aligned YZ, XZ or XY plane, including an offset through an elevated starting corner; Move uses an XY plane; Rotate is around the selected axis (Z in the current gesture path); Scale supports uniform scaling. The current tool gestures do not provide full arbitrary-plane/3D transform manipulation. Push/Pull operates on a selected face with simple extrusion; general booleans, holes, multi-profile joins and unsupported/self-intersecting geometry remain unavailable.
+- The implemented gestures are bounded: Line draws on the XY plane; Rectangle draws on the selected world-aligned YZ, XZ or XY plane, including an offset through an elevated starting corner; Move keeps free XY movement and adds constrained X/Y/Z movement; Rotate is around the selected axis; Scale supports uniform scaling. Push/Pull operates on a selected face with simple extrusion; general booleans, holes, multi-profile joins and unsupported/self-intersecting geometry remain unavailable.
 - Components support single-level definitions and instances, duplicate, Make Unique, shared-definition editing, rename, hide/show and removal. Nested component assemblies are deferred. Some operations have semantic list/property controls, but canvas selection, vertex/face/edge selection, pointer gestures and camera control do not yet have equivalent fully verified keyboard/screen-reader workflows.
 - Modeled board cut dimensions retain the requested size. Stock fit can be verified for known linear cross-sections; missing dimensions are reported as unverified and known undersize is rejected. Panel thickness remains in the model and is explicitly unverified by the 2D sheet optimizer. A reviewed preview is required before modeled parts and their links are applied to Cutlist; manual rows remain independently editable.
 - The standalone `/design-preview` is illustrative, creates no project and saves no model. Use a project's Design tab to create/save a model and review Cutlist changes.
 
 The implementation plan is the source of current evidence, including the remaining Chrome/Edge, multi-tab migration, storage-failure, renderer-resource, performance and assistive-technology gates.
+
+## Move tool: 3D axis movement
+
+1. Select one model item and activate **Move** (`M`). The three colored X/Y/Z handles appear at its transform pivot; **Transform pivot** chooses the object origin or geometry center, and **Transform axes** chooses world or object-local orientation.
+2. Drag a handle and release to preview/place on that axis, or use the existing two-click workflow: click a start point in the viewport, move to preview, then click to place. Free pointer movement remains on the horizontal XY plane.
+3. During a free Move gesture, hold `Shift` and begin/continue dragging to lock to the nearest visible projected axis based on the initial screen-space drag direction. That axis remains locked until Shift is released. If an explicit axis is active, it takes precedence over Shift.
+4. While a Move gesture is active, press `X`, `Y` or `Z` to constrain movement to that axis; press the same key again to return to free movement. The active constraint is highlighted on the handle and shown in the measurement label. Switching constraints reprojects the full current drag onto the new axis.
+5. World/local axis selection applies to handles, keyboard constraints and free-move coordinate conversion. The existing 10 mm grid snap applies after axis constraint. Exact distance entry overrides snapping and follows the selected axis and drag direction (positive when no direction has yet been established). Enter places a valid preview; Escape, tool changes, focus loss or pointer cancellation cancel it. A Move gesture creates one undoable transform.
+
+An axis nearly aligned with the camera view cannot be manipulated reliably; the tool reports the affected axis and asks you to orbit or choose another axis. Move does not add object/vertex snapping or change selection or multi-selection behavior.
 
 ## Rectangle tool: current usage
 
@@ -44,7 +54,7 @@ The implementation plan is the source of current evidence, including the remaini
 4. Move the pointer to preview the opposite corner, or enter positive **Width** and **Height** values in the project's units. The field labels show their world axes. Choose **Follow pointer** to control the extension by pointer position, or use **Direction** to select positive/negative world-axis directions, such as `+X, -Y` on the Z plane. The preview shows a translucent face and colored axis guides.
 5. Click the opposite corner to place the rectangle, or press `Enter` from a valid dimension field. Press `Escape` to cancel the preview. Each completed rectangle creates one undoable loose object.
 
-Changing planes during a preview keeps the first corner and the two in-plane dimensions. Plane and direction controls change the preview without creating a model-history entry. Single-letter shortcuts do not fire while typing in an input, select, editable control or dialog, and do not replace modified shortcuts such as Ctrl/Cmd+Z.
+Changing planes during a preview keeps the first corner and the two in-plane dimensions. Plane and direction controls change the preview without creating a model-history entry. Single-letter shortcuts do not fire while typing in an input, select, editable control or dialog, and do not replace modified shortcuts such as Ctrl/Cmd+Z. During an active Move preview only, bare `X`/`Y`/`Z` and `Shift` remain available while the Move measurement field is focused.
 
 ### Snapping and selection
 

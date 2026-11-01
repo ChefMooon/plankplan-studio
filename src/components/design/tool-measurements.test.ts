@@ -28,6 +28,15 @@ describe('reusable tool measurements', () => {
     const pose={positionUm:[10,20,30] as [number,number,number],rotation:[0,0,0,1] as [number,number,number,number]};
     expect(previewMove(pose,[0,0,0],'world',false,25_000).pose.positionUm).toEqual([25_010,20,30]);
     expect(previewMove(pose,[3_000,4_000,0],'world',false,10_000).pose.positionUm).toEqual([6_010,8_020,30]);
+    expect(previewMove(pose,[0,-3_000,4_000],'world',false,-10_000).pose.positionUm).toEqual([10,6_020,-7_970]);
+  });
+
+  it('keeps moved coordinates as bounded integers and rejects an out-of-range destination', () => {
+    const pose={positionUm:[1_000_000_000,0,0] as [number,number,number],rotation:[0,0,0,1] as [number,number,number,number]};
+    const result=previewMove(pose,[1,0,0],'world',false);
+    expect(result.valid).toBe(false);
+    expect(result.pose.positionUm).toEqual(pose.positionUm);
+    expect(previewMove({...pose,positionUm:[0,0,0]},[0.4,1.6,0],'world',false).pose.positionUm).toEqual([0,2,0]);
   });
 
   it('previews signed rotation from the captured transform and honors the center pivot', () => {

@@ -2,7 +2,7 @@ import { VertexDrawing } from './VertexDrawing';
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useFrame, useThree, type ThreeEvent } from '@react-three/fiber';
 import { DesignCanvas as Canvas } from './DesignCanvas';
-import { Edges, Grid, Line, OrbitControls } from '@react-three/drei';
+import { Edges, Grid, Html, Line, OrbitControls } from '@react-three/drei';
 import * as THREE from 'three';
 import type { DesignDocumentV1, Geometry, Instance, LooseObject } from '@/lib/planner/design/schema';
 import type { UnitSystem } from '@/lib/planner/model';
@@ -16,8 +16,9 @@ import { buildModelGeometry } from './mesh-geometry';
 import { isPushPullEndFace, rectangularPushPullFace, shouldShowPushPullFaceIndicator } from '../push-pull';
 import type { ToolMeasurementSession } from '../tool-measurements';
 import { parseMeasurement, previewMove, previewRotate, previewScale } from '../tool-measurements';
+import { moveAxisDirection, pickProjectedMoveAxis, previewMoveOnAxis, projectedMoveAxes, rayAtClientPoint, rayAxisCoordinate, resolveMoveConstraint, type MoveAxis } from '../move-gesture';
 
-type Props = { design?: DesignDocumentV1; unitSystem: UnitSystem; selectedId?: string; selectedCount?:number; selectedElement?:{objectId:string}&SubElement; editingDefinitionId?: string; editingObjectId?: string; onSelect: (id?: string, additive?: boolean, subtractive?: boolean, shiftOnly?:boolean) => void; onSubSelect?: (objectId:string, element?:SubElement)=>void; onEnterDefinition:(id:string)=>void; rectangleAxis?: 'x'|'y'|'z'; rectangleDirection?: 'pointer'|'++'|'-+'|'+-'|'--'; activeTool: string; snap: boolean; exactUm?: number; pivotMode: PivotMode; rotationPivotMode: RotationPivotMode; axisMode: AxisMode; onCommand: (command: DesignCommand) => void; onMeasure: (value?: number) => void; onToolError:(message:string)=>void; preset: 'iso'|'top'|'front'|'right'; projection: 'perspective'|'orthographic'; grid: boolean; axes: boolean; frameRequest: number; toolMeasurement?:ToolMeasurementSession; onToolMeasurementChange:(session?:ToolMeasurementSession)=>void; onRegisterMeasurementActions:(actions?:{commit:()=>void;cancel:()=>void})=>void; onContextLoss: () => void; onContextRestore: () => void };
+type Props = { design?: DesignDocumentV1; unitSystem: UnitSystem; selectedId?: string; selectedCount?:number; selectedElement?:{objectId:string}&SubElement; editingDefinitionId?: string; editingObjectId?: string; onSelect: (id?: string, additive?: boolean, subtractive?: boolean, shiftOnly?:boolean) => void; onSubSelect?: (objectId:string, element?:SubElement)=>void; onEnterDefinition:(id:string)=>void; rectangleAxis?: 'x'|'y'|'z'; rectangleDirection?: 'pointer'|'++'|'-+'|'+-'|'--'; activeTool: string; snap: boolean; exactUm?: number; pivotMode: PivotMode; rotationPivotMode: RotationPivotMode; axisMode: AxisMode; moveConstraint?: MoveAxis|null; moveShiftHeld?: boolean; onCommand: (command: DesignCommand) => void; onMeasure: (value?: number) => void; onToolError:(message:string)=>void; preset: 'iso'|'top'|'front'|'right'; projection: 'perspective'|'orthographic'; grid: boolean; axes: boolean; frameRequest: number; toolMeasurement?:ToolMeasurementSession; onToolMeasurementChange:(session?:ToolMeasurementSession)=>void; onRegisterMeasurementActions:(actions?:{commit:()=>void;cancel:()=>void})=>void; onContextLoss: () => void; onContextRestore: () => void };
 const colors = { board: '#bd8a56', selected: '#e6a94e', locked: '#747f86', hover: '#d4a979' };
 function createDotTexture() {
   const canvas=document.createElement('canvas');canvas.width=canvas.height=16;
@@ -28,6 +29,10 @@ function dotSpacingWorld(camera:THREE.Camera,point:THREE.Vector3,height:number) 
   if(camera instanceof THREE.PerspectiveCamera)return Math.max(0.01,2*camera.position.distanceTo(point)*Math.tan(THREE.MathUtils.degToRad(camera.fov/2))/(camera.zoom*height)*12);
   if(camera instanceof THREE.OrthographicCamera)return Math.max(0.01,(camera.top-camera.bottom)/(camera.zoom*height)*12);
   return 0.01;
+}
+function worldPerPixel(camera:THREE.Camera,point:THREE.Vector3,height:number) {
+  const value=camera instanceof THREE.PerspectiveCamera?2*camera.position.distanceTo(point)*Math.tan(THREE.MathUtils.degToRad(camera.fov/2))/(camera.zoom*height):camera instanceof THREE.OrthographicCamera?(camera.top-camera.bottom)/(camera.zoom*height):0.01;
+  return Number.isFinite(value)&&value>0?value:0.01;
 }
 function hitFaceNormalLocal(event:ThreeEvent<PointerEvent>):[number,number,number] {
   const normal=event.face?.normal.clone()??new THREE.Vector3(0,0,1);
@@ -229,15 +234,16 @@ function InstanceMesh({ item, geometry, cutSpec, selected, selectedElement, onSe
   return <group position={position} quaternion={quaternion} scale={scale} onDoubleClick={event=>{if(tool==='select'){event.stopPropagation();if('definitionId'in item)onEnterDefinition(item.definitionId);else onEnterDefinition(item.id);}}}><ObjectGeometry geometry={pushPullPreview??geometry} targetId={item.id} color={color} selected={selected} invalid={invalid} preview={!!pushPullPreview} overlay={profileOverlay} onFaceOut={()=>setProfileFaceIndicator(undefined)} onSelect={click} onPushPullPointerDown={pushPullPointerDown} onPushPullPointerMove={pushPullPointerMove} /></group>;
 }
 
-function DrawingPlane({activeTool,snap,exactUm,unitSystem,pivotMode,rotationPivotMode,axisMode,onCommand,onMeasure,onSelect,onToolError,design,selectedId,selectedCount,selectedElement,editingDefinitionId,toolMeasurement,onToolMeasurementChange,onRegisterMeasurementActions}:Pick<Props,'activeTool'|'snap'|'exactUm'|'pivotMode'|'rotationPivotMode'|'axisMode'|'onCommand'|'onMeasure'|'onSelect'|'onToolError'|'design'|'selectedId'|'selectedCount'|'selectedElement'|'editingDefinitionId'|'toolMeasurement'|'onToolMeasurementChange'|'onRegisterMeasurementActions'|'unitSystem'>) {
+function DrawingPlane({activeTool,snap,exactUm,unitSystem,pivotMode,rotationPivotMode,axisMode,moveConstraint,moveShiftHeld,onCommand,onMeasure,onSelect,onToolError,design,selectedId,selectedCount,selectedElement,editingDefinitionId,toolMeasurement,onToolMeasurementChange,onRegisterMeasurementActions}:Pick<Props,'activeTool'|'snap'|'exactUm'|'pivotMode'|'rotationPivotMode'|'axisMode'|'moveConstraint'|'moveShiftHeld'|'onCommand'|'onMeasure'|'onSelect'|'onToolError'|'design'|'selectedId'|'selectedCount'|'selectedElement'|'editingDefinitionId'|'toolMeasurement'|'onToolMeasurementChange'|'onRegisterMeasurementActions'|'unitSystem'>) {
   const canvas=useThree(state=>state.gl.domElement);
   const camera=useThree(state=>state.camera);
   const viewportSize=useThree(state=>state.size);
   const rotationGizmoRef=useRef<THREE.Group>(null);
+  const moveGizmoRef=useRef<THREE.Group>(null);
   const session=useRef(createCapturedPlanarSession<THREE.Vector3>());
   const completedSessions=useRef(new Set<string>());
   const [measureGesture,setMeasureGesture]=useState<{start:THREE.Vector3;end:THREE.Vector3;sessionId:string}>();
-  const [transformGesture,setTransformGesture]=useState<{mode:'move'|'rotate'|'scale';start:THREE.Vector3;end:THREE.Vector3;rotationBaseDegrees:number;rotationDragging?:boolean;rotationPointerId?:number;rotationLastVector?:[number,number,number];rotationLastClientX?:number;rotationDragStartClient?:[number,number];rotationHadPreviewAtStart?:boolean;sessionId:string;target:Instance|LooseObject;geometry:Geometry;centerLocal:[number,number,number];rotationAxis?:RotationAxis}>();
+  const [transformGesture,setTransformGesture]=useState<{mode:'move'|'rotate'|'scale';start:THREE.Vector3;end:THREE.Vector3;rotationBaseDegrees:number;rotationDragging?:boolean;rotationPointerId?:number;rotationLastVector?:[number,number,number];rotationLastClientX?:number;rotationDragStartClient?:[number,number];rotationHadPreviewAtStart?:boolean;sessionId:string;target:Instance|LooseObject;geometry:Geometry;centerLocal:[number,number,number];rotationAxis?:RotationAxis;moveAxis?:MoveAxis;moveShiftAxis?:MoveAxis;moveAxisSigns?:Partial<Record<MoveAxis,-1|1>>;moveFromHandle?:boolean;moveStartClient?:[number,number];moveLastClient?:[number,number];movePivot?:[number,number,number];moveStartAxisCoordinate?:number;movePointerId?:number}>();
   const transformGestureRef=useRef(transformGesture);
   useLayoutEffect(()=>{transformGestureRef.current=transformGesture;},[transformGesture]);
   const rotationVertices=useMemo(()=>designVertices(design,editingDefinitionId),[design,editingDefinitionId]);
@@ -247,6 +253,13 @@ function DrawingPlane({activeTool,snap,exactUm,unitSystem,pivotMode,rotationPivo
   const selectedTransformGeometry=selectedInstance?design?.definitions.find(item=>item.id===selectedInstance.definitionId)?.geometry:selectedLoose?.geometry;
   const rotationTarget=activeTool==='rotate'&&selectedTransformTarget&&!selectedTransformTarget.locked&&selectedTransformGeometry?selectedTransformTarget:undefined;
   const rotationGeometry=rotationTarget?selectedTransformGeometry:undefined;
+  const moveTarget=activeTool==='move'&&selectedTransformTarget&&!selectedTransformTarget.locked?selectedTransformTarget:undefined;
+  const moveGeometry=moveTarget?selectedTransformGeometry:undefined;
+  const movePivotFor=useCallback((target:Instance|LooseObject,geometry:Geometry)=>{
+    const local=pivotMode==='center'?geometryCenter(geometry):[0,0,0] as [number,number,number];
+    return transformLocalPoint(local,target.pose,target.scalePpm).map(umToMeters) as [number,number,number];
+  },[pivotMode]);
+  const movePivot=moveTarget&&moveGeometry?movePivotFor(moveTarget,moveGeometry):undefined;
   const measureValue=(gesture=measureGesture)=>{
     if(!gesture)return 0;
     const field=toolMeasurement?.id===gesture.sessionId?toolMeasurement.fields[0]:undefined;
@@ -283,17 +296,33 @@ function DrawingPlane({activeTool,snap,exactUm,unitSystem,pivotMode,rotationPivo
     const pivotX=(projectedPivot.x+1)*viewportSize.width/2,pivotY=(1-projectedPivot.y)*viewportSize.height/2;
     const cornerRadius=rotationPivotMode==='origin'?rotationVertices.filter(vertex=>vertex.objectId===target.id).reduce((radius,vertex)=>{const projected=new THREE.Vector3(...vertex.point).project(camera);if(projected.z< -1||projected.z>1)return radius;return Math.max(radius,Math.hypot((projected.x+1)*viewportSize.width/2-pivotX,(1-projected.y)*viewportSize.height/2-pivotY));},0):0;
     const radiusPixels=rotationGizmoRadiusPixels(rotationPivotMode,cornerRadius);
-    const worldPerPixel=camera instanceof THREE.PerspectiveCamera?2*camera.position.distanceTo(point)*Math.tan(THREE.MathUtils.degToRad(camera.fov/2))/(camera.zoom*viewportSize.height):camera instanceof THREE.OrthographicCamera?(camera.top-camera.bottom)/(camera.zoom*viewportSize.height):0.01;
-    rotationGizmoRef.current.scale.setScalar(Math.max(0.0001,worldPerPixel*radiusPixels));
+    rotationGizmoRef.current.scale.setScalar(Math.max(0.0001,worldPerPixel(camera,point,viewportSize.height)*radiusPixels));
+  });
+  useFrame(()=>{
+    if(!moveGizmoRef.current)return;
+    if(!moveTarget||!moveGeometry||!movePivot){moveGizmoRef.current.visible=false;return;}
+    moveGizmoRef.current.visible=true;
+    const point=new THREE.Vector3(...movePivot);
+    moveGizmoRef.current.scale.setScalar(Math.max(0.0001,worldPerPixel(camera,point,viewportSize.height)*42));
   });
   const transformResult=useCallback((gesture=transformGesture,end=gesture?.end)=>{
     if(!gesture||!end)return undefined;
     const {target,geometry,centerLocal,mode}=gesture;const field=toolMeasurement?.id===gesture.sessionId?toolMeasurement.fields[0]:undefined;
-    const typed=field?.exact?parseMeasurement(field.value):undefined;const exactInvalid=!!field?.exact&&typed===undefined;
+    const typed=field?.exact?parseMeasurement(field.value):undefined;const exactInvalid=!!field?.exact&&(typed===undefined||mode==='move'&&typed<=0);
     let pose:typeof target.pose;let scalePpm=target.scalePpm as [number,number,number];let display:string;let valid:boolean;
     if(mode==='move'){
-      const raw:[number,number,number]=[metersToUm(end.x-gesture.start.x),metersToUm(end.y-gesture.start.y),metersToUm(end.z-gesture.start.z)];const preview=previewMove(target.pose,raw,axisMode,snap,typed===undefined?undefined:Math.round(typed*(unitSystem==='imperial'?25_400:1_000)));
-      pose=preview.pose;display=(unitSystem==='imperial'?preview.distanceUm/25_400:preview.distanceUm/1_000).toFixed(unitSystem==='imperial'?3:1);valid=preview.distanceUm>0;
+      const raw:[number,number,number]=[metersToUm(end.x-gesture.start.x),metersToUm(end.y-gesture.start.y),metersToUm(end.z-gesture.start.z)];
+      const exact=typed===undefined?undefined:Math.round(typed*(unitSystem==='imperial'?25_400:1_000));
+      const constrainedAxis=resolveMoveConstraint(moveConstraint,gesture.moveAxis,gesture.moveShiftAxis);
+      if(constrainedAxis){
+        const direction=moveAxisDirection(constrainedAxis,target.pose,axisMode).toArray() as [number,number,number];
+        const coordinate=Math.round(raw[0]*direction[0]+raw[1]*direction[1]+raw[2]*direction[2]);
+        const preview=previewMoveOnAxis(target.pose,constrainedAxis,coordinate,axisMode,snap,exact,gesture.moveAxisSigns?.[constrainedAxis]);
+        pose=preview.pose;display=(unitSystem==='imperial'?preview.distanceUm/25_400:preview.distanceUm/1_000).toFixed(unitSystem==='imperial'?3:1);valid=preview.valid&&(preview.distanceUm>0||exact!==undefined&&exact!==0);
+      }else{
+        const preview=previewMove(target.pose,raw,axisMode,snap,exact);
+        pose=preview.pose;display=(unitSystem==='imperial'?preview.distanceUm/25_400:preview.distanceUm/1_000).toFixed(unitSystem==='imperial'?3:1);valid=preview.valid&&preview.distanceUm>0;
+      }
     }else if(mode==='rotate'){
       const rawDegrees=typed??gesture.rotationBaseDegrees;const degrees=typed??(snap?Math.round(rawDegrees/15)*15:rawDegrees);const axis=toolMeasurement?.id===gesture.sessionId?toolMeasurement.rotationAxis:gesture.rotationAxis;display=degrees.toFixed(2);valid=!!axis&&Number.isFinite(degrees)&&Math.abs(degrees)>0;
       pose=previewRotate(target.pose,scalePpm,centerLocal,axis?degrees:0,axis??'z',rotationPivotFor(target,geometry)).pose;
@@ -302,14 +331,14 @@ function DrawingPlane({activeTool,snap,exactUm,unitSystem,pivotMode,rotationPivo
       const preview=previewScale(target.pose,target.scalePpm,centerLocal,factor,pivotMode);scalePpm=preview.scalePpm;valid=preview.valid;pose=preview.pose;
     }
     return {pose,scalePpm,display,valid:valid&&!exactInvalid,geometry,target};
-  },[transformGesture,toolMeasurement,axisMode,snap,pivotMode,unitSystem,rotationPivotFor]);
+  },[transformGesture,toolMeasurement,axisMode,moveConstraint,snap,pivotMode,unitSystem,rotationPivotFor]);
   const commitTransform=useCallback((gesture=transformGesture,end=gesture?.end)=>{
     const result=transformResult(gesture,end);if(!gesture||completedSessions.current.has(gesture.sessionId))return;if(!result?.valid){onToolError('Enter a valid nonzero value for this transform');return;}completedSessions.current.add(gesture.sessionId);
     const target=gesture.target;const instance=design?.instances.some(item=>item.id===target.id);
     onCommand(instance?{type:'set-instance-transform',instanceId:target.id,pose:result.pose,...(gesture.mode==='scale'?{scalePpm:result.scalePpm,reason:'instance-scaled' as const}:{})}:{type:'set-loose-transform',objectId:target.id,pose:result.pose,...(gesture.mode==='scale'?{scalePpm:result.scalePpm}:{})});
     setTransformGesture(undefined);onToolMeasurementChange(undefined);onRegisterMeasurementActions(undefined);onToolError(`${gesture.mode[0].toUpperCase()+gesture.mode.slice(1)} placed`);
   },[transformGesture,transformResult,design,onCommand,onToolMeasurementChange,onRegisterMeasurementActions,onToolError]);
-  const cancelTransform=()=>{setTransformGesture(undefined);onToolMeasurementChange(undefined);onRegisterMeasurementActions(undefined);onToolError('Transform canceled');};
+  const cancelTransform=useCallback(()=>{setTransformGesture(undefined);onToolMeasurementChange(undefined);onRegisterMeasurementActions(undefined);onToolError('Transform canceled');},[onToolMeasurementChange,onRegisterMeasurementActions,onToolError]);
   // Synchronize the provisional transform with the selected model target; stale previews must not be committed.
   // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(()=>{if(!transformGesture)return;const current=design?.instances.find(item=>item.id===transformGesture.target.id)??design?.looseObjects.find(item=>item.id===transformGesture.target.id);if(selectedId!==transformGesture.target.id||current!==transformGesture.target)cancelTransform();});
@@ -359,21 +388,165 @@ function DrawingPlane({activeTool,snap,exactUm,unitSystem,pivotMode,rotationPivo
     if(!measureGesture)return;const end=event.point.clone();setMeasureGesture(current=>current?{...current,end}:current);
     if(toolMeasurement?.id===measureGesture.sessionId){const field=toolMeasurement.fields[0];if(!field.exact){const value=Math.round(measureGesture.start.distanceTo(end)*1_000_000);onToolMeasurementChange({...toolMeasurement,fields:[{...field,value:(unitSystem==='imperial'?value/25_400:value/1_000).toFixed(unitSystem==='imperial'?3:1)}],canPlace:value>0});}}
   };
-  const startTransformSession=(target:Instance|LooseObject,geometry:Geometry,start:THREE.Vector3,mode:'move'|'rotate'|'scale',id:string,rotationAxis?:RotationAxis)=>{
-    const gesture={mode,start:start.clone(),end:start.clone(),rotationBaseDegrees:0,sessionId:id,target,geometry,centerLocal:geometryCenter(geometry)} as const;
+  const startTransformSession=(target:Instance|LooseObject,geometry:Geometry,start:THREE.Vector3,mode:'move'|'rotate'|'scale',id:string,rotationAxis?:RotationAxis,moveAxis?:MoveAxis,client?:[number,number],fromHandle=false,pivot?:[number,number,number],startAxisCoordinate?:number,pointerId?:number)=>{
+    const gesture={mode,start:start.clone(),end:start.clone(),rotationBaseDegrees:0,sessionId:id,target,geometry,centerLocal:geometryCenter(geometry),rotationAxis,moveAxis,moveFromHandle:fromHandle,moveStartClient:client,moveLastClient:client,movePivot:pivot,moveStartAxisCoordinate:startAxisCoordinate,movePointerId:pointerId} as const;
     setTransformGesture(gesture);onToolMeasurementChange({id,tool:mode[0].toUpperCase()+mode.slice(1),rotationAxis,canPlace:false,fields:[{id:'value',label:mode==='move'?'Length':mode==='rotate'?'Angle':'Scale',value:mode==='scale'?'1':'0',unit:mode==='move'?(unitSystem==='imperial'?'in':'mm'):mode==='rotate'?'°':'×',min:mode==='move'||mode==='scale'?0.001:undefined}]});
     return gesture;
   };
+  const moveGestureAtPointer=useCallback((gesture:NonNullable<typeof transformGesture>,clientX:number,clientY:number)=>{
+    let updated={...gesture,moveLastClient:[clientX,clientY] as [number,number]};
+    if(moveShiftHeld&&!moveConstraint&&(!updated.moveAxis||moveConstraint===null)&&!updated.moveShiftAxis&&updated.moveStartClient){
+      const pivot=updated.movePivot??movePivotFor(updated.target,updated.geometry);
+      const pivotPoint=new THREE.Vector3(...pivot);
+      const axes=projectedMoveAxes(camera,pivotPoint,viewportSize.width,viewportSize.height,updated.target.pose,axisMode,8,worldPerPixel(camera,pivotPoint,viewportSize.height)*42);
+      const hit=pickProjectedMoveAxis(axes,clientX-updated.moveStartClient[0],clientY-updated.moveStartClient[1]);
+      if(hit)updated={...updated,moveShiftAxis:hit.axis,moveAxisSigns:{...updated.moveAxisSigns,[hit.axis]:hit.sign}};
+    }else if(!moveShiftHeld&&updated.moveShiftAxis)updated={...updated,moveShiftAxis:undefined};
+    const axis=resolveMoveConstraint(moveConstraint,updated.moveAxis,updated.moveShiftAxis);
+    if(axis){
+      const pivot=updated.movePivot??movePivotFor(updated.target,updated.geometry);
+      const origin=new THREE.Vector3(...pivot);
+      const direction=moveAxisDirection(axis,updated.target.pose,axisMode);
+      const from=updated.moveStartClient??[clientX,clientY];
+      const startRay=rayAtClientPoint(camera,canvas,from[0],from[1]);
+      const currentRay=rayAtClientPoint(camera,canvas,clientX,clientY);
+      const startCoordinate=updated.moveAxis===axis&&updated.moveStartAxisCoordinate!==undefined
+        ? updated.moveStartAxisCoordinate
+        : startRay&&rayAxisCoordinate(startRay,origin,direction);
+      const currentCoordinate=currentRay&&rayAxisCoordinate(currentRay,origin,direction);
+      if(startCoordinate===undefined||currentCoordinate===undefined){
+        onToolError(`${axis.toUpperCase()} axis is too close to the camera direction to move; orbit the view or choose another axis`);
+        return undefined;
+      }
+      updated={...updated,moveStartAxisCoordinate:startCoordinate,movePivot:pivot};
+      const signedCoordinate=currentCoordinate-startCoordinate;
+      if(Math.abs(signedCoordinate)>1e-8)updated.moveAxisSigns={...updated.moveAxisSigns,[axis]:Math.sign(signedCoordinate) as -1|1};
+      const delta=direction.multiplyScalar(signedCoordinate);
+      updated.end=updated.start.clone().add(delta);
+    }else{
+      const ray=rayAtClientPoint(camera,canvas,clientX,clientY);
+      const freePoint=ray?.intersectPlane(new THREE.Plane(new THREE.Vector3(0,0,1),-gesture.start.z),new THREE.Vector3());
+      if(freePoint){
+        if(gesture.moveFromHandle&&gesture.moveStartClient){
+          const startRay=rayAtClientPoint(camera,canvas,...gesture.moveStartClient);
+          const startPlane=new THREE.Plane(new THREE.Vector3(0,0,1),-gesture.start.z);
+          const freeStart=startRay?.intersectPlane(startPlane,new THREE.Vector3());
+          if(freeStart)updated.end=gesture.start.clone().add(freePoint.clone().sub(freeStart));
+        }else updated.end=freePoint.clone();
+      }
+      updated.moveAxis=undefined;
+      updated.moveStartAxisCoordinate=undefined;
+    }
+    return updated;
+  },[moveShiftHeld,moveConstraint,camera,canvas,viewportSize,axisMode,onToolError,movePivotFor]);
+  const movePointerUpdater=useRef(moveGestureAtPointer);
+  const transformResultUpdater=useRef(transformResult);
+  const measurementUpdateRef=useRef(onToolMeasurementChange);
+  const measurementSessionRef=useRef(toolMeasurement);
+  useLayoutEffect(()=>{movePointerUpdater.current=moveGestureAtPointer;},[moveGestureAtPointer]);
+  useLayoutEffect(()=>{transformResultUpdater.current=transformResult;},[transformResult]);
+  useLayoutEffect(()=>{measurementUpdateRef.current=onToolMeasurementChange;measurementSessionRef.current=toolMeasurement;},[onToolMeasurementChange,toolMeasurement]);
+  const commitTransformRef=useRef(commitTransform);
+  const cancelTransformRef=useRef(cancelTransform);
+  useLayoutEffect(()=>{commitTransformRef.current=commitTransform;cancelTransformRef.current=cancelTransform;},[commitTransform,cancelTransform]);
+  // Store the gesture and mirror its axis label, distance, and placeability into the measurement box.
+  const applyMoveUpdate=useCallback((updated:NonNullable<typeof transformGesture>)=>{
+    transformGestureRef.current=updated;setTransformGesture(updated);
+    const session=measurementSessionRef.current;if(session?.id!==updated.sessionId)return;
+    const result=transformResultUpdater.current(updated,updated.end);if(!result)return;
+    const axis=resolveMoveConstraint(moveConstraint,updated.moveAxis,updated.moveShiftAxis);
+    const label=`Length${axis?` (${axis.toUpperCase()})`:''}`;
+    const field=session.fields[0];
+    if(field?.label===label&&(field.exact||field.value===result.display)&&session.canPlace===result.valid)return;
+    const next={...session,canPlace:result.valid,fields:session.fields.map(current=>current.id===field?.id?{...current,label,...(!current.exact?{value:result.display}:{})}:current)};
+    measurementSessionRef.current=next;measurementUpdateRef.current(next);
+  },[moveConstraint]);
+  const applyMoveUpdateRef=useRef(applyMoveUpdate);
+  useLayoutEffect(()=>{applyMoveUpdateRef.current=applyMoveUpdate;},[applyMoveUpdate]);
+  useEffect(()=>{
+    const gesture=transformGestureRef.current;
+    if(activeTool!=='move'||gesture?.mode!=='move'||!gesture.moveLastClient)return;
+    const updated=movePointerUpdater.current(gesture,...gesture.moveLastClient);
+    // Axis and Shift changes must immediately refresh the visible preview.
+    if(updated)applyMoveUpdateRef.current(updated);
+  },[activeTool,moveConstraint,moveShiftHeld]);
   const beginTransform=(event:ThreeEvent<PointerEvent>)=>{
     const instance=design?.instances.find(item=>item.id===selectedId);const loose=design?.looseObjects.find(item=>item.id===selectedId);const target=instance??loose;
     if(!target){onToolError('Select a component or loose object before transforming');return;}
     if(target.locked){onToolError('This entity is locked');return;}
     const geometry=instance?design?.definitions.find(def=>def.id===instance.definitionId)?.geometry:loose?.geometry;if(!geometry){onToolError('Transform target has no editable geometry');return;}
-    const mode=activeTool as 'move'|'rotate'|'scale';startTransformSession(target,geometry,event.point,mode,`${mode}-${target.id}-${globalThis.crypto.randomUUID()}`);
+    const mode=activeTool as 'move'|'rotate'|'scale';
+    const gesture=startTransformSession(target,geometry,event.point,mode,`${mode}-${target.id}-${globalThis.crypto.randomUUID()}`);
+    if(mode==='move'){
+      const withPointer={...gesture,moveStartClient:[event.nativeEvent.clientX,event.nativeEvent.clientY] as [number,number],moveLastClient:[event.nativeEvent.clientX,event.nativeEvent.clientY] as [number,number],movePivot:movePivotFor(target,geometry),movePointerId:event.pointerId};
+      transformGestureRef.current=withPointer;setTransformGesture(withPointer);
+    }
     onToolError(mode==='rotate'?'Choose an axis ring, then drag to preview':'Move start set · move to preview or enter a value');
   };
+  const beginMoveAxisDrag=(axis:MoveAxis,event:ThreeEvent<PointerEvent>)=>{
+    if(event.button!==0)return;
+    event.stopPropagation();event.nativeEvent.preventDefault();
+    // An active move owns pointer input through its window and canvas listeners.
+    if(transformGestureRef.current?.mode==='move')return;
+    const target=selectedTransformTarget;const geometry=selectedTransformGeometry;
+    if(!target||!geometry){onToolError('Select a component or loose object before moving');return;}
+    if(target.locked){onToolError('This entity is locked');return;}
+    const pivot=movePivotFor(target,geometry);const ray=rayAtClientPoint(camera,canvas,event.nativeEvent.clientX,event.nativeEvent.clientY);
+    const direction=moveAxisDirection(axis,target.pose,axisMode);
+    const startCoordinate=ray&&rayAxisCoordinate(ray,new THREE.Vector3(...pivot),direction);
+    if(startCoordinate===undefined){onToolError(`${axis.toUpperCase()} axis is too close to the camera direction to move; orbit the view or choose another axis`);return;}
+    const client:[number,number]=[event.nativeEvent.clientX,event.nativeEvent.clientY];
+    const base=startTransformSession(target,geometry,new THREE.Vector3(),'move',`move-${target.id}-${globalThis.crypto.randomUUID()}`,undefined,axis,client,true,pivot,startCoordinate,event.pointerId);
+    const gesture={...base,moveAxis:axis,moveFromHandle:true,movePointerId:event.pointerId,moveStartAxisCoordinate:startCoordinate,moveLastClient:client};
+    transformGestureRef.current=gesture;setTransformGesture(gesture);
+    onToolMeasurementChange({id:gesture.sessionId,tool:'Move',canPlace:false,fields:[{id:'value',label:`Length (${axis.toUpperCase()})`,value:'0',unit:unitSystem==='imperial'?'in':'mm',min:0.001}]});
+    onToolError(`Moving on ${axis.toUpperCase()} axis · drag and release to place`);
+  };
+  useEffect(()=>{
+    if(!transformGesture?.moveFromHandle)return;
+    const move=(event:PointerEvent)=>{
+      const current=transformGestureRef.current;if(!current?.moveFromHandle||event.pointerId!==current.movePointerId)return;
+      const updated=movePointerUpdater.current(current,event.clientX,event.clientY);
+      if(updated)applyMoveUpdateRef.current(updated);
+    };
+    const end=(event:PointerEvent)=>{
+      const current=transformGestureRef.current;if(!current?.moveFromHandle||event.pointerId!==current.movePointerId)return;
+      const updated=event.type==='pointerup'?movePointerUpdater.current(current,event.clientX,event.clientY):undefined;
+      // A click without a drag (or a cancelled pointer) must not leave the handle session following the cursor.
+      if(updated&&transformResultUpdater.current(updated,updated.end)?.valid){applyMoveUpdateRef.current(updated);commitTransformRef.current(updated,updated.end);}
+      else cancelTransformRef.current();
+    };
+    window.addEventListener('pointermove',move);window.addEventListener('pointerup',end);window.addEventListener('pointercancel',end);
+    return()=>{window.removeEventListener('pointermove',move);window.removeEventListener('pointerup',end);window.removeEventListener('pointercancel',end);};
+  },[transformGesture?.moveFromHandle]);
+  useEffect(()=>{
+    if(transformGesture?.mode!=='move'||transformGesture.moveFromHandle||!transformGesture.moveStartClient)return;
+    const insideCanvas=(clientX:number,clientY:number)=>{
+      const bounds=canvas.getBoundingClientRect();
+      return clientX>=bounds.left&&clientX<=bounds.right&&clientY>=bounds.top&&clientY<=bounds.bottom;
+    };
+    const move=(event:PointerEvent)=>{
+      const current=transformGestureRef.current;
+      if(!current||current.mode!=='move'||current.moveFromHandle||event.pointerId!==current.movePointerId||!insideCanvas(event.clientX,event.clientY))return;
+      const updated=movePointerUpdater.current(current,event.clientX,event.clientY);
+      if(updated)applyMoveUpdateRef.current(updated);
+    };
+    // Listen on the canvas itself so clicks on overlaid workspace UI never place the move.
+    const down=(event:PointerEvent)=>{
+      if(event.button!==0)return;
+      const current=transformGestureRef.current;
+      if(!current||current.mode!=='move'||current.moveFromHandle)return;
+      event.preventDefault();event.stopImmediatePropagation();
+      const updated=movePointerUpdater.current(current,event.clientX,event.clientY);
+      if(updated){applyMoveUpdateRef.current(updated);commitTransformRef.current(updated,updated.end);}
+    };
+    window.addEventListener('pointermove',move);
+    canvas.addEventListener('pointerdown',down,true);
+    return()=>{window.removeEventListener('pointermove',move);canvas.removeEventListener('pointerdown',down,true);};
+  },[transformGesture?.mode,transformGesture?.moveFromHandle,transformGesture?.moveStartClient,canvas]);
   const updateTransformPointer=(event:ThreeEvent<PointerEvent>)=>{
-    if(!transformGesture||transformGesture.mode==='rotate')return;const end=event.point.clone();const updated={...transformGesture,end};setTransformGesture(updated);
+    // Move gestures are driven by the window pointer listeners, which also handle off-plane pointers.
+    if(!transformGesture||transformGesture.mode==='rotate'||transformGesture.mode==='move')return;const end=event.point.clone();const updated={...transformGesture,end};setTransformGesture(updated);
     const result=transformResult(updated,end);if(!result)return;
     if(toolMeasurement?.id===updated.sessionId){const field=toolMeasurement.fields[0];if(!field.exact){const value=updated.mode==='scale'?result.display.replace('×',''):result.display;onToolMeasurementChange({...toolMeasurement,fields:[{...field,value}],canPlace:result.valid});}}
   };
@@ -427,7 +600,7 @@ function DrawingPlane({activeTool,snap,exactUm,unitSystem,pivotMode,rotationPivo
     return {start:start.toArray() as [number,number,number],end:end.toArray() as [number,number,number]};
   })();
   return <>
-    <mesh key={activeTool} position={[0,0,-.002]} onPointerDown={event=>{if(event.button!==0)return;event.stopPropagation();if(activeTool==='measure'){placeMeasurePoint(event);return;}if(['move','rotate','scale'].includes(activeTool)){if(transformGesture)commitTransform({...transformGesture,end:event.point.clone()},event.point.clone());else beginTransform(event);return;}if(!['line'].includes(activeTool))return;(event.target as unknown as {setPointerCapture?:(id:number)=>void}).setPointerCapture?.(event.pointerId);session.current.begin(event.point.clone());}} onPointerMove={event=>{if(activeTool==='measure')updateMeasurePointer(event);if(['move','rotate','scale'].includes(activeTool))updateTransformPointer(event);}} onPointerUp={event=>{if(activeTool==='line'&&session.current.active)finish(event.point.clone(),event);}} onLostPointerCapture={()=>{session.current.cancel();}} onPointerCancel={()=>{session.current.cancel();}} onClick={event=>{if(activeTool==='select')onSelect(undefined, event.shiftKey||event.ctrlKey, event.ctrlKey&&event.shiftKey,event.shiftKey&&!event.ctrlKey);}}>
+    <mesh key={activeTool} position={[0,0,-.002]} onPointerDown={event=>{if(event.button!==0)return;event.stopPropagation();if(activeTool==='measure'){placeMeasurePoint(event);return;}if(['move','rotate','scale'].includes(activeTool)){if(transformGesture){if(transformGesture.mode!=='move')commitTransform({...transformGesture,end:event.point.clone()},event.point.clone());}else beginTransform(event);return;}if(!['line'].includes(activeTool))return;(event.target as unknown as {setPointerCapture?:(id:number)=>void}).setPointerCapture?.(event.pointerId);session.current.begin(event.point.clone());}} onPointerMove={event=>{if(activeTool==='measure')updateMeasurePointer(event);if(['move','rotate','scale'].includes(activeTool))updateTransformPointer(event);}} onPointerUp={event=>{if(activeTool==='line'&&session.current.active)finish(event.point.clone(),event);}} onLostPointerCapture={()=>{session.current.cancel();}} onPointerCancel={()=>{session.current.cancel();if(transformGesture?.mode==='move')cancelTransform();}} onClick={event=>{if(activeTool==='select')onSelect(undefined, event.shiftKey||event.ctrlKey, event.ctrlKey&&event.shiftKey,event.shiftKey&&!event.ctrlKey);}}>
       <planeGeometry args={[200,200]} /><meshBasicMaterial transparent opacity={0} depthWrite={false} />
     </mesh>
     {measurePreview&&<Line points={[measurePreview.start,measurePreview.end]} color="#d18a45" lineWidth={2} dashed dashSize={0.08} gapSize={0.04} raycast={()=>null} />}
@@ -439,6 +612,22 @@ function DrawingPlane({activeTool,snap,exactUm,unitSystem,pivotMode,rotationPivo
           <mesh onPointerDown={event=>startRotationRingDrag(axis,event)} renderOrder={22}><torusGeometry args={[radius,.2,6,96]} /><meshBasicMaterial transparent opacity={0} depthTest={false} depthWrite={false} /></mesh>
         </group>;})}
       </group>;})()}
+    {moveTarget&&moveGeometry&&movePivot&&<group ref={moveGizmoRef} position={movePivot} quaternion={axisMode==='local'?new THREE.Quaternion(...moveTarget.pose.rotation):new THREE.Quaternion()} renderOrder={30}>
+      {(['x','y','z'] as const).map(axis=>{
+        const color=axis==='x'?'#d94646':axis==='y'?'#289853':'#2676bd';
+        const active=resolveMoveConstraint(moveConstraint,transformGesture?.moveAxis,transformGesture?.moveShiftAxis)===axis;
+        const rotation=axis==='x'?[0,0,-Math.PI/2] as [number,number,number]:axis==='y'?[0,0,0] as [number,number,number]:[Math.PI/2,0,0] as [number,number,number];
+        const onDown=(event:ThreeEvent<PointerEvent>)=>beginMoveAxisDrag(axis,event);
+        const stopHandleClick=(event:ThreeEvent<MouseEvent>)=>{if(event.button===0)event.stopPropagation();};
+        return <group key={axis} rotation={rotation}>
+          <mesh position={[0,.27,0]}><cylinderGeometry args={[.035,.035,.54,8]}/><meshBasicMaterial color={active?'#fff1a8':color} depthTest={false}/></mesh>
+          <mesh position={[0,.61,0]}><coneGeometry args={[.095,.2,10]}/><meshBasicMaterial color={active?'#fff1a8':color} depthTest={false}/></mesh>
+          {/* Invisible, wider hit target (about 10 px across) so the thin shaft is easy to grab. */}
+          <mesh position={[0,.36,0]} userData={{moveAxis:axis}} onPointerDown={onDown} onClick={stopHandleClick}><cylinderGeometry args={[.12,.12,.72,8]}/><meshBasicMaterial transparent opacity={0} depthTest={false} depthWrite={false}/></mesh>
+          <Html position={[0,.83,0]} center style={{pointerEvents:'none'}}><span className={`design-move-axis-label${active?' is-active':''}`} aria-hidden="true">{axis.toUpperCase()}</span></Html>
+        </group>;
+      })}
+    </group>}
 
   </>;
 }
@@ -484,7 +673,7 @@ function CameraSetup({ preset, design, frameRequest }: Pick<Props, 'preset'|'des
   return null;
 }
 
-export function DesignScene({ rectangleAxis = 'y', rectangleDirection = 'pointer', design, unitSystem, selectedId, selectedCount, selectedElement, editingDefinitionId, editingObjectId, onSelect, onSubSelect, onEnterDefinition, activeTool, snap, exactUm, pivotMode, rotationPivotMode, axisMode, onCommand, onMeasure, onToolError, preset, projection, grid, axes, frameRequest, toolMeasurement, onToolMeasurementChange, onRegisterMeasurementActions, onContextLoss, onContextRestore }: Props) {
+export function DesignScene({ rectangleAxis = 'y', rectangleDirection = 'pointer', design, unitSystem, selectedId, selectedCount, selectedElement, editingDefinitionId, editingObjectId, onSelect, onSubSelect, onEnterDefinition, activeTool, snap, exactUm, pivotMode, rotationPivotMode, axisMode, moveConstraint, moveShiftHeld, onCommand, onMeasure, onToolError, preset, projection, grid, axes, frameRequest, toolMeasurement, onToolMeasurementChange, onRegisterMeasurementActions, onContextLoss, onContextRestore }: Props) {
   const definitionById = new Map(design?.definitions.map(d => [d.id, d]) ?? []);
   const placed = new Set(design?.instances.map(i => i.definitionId) ?? []);
   const hitCycle=useRef(createHitCycle());
@@ -499,7 +688,7 @@ export function DesignScene({ rectangleAxis = 'y', rectangleDirection = 'pointer
     <ContextLifecycle onContextLoss={onContextLoss} onContextRestore={onContextRestore} />
     <CameraSetup preset={preset} design={design} frameRequest={frameRequest} />
     <OrbitControls makeDefault enableDamping dampingFactor={0.12} minDistance={0.25} maxDistance={80} zoomToCursor mouseButtons={{LEFT:activeTool==='orbit'?THREE.MOUSE.ROTATE:activeTool==='pan'?THREE.MOUSE.PAN:undefined,MIDDLE:THREE.MOUSE.ROTATE,RIGHT:THREE.MOUSE.PAN}} />
-    {activeTool!=='rectangle'&&<DrawingPlane key={activeTool} activeTool={activeTool} snap={snap} unitSystem={unitSystem} exactUm={exactUm} pivotMode={pivotMode} rotationPivotMode={rotationPivotMode} selectedElement={selectedElement} axisMode={axisMode} onCommand={onCommand} onMeasure={onMeasure} onSelect={onSelect} onToolError={onToolError} design={design} selectedId={selectedId} selectedCount={selectedCount} editingDefinitionId={editingDefinitionId} toolMeasurement={toolMeasurement} onToolMeasurementChange={onToolMeasurementChange} onRegisterMeasurementActions={onRegisterMeasurementActions} />}
+    {activeTool!=='rectangle'&&<DrawingPlane key={activeTool} activeTool={activeTool} snap={snap} unitSystem={unitSystem} exactUm={exactUm} pivotMode={pivotMode} rotationPivotMode={rotationPivotMode} selectedElement={selectedElement} axisMode={axisMode} moveConstraint={moveConstraint} moveShiftHeld={moveShiftHeld} onCommand={onCommand} onMeasure={onMeasure} onSelect={onSelect} onToolError={onToolError} design={design} selectedId={selectedId} selectedCount={selectedCount} editingDefinitionId={editingDefinitionId} toolMeasurement={toolMeasurement} onToolMeasurementChange={onToolMeasurementChange} onRegisterMeasurementActions={onRegisterMeasurementActions} />}
     <VertexDrawing key={`vertices-${activeTool}`} design={design} editingDefinitionId={editingDefinitionId} selectedId={selectedId} activeTool={activeTool} axis={rectangleAxis} direction={rectangleDirection} snap={snap} unitSystem={unitSystem} selectedElement={selectedElement} onSelect={onSelect} onSubSelect={onSubSelect} onCommand={onCommand} onToolError={onToolError} toolMeasurement={toolMeasurement} onToolMeasurementChange={onToolMeasurementChange} onRegisterMeasurementActions={onRegisterMeasurementActions} />
     {grid && <Grid args={[30, 30]} cellSize={0.25} cellThickness={0.75} cellColor="#8297a1" sectionSize={1} sectionThickness={1.5} sectionColor="#476878" fadeDistance={30} infiniteGrid renderOrder={-1} onUpdate={configureGroundGridDepth} />}
     {axes && <axesHelper args={[1]} />}

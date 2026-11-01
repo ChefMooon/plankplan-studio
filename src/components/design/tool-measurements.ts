@@ -33,6 +33,7 @@ export function updateMeasurementField(session: ToolMeasurementSession, id: stri
   return { ...session, fields: session.fields.map(field => field.id === id ? { ...field, value, error: undefined } : field) };
 }
 import type { Pose, ScalePpm } from '@/lib/planner/design/schema';
+import { DESIGN_LIMIT_UM } from '@/lib/planner/design/geometry';
 import { keepGeometryCenter, keepLocalPoint, localizeDelta, rotateAroundWorkspaceAxis, worldToLocalDelta, type AxisMode, type PivotMode, type RotationAxis } from './transform-pivot';
 
 export function previewMove(pose: Pose, rawWorldDelta: readonly [number,number,number], axisMode: AxisMode, snap: boolean, exactDistanceUm?: number) {
@@ -43,7 +44,9 @@ export function previewMove(pose: Pose, rawWorldDelta: readonly [number,number,n
     delta = direction.map(value => Math.round(value * exactDistanceUm)) as [number,number,number];
   } else if (snap) delta = delta.map(value => Math.round(value / 10_000) * 10_000) as [number,number,number];
   const worldDelta = axisMode === 'local' ? localizeDelta(delta, pose, 'local') : delta;
-  return { pose: { ...pose, positionUm: pose.positionUm.map((value,index) => value + worldDelta[index]) as Pose['positionUm'] }, distanceUm: Math.hypot(...delta) };
+  const positionUm = pose.positionUm.map((value,index) => Math.round(value + worldDelta[index])) as Pose['positionUm'];
+  const valid = positionUm.every(value => Number.isSafeInteger(value) && Math.abs(value) <= DESIGN_LIMIT_UM);
+  return { pose: valid ? { ...pose, positionUm } : pose, distanceUm: Math.hypot(...delta), valid };
 }
 
 export function previewRotate(pose: Pose, scalePpm: ScalePpm, centerLocal: readonly [number,number,number], degrees: number, axis: RotationAxis, pivotMode: PivotMode | readonly [number,number,number]) {

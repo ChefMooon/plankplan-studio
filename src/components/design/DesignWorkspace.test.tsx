@@ -6,7 +6,7 @@ import { rectangleGeometry } from '@/lib/planner/design/geometry';
 import { readDesignViewPreferences } from '@/lib/planner/design/view-preferences';
 import userEvent from '@testing-library/user-event';
 
-vi.mock('./DesignViewport', () => ({ DesignViewport: ({ onSelect, onSubSelect, onEnterDefinition, editingDefinitionId, editingObjectId }: { onSelect: (id?: string) => void; onSubSelect?:(id:string,element:{type:'vertex';id:string})=>void; onEnterDefinition?:(id:string)=>void; editingDefinitionId?:string; editingObjectId?:string }) => <><button type="button" aria-label="Select sample in model" onClick={() => onSelect('instance-1')}>Sample viewport</button><button type="button" onClick={()=>{onSelect('instance-1');onSubSelect?.('instance-1',{type:'vertex',id:'corner-1-1-1'});}}>Pick model corner</button><button type="button" onClick={()=>onEnterDefinition?.('definition-1')}>Enter shared definition</button><button type="button" onClick={()=>onEnterDefinition?.('loose-1')}>Enter loose shape edit</button>{editingDefinitionId&&<span role="status">Editing {editingDefinitionId}</span>}{editingObjectId&&<span role="status">Editing shape {editingObjectId}</span>}</> }));
+vi.mock('./DesignViewport', () => ({ DesignViewport: ({ onSelect, onSubSelect, onEnterDefinition, editingDefinitionId, editingObjectId, activeTool, moveConstraint, moveShiftHeld, onToolMeasurementChange, onRegisterMeasurementActions }: { onSelect: (id?: string) => void; onSubSelect?:(id:string,element:{type:'vertex';id:string})=>void; onEnterDefinition?:(id:string)=>void; editingDefinitionId?:string; editingObjectId?:string; activeTool?:string; moveConstraint?:string; moveShiftHeld?:boolean; onToolMeasurementChange?:(session?:{id:string;tool:string;canPlace:boolean;fields:{id:string;label:string;value:string;unit:string}[]})=>void; onRegisterMeasurementActions?:(actions?:{commit:()=>void;cancel:()=>void})=>void }) => <><button type="button" aria-label="Select sample in model" onClick={() => onSelect('instance-1')}>Sample viewport</button><button type="button" onClick={()=>{onSelect('instance-1');onSubSelect?.('instance-1',{type:'vertex',id:'corner-1-1-1'});}}>Pick model corner</button><button type="button" onClick={()=>onEnterDefinition?.('definition-1')}>Enter shared definition</button><button type="button" onClick={()=>onEnterDefinition?.('loose-1')}>Enter loose shape edit</button>{activeTool==='move'&&<button type="button" onClick={()=>{onToolMeasurementChange?.({id:'move-test',tool:'Move',canPlace:false,fields:[{id:'distance',label:'Length',value:'0',unit:'mm'}]});onRegisterMeasurementActions?.({commit:vi.fn(),cancel:vi.fn()});}}>Start mocked Move</button>}<span data-testid="mock-move-constraint">{moveConstraint??'free'}</span><span data-testid="mock-move-shift">{moveShiftHeld?'held':'released'}</span>{editingDefinitionId&&<span role="status">Editing {editingDefinitionId}</span>}{editingObjectId&&<span role="status">Editing shape {editingObjectId}</span>}</> }));
 
 const project: Project = {
   schemaVersion: 2, id: 'workspace-test', name: 'Sample bench', unitSystem: 'imperial', kerf: { um: 0 }, trim: { um: 0 }, minOffcutLinear: { um: 0 }, minOffcutSheet: { shortSideUm: 0, longSideUm: 0 }, currency: 'CAD', createdAt: '2026-01-01T00:00:00.000Z', updatedAt: '2026-01-01T00:00:00.000Z', parts: [], materials: [],
@@ -150,6 +150,30 @@ describe('DesignWorkspace', () => {
     expect(screen.getByRole('radio', { name: 'Y · XZ' })).toBeChecked();
     fireEvent.click(screen.getByRole('combobox', { name: 'Rectangle direction' }));
     expect(screen.getByRole('option', { name: '+X, -Z' })).toBeInTheDocument();
+  });
+
+  it('toggles Move axis constraints and Shift while the measurement input is focused', () => {
+    render(<DesignWorkspace project={project} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Select sample in model' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Move (M)' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Start mocked Move' }));
+    const input=screen.getByRole('spinbutton',{name:'Length'});
+    expect(input).toHaveFocus();
+    fireEvent.keyDown(input,{key:'x'});
+    expect(screen.getByTestId('mock-move-constraint')).toHaveTextContent('x');
+    fireEvent.keyDown(input,{key:'x',repeat:true});
+    expect(screen.getByTestId('mock-move-constraint')).toHaveTextContent('x');
+    fireEvent.keyDown(input,{key:'X'});
+    expect(screen.getByTestId('mock-move-constraint')).toHaveTextContent('free');
+    fireEvent.keyDown(input,{key:'y',ctrlKey:true});
+    expect(screen.getByTestId('mock-move-constraint')).toHaveTextContent('free');
+    fireEvent.keyDown(input,{key:'z',shiftKey:true});
+    expect(screen.getByTestId('mock-move-constraint')).toHaveTextContent('free');
+    fireEvent.keyDown(input,{key:'Shift',shiftKey:true});
+    expect(screen.getByTestId('mock-move-shift')).toHaveTextContent('held');
+    fireEvent.keyUp(input,{key:'Shift'});
+    expect(screen.getByTestId('mock-move-shift')).toHaveTextContent('released');
+    expect(input).toHaveValue(0);
   });
 
   it('saves project information and shared unit preferences without changing stored dimensions', async () => {

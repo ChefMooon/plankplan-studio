@@ -15,7 +15,9 @@ export function ToolMeasurementBox({ session, onChange, onCommit, onCancel }: Pr
   const keyDown = (event: KeyboardEvent) => {
     // Radix tracks arrow keys at document level to select the newly focused radio.
     const radioArrow = (event.target as HTMLElement).closest('[role="radiogroup"]') && ['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(event.key);
-    if (!radioArrow) event.stopPropagation();
+    const moveAxisKey = session.tool === 'Move' && /^[xyz]$/i.test(event.key) && !event.ctrlKey && !event.metaKey && !event.altKey && !event.shiftKey;
+    const moveShiftKey = session.tool === 'Move' && event.key === 'Shift' && !event.ctrlKey && !event.metaKey && !event.altKey;
+    if (!radioArrow && !moveAxisKey && !moveShiftKey) event.stopPropagation();
     if (event.key === 'Enter') { event.preventDefault(); if ((event.target as HTMLElement).tagName === 'INPUT' && session.canPlace) onCommit(); }
     if (event.key === 'Escape') { event.preventDefault(); onCancel(); }
   };
