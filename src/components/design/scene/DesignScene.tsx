@@ -56,6 +56,33 @@ function ContextLifecycle({ onContextLoss, onContextRestore }: Pick<Props, 'onCo
 function configureGroundGridDepth(mesh:THREE.Mesh) {
   const material=Array.isArray(mesh.material)?mesh.material[0]:mesh.material;
   if(!material)return;
+  const gridMaterial=material as THREE.ShaderMaterial;
+  if(!gridMaterial.userData.filteredGroundGrid){
+    const originalCompile=gridMaterial.onBeforeCompile;
+    gridMaterial.onBeforeCompile=(shader,renderer)=>{
+      originalCompile.call(gridMaterial,shader,renderer);
+      const filteredGrid=`float getGrid(float size, float thickness) {
+      vec2 coordinate = localPosition.xz / size;
+      vec2 footprint = max(fwidth(coordinate), vec2(0.000001));
+      vec2 distanceToLine = abs(fract(coordinate - 0.5) - 0.5);
+      vec2 coverage = clamp(max(thickness, 0.0) - distanceToLine / footprint, 0.0, 1.0);
+      // Fade unresolved cells before they collapse into a solid band at the horizon.
+      vec2 dense = smoothstep(vec2(0.75), vec2(1.5), footprint);
+      coverage = mix(coverage, vec2(0.0), dense);
+      return 1.0 - (1.0 - coverage.x) * (1.0 - coverage.y);
+      }`;
+      const pattern=/float\s+getGrid\(float\s+size,\s*float\s+thickness\)\s*\{[\s\S]*?\n\s*\}/;
+      if(!pattern.test(shader.fragmentShader))throw new Error('Unable to apply filtered ground-grid shader: Drei Grid source changed');
+      shader.fragmentShader=shader.fragmentShader.replace(pattern,filteredGrid);
+      const alphaPattern=/\(g1\s*\+\s*g2\)\s*\*\s*pow\(d,\s*fadeStrength\)/;
+      if(!alphaPattern.test(shader.fragmentShader))throw new Error('Unable to combine ground-grid line coverage: Drei Grid source changed');
+      shader.fragmentShader=shader.fragmentShader.replace(alphaPattern,'(1.0 - (1.0 - g1) * (1.0 - g2)) * pow(d, fadeStrength)');
+    };
+    const previousCacheKey=gridMaterial.customProgramCacheKey.bind(gridMaterial);
+    gridMaterial.customProgramCacheKey=()=>`${previousCacheKey()}|filtered-ground-grid-v1`;
+    gridMaterial.userData.filteredGroundGrid=true;
+    gridMaterial.needsUpdate=true;
+  }
   // Draw the blended grid before opaque geometry without writing depth: coplanar
   // faces then cover it regardless of depth-buffer interpolation differences.
   material.transparent=false;
@@ -687,7 +714,7 @@ export function DesignScene({ rectangleAxis = 'y', rectangleDirection = 'pointer
     <directionalLight position={[4, 8, 5]} intensity={2.1} castShadow shadow-mapSize={[2048, 2048]} shadow-normalBias={0.02} shadow-bias={-0.0001} />
     <ContextLifecycle onContextLoss={onContextLoss} onContextRestore={onContextRestore} />
     <CameraSetup preset={preset} design={design} frameRequest={frameRequest} />
-    <OrbitControls makeDefault enableDamping dampingFactor={0.12} minDistance={0.25} maxDistance={80} zoomToCursor mouseButtons={{LEFT:activeTool==='orbit'?THREE.MOUSE.ROTATE:activeTool==='pan'?THREE.MOUSE.PAN:undefined,MIDDLE:THREE.MOUSE.ROTATE,RIGHT:THREE.MOUSE.PAN}} />
+    <OrbitControls makeDefault enableDamping={false} minDistance={0.25} maxDistance={80} zoomToCursor mouseButtons={{LEFT:activeTool==='orbit'?THREE.MOUSE.ROTATE:activeTool==='pan'?THREE.MOUSE.PAN:undefined,MIDDLE:THREE.MOUSE.ROTATE,RIGHT:THREE.MOUSE.PAN}} />
     {activeTool!=='rectangle'&&<DrawingPlane key={activeTool} activeTool={activeTool} snap={snap} unitSystem={unitSystem} exactUm={exactUm} pivotMode={pivotMode} rotationPivotMode={rotationPivotMode} selectedElement={selectedElement} axisMode={axisMode} moveConstraint={moveConstraint} moveShiftHeld={moveShiftHeld} onCommand={onCommand} onMeasure={onMeasure} onSelect={onSelect} onToolError={onToolError} design={design} selectedId={selectedId} selectedCount={selectedCount} editingDefinitionId={editingDefinitionId} toolMeasurement={toolMeasurement} onToolMeasurementChange={onToolMeasurementChange} onRegisterMeasurementActions={onRegisterMeasurementActions} />}
     <VertexDrawing key={`vertices-${activeTool}`} design={design} editingDefinitionId={editingDefinitionId} selectedId={selectedId} activeTool={activeTool} axis={rectangleAxis} direction={rectangleDirection} snap={snap} unitSystem={unitSystem} selectedElement={selectedElement} onSelect={onSelect} onSubSelect={onSubSelect} onCommand={onCommand} onToolError={onToolError} toolMeasurement={toolMeasurement} onToolMeasurementChange={onToolMeasurementChange} onRegisterMeasurementActions={onRegisterMeasurementActions} />
     {grid && <Grid args={[30, 30]} cellSize={0.25} cellThickness={0.75} cellColor="#8297a1" sectionSize={1} sectionThickness={1.5} sectionColor="#476878" fadeDistance={30} infiniteGrid renderOrder={-1} onUpdate={configureGroundGridDepth} />}

@@ -181,6 +181,14 @@ describe('DesignScene rotation rendering', () => {
 
     expect(gridMaterial.uniforms).toHaveProperty('cellSize');
     expect(gridMaterial.fragmentShader).toContain('getGrid(float size, float thickness)');
+    const shader={uniforms:{},vertexShader:gridMaterial.vertexShader,fragmentShader:gridMaterial.fragmentShader};
+    gridMaterial.onBeforeCompile(shader as Parameters<THREE.ShaderMaterial['onBeforeCompile']>[0],{} as THREE.WebGLRenderer);
+    expect(shader.fragmentShader).toContain('vec2 footprint = max(fwidth(coordinate), vec2(0.000001));');
+    expect(shader.fragmentShader).toContain('coverage = mix(coverage, vec2(0.0), dense);');
+    expect(shader.fragmentShader).toContain('vec2 coverage = clamp(max(thickness, 0.0) - distanceToLine / footprint, 0.0, 1.0);');
+    expect(shader.fragmentShader).toContain('return 1.0 - (1.0 - coverage.x) * (1.0 - coverage.y);');
+    expect(shader.fragmentShader).toContain('(1.0 - (1.0 - g1) * (1.0 - g2)) * pow(d, fadeStrength)');
+    expect(gridMaterial.customProgramCacheKey()).toContain('filtered-ground-grid-v1');
     expect(gridMaterial.vertexShader).toContain('localPosition = position.xzy;');
     expect(gridMaterial.transparent).toBe(false);
     expect(gridMaterial.blending).toBe(THREE.CustomBlending);
