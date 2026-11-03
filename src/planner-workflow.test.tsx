@@ -17,12 +17,21 @@ async function renderApp(path = '/') {
 async function savedProject(name: string) { const list=await projectRepository.list('local'); if(!list.ok)return undefined; const item=list.summaries.filter(project=>project.name===name).sort((a,b)=>b.localGeneration-a.localGeneration)[0]; if(!item)return undefined; const result=await projectRepository.get({namespaceId:'local',projectId:item.id}); return result.ok?result.value:undefined; }
 
 async function startCutlistProject(user: ReturnType<typeof userEvent.setup>, name?: string) {
+  await waitFor(() => expect(screen.queryByText('Loading projects…')).not.toBeInTheDocument());
   const projects = screen.getByRole('region', { name: 'Projects' });
-  const previousCutlistLinks = within(projects).queryAllByRole('link', { name: 'Open cutlist for Untitled project' }).length;
+  const previousLinks = new Set(within(projects).queryAllByRole('link', { name: 'Open cutlist for Untitled project' }).map(link => link.getAttribute('href')));
   await user.click(within(projects).getAllByRole('button', { name: 'New project' })[0]);
-  await waitFor(() => expect(within(projects).getAllByRole('link', { name: 'Open cutlist for Untitled project' }).length).toBeGreaterThan(previousCutlistLinks));
+  let newLink!: HTMLElement;
+  await waitFor(() => {
+    const link = within(projects).queryAllByRole('link', { name: 'Open cutlist for Untitled project' }).find(candidate => !previousLinks.has(candidate.getAttribute('href')));
+    expect(link).toBeDefined();
+    newLink = link!;
+  });
+  const projectHref = newLink.getAttribute('href');
   if (name) {
-    await user.click(within(projects).getAllByRole('button', { name: 'Actions for Untitled project' })[0]);
+    const card = newLink.closest('article');
+    expect(card).not.toBeNull();
+    await user.click(within(card!).getByRole('button', { name: 'Actions for Untitled project' }));
     await user.click(await screen.findByRole('menuitem', { name: 'Project info' }));
     const dialog = await screen.findByRole('dialog', { name: 'Project Info' });
     const projectName = within(dialog).getByRole('textbox', { name: 'Project name' });
@@ -33,11 +42,27 @@ async function startCutlistProject(user: ReturnType<typeof userEvent.setup>, nam
     await waitFor(() => expect(dialog).not.toBeInTheDocument());
     await waitFor(async () => expect(await savedProject(name)).toBeDefined());
   }
-  await user.click(within(projects).getAllByRole('link', { name: `Open cutlist for ${name ?? 'Untitled project'}` })[0]);
+  const projectLink = within(projects).getAllByRole('link', { name: `Open cutlist for ${name ?? 'Untitled project'}` }).find(link => link.getAttribute('href') === projectHref);
+  expect(projectLink).toBeDefined();
+  await user.click(projectLink!);
   await screen.findByRole('heading', { name: 'What are you making?' });
 }
 
 describe('local project workflow', () => {
+  it('opens the newly created project when another untitled project has parts', async () => {
+    const user = userEvent.setup();
+    await renderApp();
+    await startCutlistProject(user);
+    await user.click(screen.getByRole('button', { name: /add part/i }));
+    expect(screen.getByRole('textbox', { name: 'Part name' })).toBeInTheDocument();
+    await user.click(screen.getByRole('link', { name: /all projects/i }));
+
+    await startCutlistProject(user, 'New empty project');
+    expect(screen.queryByRole('textbox', { name: 'Part name' })).not.toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: /add part/i }));
+    expect(screen.getAllByRole('textbox', { name: 'Part name' })).toHaveLength(1);
+  }, 15_000);
+
   it('creates a project on the dashboard and lets the user choose its workspace', async () => {
     const user = userEvent.setup();
     const router = await renderApp();
