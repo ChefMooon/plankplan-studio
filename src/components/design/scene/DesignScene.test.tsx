@@ -6,7 +6,7 @@ import { useThree } from '@react-three/fiber';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { rectangleGeometry } from '@/lib/planner/design/geometry';
 import { designCanvasThreeElements } from './design-canvas-elements';
-import { CameraSetup, DesignScene } from './DesignScene';
+import { CameraSetup, DesignScene, TransformPreview } from './DesignScene';
 import type { ToolMeasurementSession } from '../tool-measurements';
 import { projectedMoveAxes, type MoveAxis } from '../move-gesture';
 
@@ -145,6 +145,21 @@ describe('camera framing', () => {
 describe('DesignScene rotation rendering', () => {
   beforeEach(() => {
     HTMLCanvasElement.prototype.getContext = vi.fn(() => null) as unknown as typeof HTMLCanvasElement.prototype.getContext;
+  });
+
+  it('renders a confirmed primitive preview with the same centered bounds as its placed mesh', async () => {
+    const design = createDesign();
+    const target = design.instances[0];
+    const pose = { positionUm: [200_000, 300_000, 400_000] as [number, number, number], rotation: [0, 0, Math.SQRT1_2, Math.SQRT1_2] as [number, number, number, number] };
+    const scalePpm: [number, number, number] = [2_000_000, 750_000, 1_250_000];
+    const renderer = await ReactThreeTestRenderer.create(<TransformPreview design={design} target={target} geometry={design.definitions[0].geometry} pose={pose} scalePpm={scalePpm} />);
+    const preview = renderer.scene.find(node => node.instance instanceof THREE.Mesh).instance as THREE.Mesh;
+    preview.updateWorldMatrix(true, false);
+    const bounds = new THREE.Box3().setFromObject(preview);
+    const center = bounds.getCenter(new THREE.Vector3());
+    expect(center.toArray()).toEqual(expect.arrayContaining([expect.closeTo(0.2), expect.closeTo(0.3), expect.closeTo(0.4)]));
+    expect(bounds.getSize(new THREE.Vector3()).toArray()).toEqual([expect.closeTo(0.225), expect.closeTo(0.8), expect.closeTo(0.0225)]);
+    await renderer.unmount();
   });
 
   it('renders the selected-object rotation gizmo without throwing and registers its sphere geometry', async () => {

@@ -261,6 +261,13 @@ function InstanceMesh({ item, geometry, cutSpec, selected, selectedElement, onSe
   return <group position={position} quaternion={quaternion} scale={scale} onDoubleClick={event=>{if(tool==='select'){event.stopPropagation();if('definitionId'in item)onEnterDefinition(item.definitionId);else onEnterDefinition(item.id);}}}><ObjectGeometry geometry={pushPullPreview??geometry} targetId={item.id} color={color} selected={selected} invalid={invalid} preview={!!pushPullPreview} overlay={profileOverlay} onFaceOut={()=>setProfileFaceIndicator(undefined)} onSelect={click} onPushPullPointerDown={pushPullPointerDown} onPushPullPointerMove={pushPullPointerMove} /></group>;
 }
 
+export function TransformPreview({design,target,geometry,pose,scalePpm}:{design?:DesignDocumentV1;target:Instance|LooseObject;geometry:Geometry;pose:Instance['pose'];scalePpm:Instance['scalePpm']}) {
+  const cutSpec='definitionId' in target?design?.definitions.find(definition=>definition.id===target.definitionId)?.cutSpec:undefined;
+  return <group position={pose.positionUm.map(umToMeters) as [number,number,number]} quaternion={pose.rotation as [number,number,number,number]} scale={scalePpm.map(value=>value/1_000_000) as [number,number,number]}>
+    {cutSpec?.confirmation==='confirmed'?<mesh raycast={()=>null}><boxGeometry args={[umToMeters(cutSpec.lengthUm),umToMeters(cutSpec.widthUm),umToMeters(cutSpec.thicknessUm)]}/><meshStandardMaterial color={colors.selected} roughness={0.78} transparent opacity={0.55} depthWrite={false}/><Edges scale={1} color="#000000" threshold={12}/></mesh>:<ObjectGeometry geometry={geometry} targetId={target.id} color={colors.selected} selected={false} preview onSelect={event=>event.stopPropagation()} />}
+  </group>;
+}
+
 function DrawingPlane({activeTool,snap,exactUm,unitSystem,pivotMode,rotationPivotMode,axisMode,moveConstraint,moveShiftHeld,onCommand,onMeasure,onSelect,onToolError,design,selectedId,selectedCount,selectedElement,editingDefinitionId,toolMeasurement,onToolMeasurementChange,onRegisterMeasurementActions}:Pick<Props,'activeTool'|'snap'|'exactUm'|'pivotMode'|'rotationPivotMode'|'axisMode'|'moveConstraint'|'moveShiftHeld'|'onCommand'|'onMeasure'|'onSelect'|'onToolError'|'design'|'selectedId'|'selectedCount'|'selectedElement'|'editingDefinitionId'|'toolMeasurement'|'onToolMeasurementChange'|'onRegisterMeasurementActions'|'unitSystem'>) {
   const canvas=useThree(state=>state.gl.domElement);
   const camera=useThree(state=>state.camera);
@@ -631,7 +638,7 @@ function DrawingPlane({activeTool,snap,exactUm,unitSystem,pivotMode,rotationPivo
       <planeGeometry args={[200,200]} /><meshBasicMaterial transparent opacity={0} depthWrite={false} />
     </mesh>
     {measurePreview&&<Line points={[measurePreview.start,measurePreview.end]} color="#d18a45" lineWidth={2} dashed dashSize={0.08} gapSize={0.04} raycast={()=>null} />}
-    {transformGesture&&(()=>{const result=transformResult();return result?.valid?<group position={result.pose.positionUm.map(umToMeters) as [number,number,number]} quaternion={result.pose.rotation as [number,number,number,number]} scale={result.scalePpm.map(value=>value/1_000_000) as [number,number,number]}><ObjectGeometry geometry={result.geometry} targetId={result.target.id} color={colors.selected} selected={false} preview onSelect={event=>event.stopPropagation()} /></group>:null;})()}
+    {transformGesture&&(()=>{const result=transformResult();return result?.valid?<TransformPreview design={design} {...result}/>:null;})()}
     {rotationTarget&&rotationGeometry&&(()=>{const center=transformLocalPoint(rotationPivotFor(rotationTarget,rotationGeometry),rotationTarget.pose,rotationTarget.scalePpm).map(umToMeters) as [number,number,number];const selectedAxis=toolMeasurement?.tool==='Rotate'?toolMeasurement.rotationAxis:transformGesture?.mode==='rotate'?transformGesture.rotationAxis:undefined;return <group ref={rotationGizmoRef} position={center} renderOrder={20}>
         <mesh raycast={()=>null}><sphereGeometry args={[.13,12,8]} /><meshBasicMaterial color="#fff4bd" depthTest={false} /></mesh>
         {(['x','y','z'] as const).map((axis,index)=>{const color=axis==='x'?'#ee6666':axis==='y'?'#65c886':'#64b5f6';const radius=1+index*.16;const rotation=axis==='x'?[0,Math.PI/2,0] as [number,number,number]:axis==='y'?[Math.PI/2,0,0] as [number,number,number]:[0,0,0] as [number,number,number];return <group key={axis} rotation={rotation}>
