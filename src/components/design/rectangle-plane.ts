@@ -61,8 +61,8 @@ export function designVertices(design?: DesignDocumentV1, editingDefinitionId?: 
     if (def) add(item.id, def.geometry, item.pose, item.scalePpm, def.cutSpec);
   }
   if (!editingDefinitionId) for (const item of design.looseObjects.filter(i => !i.hidden)) add(item.id, item.geometry, item.pose, item.scalePpm);
-  design.definitions.filter(d => !design.instances.some(i => i.definitionId === d.id)).forEach((def, index) => {
-    if (!editingDefinitionId || editingDefinitionId === def.id) add(def.id, def.geometry, { positionUm: [editingDefinitionId ? 0 : index * 1_500_000, 0, 0], rotation: [0, 0, 0, 1] }, [1_000_000, 1_000_000, 1_000_000], def.cutSpec);
+  design.definitions.filter(d => editingDefinitionId === d.id && !design.instances.some(i => i.definitionId === d.id)).forEach(def => {
+    add(def.id, def.geometry, { positionUm: [0, 0, 0], rotation: [0, 0, 0, 1] }, [1_000_000, 1_000_000, 1_000_000], def.cutSpec);
   });
   return result;
 }

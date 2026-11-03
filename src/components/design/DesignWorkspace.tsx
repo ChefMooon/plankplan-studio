@@ -123,6 +123,13 @@ export function DesignWorkspace({ project, onCommit, localGeneration = 0, saveSt
     const base = { ...working, updatedAt: new Date().toISOString(), ...(working.design ? {} : { design: newDesignDocument() }) };
     const result = commitSessionCommand(history, base, command);
     if (!result.result.ok) { setNotice(`Could not apply: ${result.result.message}`); return; }
+    if(command.type==='delete-instance'||command.type==='delete-loose'||command.type==='delete-definition'){
+      const design=result.project.design;
+      const exists=(id:string)=>!!design&&(design.instances.some(item=>item.id===id)||design.looseObjects.some(item=>item.id===id)||design.definitions.some(item=>item.id===id));
+      setSelectionIds(ids=>ids.filter(exists));
+      setSelectedId(id=>id&&!exists(id)?undefined:id);
+      setSelectedElement(element=>element&&!exists(element.objectId)?undefined:element);
+    }
     setHistory(result.history); setWorking(result.project); setEditSequence(value=>value+1); onCommit?.(result.project); setNotice(`${result.result.label} · unsaved changes`);
   };
   const undo = () => { if(projectionBusy)return; const result = undoSession(history, working); setHistory(result.history); setWorking(result.project); setEditSequence(value=>value+1); onCommit?.(result.project); setNotice('Undo'); };

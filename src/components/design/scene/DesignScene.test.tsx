@@ -9,6 +9,9 @@ import { designCanvasThreeElements } from './design-canvas-elements';
 import { CameraSetup, DesignScene, TransformPreview } from './DesignScene';
 import type { ToolMeasurementSession } from '../tool-measurements';
 import { projectedMoveAxes, type MoveAxis } from '../move-gesture';
+import { designVertices } from '../rectangle-plane';
+import { snapshotObjects } from './model-snapshot';
+import type { Project } from '@/lib/planner/model';
 
 vi.mock('./DesignCanvas', async importOriginal => ({
   ...await importOriginal<typeof import('./DesignCanvas')>(),
@@ -172,6 +175,22 @@ describe('DesignScene rotation rendering', () => {
     const gizmoSpheres = renderer.scene.findAll(node => node.instance instanceof THREE.Mesh && node.instance.geometry instanceof THREE.SphereGeometry);
     expect(gizmoSpheres).toHaveLength(1);
 
+    await renderer.unmount();
+  });
+
+  it('removes the board from the canvas when its last instance is deleted, while keeping its definition', async () => {
+    const props = createProps();
+    const renderer = await ReactThreeTestRenderer.create(<DesignScene {...props} />);
+    const targets = () => renderer.scene.findAll(node => node.instance instanceof THREE.Mesh && node.instance.userData.designTargetId);
+    expect(targets().some(node => node.instance.userData.designTargetId === 'instance-1')).toBe(true);
+    const design = {...props.design, instances: []};
+    await renderer.update(<DesignScene {...props} design={design} activeTool="erase" />);
+    expect(targets()).toHaveLength(0);
+    expect(designVertices(design)).toEqual([]);
+    expect(snapshotObjects({design} as Project)).toEqual([]);
+    await renderer.update(<DesignScene {...props} design={design} editingDefinitionId="definition-1" />);
+    expect(targets().some(node => node.instance.userData.designTargetId === 'definition-1')).toBe(true);
+    expect(designVertices(design, 'definition-1')).not.toHaveLength(0);
     await renderer.unmount();
   });
 

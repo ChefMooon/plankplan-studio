@@ -1,7 +1,6 @@
 import * as THREE from 'three';
 import type { Project } from '@/lib/planner/model';
 import type { CutSpec, Geometry, Pose, ScalePpm } from '@/lib/planner/design/schema';
-import { IDENTITY_POSE, IDENTITY_SCALE } from '@/lib/planner/design/geometry';
 import { buildModelGeometry } from './mesh-geometry';
 
 type ModelObject = { geometry: Geometry; pose: Pose; scale: ScalePpm; color: string; offset: number; cutSpec?: CutSpec };
@@ -16,7 +15,6 @@ export function snapshotObjects(project: Project): ModelObject[] {
       return definition ? [{ geometry: definition.geometry, cutSpec: definition.cutSpec, pose: item.pose, scale: item.scalePpm, color: item.appearance?.color ?? definition.appearance.color, offset: 0 }] : [];
     }),
     ...design.looseObjects.filter(item => !item.hidden).map(item => ({ geometry: item.geometry, pose: item.pose, scale: item.scalePpm, color: item.appearance.color, offset: 0 })),
-    ...design.definitions.filter(definition => !design.instances.some(item => item.definitionId === definition.id)).map((definition, index) => ({ geometry: definition.geometry, cutSpec: definition.cutSpec, pose: IDENTITY_POSE, scale: IDENTITY_SCALE, color: definition.appearance.color, offset: index * 1.5 })),
   ].filter(item => item.geometry.faces.length > 0 || item.geometry.edges.length > 0);
 }
 
