@@ -632,7 +632,7 @@ function DrawingPlane({activeTool,snap,exactUm,unitSystem,pivotMode,rotationPivo
   </>;
 }
 
-function CameraSetup({ preset, design, frameRequest }: Pick<Props, 'preset'|'design'|'frameRequest'>) {
+export function CameraSetup({ preset, design, frameRequest }: Pick<Props, 'preset'|'design'|'frameRequest'>) {
   const camera = useThree(state => state.camera);
   const controls = useThree(state => state.controls) as { target?: THREE.Vector3; update?: () => void } | null;
   const initialized = useRef(false);
@@ -642,7 +642,7 @@ function CameraSetup({ preset, design, frameRequest }: Pick<Props, 'preset'|'des
     // Design edits replace the document object, but should not move a camera the
     // user has already positioned. Only initial framing and explicit requests
     // (preset changes / Frame model) should run this setup.
-    const needsInitialFrame = !initialized.current && !!design && !!controls;
+    const needsInitialFrame = !initialized.current && !!controls;
     const needsRequestedFrame = initialized.current && (lastPreset.current !== preset || lastFrameRequest.current !== frameRequest);
     if (!needsInitialFrame && !needsRequestedFrame) return;
     if (!controls) return;

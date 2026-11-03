@@ -1,11 +1,12 @@
 import type { ReactNode } from 'react';
-import { act, useState } from 'react';
+import { act, useEffect, useState } from 'react';
 import * as THREE from 'three';
 import ReactThreeTestRenderer from '@react-three/test-renderer';
+import { useThree } from '@react-three/fiber';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { rectangleGeometry } from '@/lib/planner/design/geometry';
 import { designCanvasThreeElements } from './design-canvas-elements';
-import { DesignScene } from './DesignScene';
+import { CameraSetup, DesignScene } from './DesignScene';
 import type { ToolMeasurementSession } from '../tool-measurements';
 import { projectedMoveAxes, type MoveAxis } from '../move-gesture';
 
@@ -72,6 +73,16 @@ const createProps = () => ({
   onContextRestore: vi.fn(),
 });
 
+function CameraHarness({ design, frameRequest = 0 }: { design?: ReturnType<typeof createDesign>; frameRequest?: number }) {
+  const set = useThree(state => state.set);
+  useEffect(() => {
+    const controls = { target: new THREE.Vector3(), update: () => {} };
+    set({ controls: controls as unknown as THREE.EventDispatcher });
+    return () => set({ controls: null });
+  }, [set]);
+  return <CameraSetup preset="iso" design={design} frameRequest={frameRequest} />;
+}
+
 type MoveHarnessControls = {
   setConstraint: (axis: MoveAxis | null | undefined) => void;
   setShift: (held: boolean) => void;
@@ -113,6 +124,23 @@ const createGroundPlaneProps = () => {
     grid: true,
   };
 };
+
+describe('camera framing', () => {
+  it('keeps the view when the first design document is created and still honors explicit framing', async () => {
+    const camera = new THREE.PerspectiveCamera(45, 4 / 3, .1, 100);
+    const renderer = await ReactThreeTestRenderer.create(<CameraHarness />, { camera });
+    camera.position.set(3, 4, 5);
+    const positioned = camera.position.clone();
+
+    const design = createDesign();
+    await renderer.update(<CameraHarness design={design} />);
+    expect(camera.position.toArray()).toEqual(positioned.toArray());
+
+    await renderer.update(<CameraHarness design={design} frameRequest={1} />);
+    expect(camera.position.toArray()).not.toEqual(positioned.toArray());
+    await renderer.unmount();
+  });
+});
 
 describe('DesignScene rotation rendering', () => {
   beforeEach(() => {
