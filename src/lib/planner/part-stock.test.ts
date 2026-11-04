@@ -6,7 +6,7 @@ import { exportCutCsv } from './exports';
 
 it('groups generic 96 inch boards by cross-section and keeps unspecified boards separate', () => {
   const project = createProject();
-  project.parts = [1, 2, 3].map(index => ({ id: `p${index}`, name: `Part ${index}`, kind: 'linear', materialId: '', length: { um: umFromInches(40) }, quantity: 1, ...(index < 3 ? { crossSection: { width: { um: umFromInches(index === 1 ? 3.5 : 5.5) }, thickness: { um: umFromInches(1.5) } } } : {}) }));
+  project.parts = [1, 2, 3].map(index => ({ id: `p${index}`, name: `Part ${index}`, kind: 'linear', materialId: '', cutlistId: project.cutlists[0].id, length: { um: umFromInches(40) }, quantity: 1, ...(index < 3 ? { crossSection: { width: { um: umFromInches(index === 1 ? 3.5 : 5.5) }, thickness: { um: umFromInches(1.5) } } } : {}) }));
   const result = optimizeMixedProject(project);
   expect(result.valid).toBe(true);
   expect(result.linear.plans).toHaveLength(3);
@@ -20,7 +20,7 @@ it('groups generic 96 inch boards by cross-section and keeps unspecified boards 
 it('restricts assigned parts to the selected stock and rejects incompatible cross-sections', () => {
   const project = createProject();
   project.materials = [{ id: 'm', name: 'Pine', type: 'linear', stocks: [{ id: 'short', name: 'Short', length: { um: umFromInches(48) }, widthUm: umFromInches(3.5), thicknessUm: umFromInches(1.5), price: { cents: 500 }, ownedQuantity: 0 }, { id: 'long', name: 'Long', length: { um: umFromInches(96) }, price: { cents: 100 }, ownedQuantity: 0 }] }];
-  project.parts = [{ id: 'p', name: 'Rail', kind: 'linear', materialId: 'm', stockId: 'short', length: { um: umFromInches(40) }, quantity: 2 }];
+  project.parts = [{ id: 'p', name: 'Rail', kind: 'linear', materialId: 'm', cutlistId: project.cutlists[0].id, stockId: 'short', length: { um: umFromInches(40) }, quantity: 2 }];
   const result = optimizeMixedProject(project);
   expect(result.linear.plans).toHaveLength(2);
   expect(result.linear.plans.every(plan => plan.stockId === 'short')).toBe(true);
@@ -32,7 +32,7 @@ it('restricts assigned parts to the selected stock and rejects incompatible cros
 
 it('reports generic parts longer than 96 inches instead of dropping them', () => {
   const project = createProject();
-  project.parts = [{ id: 'p', name: 'Long rail', kind: 'linear', materialId: '', length: { um: umFromInches(100) }, quantity: 1 }];
+  project.parts = [{ id: 'p', name: 'Long rail', kind: 'linear', materialId: '', cutlistId: project.cutlists[0].id, length: { um: umFromInches(100) }, quantity: 1 }];
   const result = optimizeMixedProject(project);
   expect(result.valid).toBe(false);
   expect(result.warnings.some(warning => warning.partId === 'p')).toBe(true);
@@ -40,7 +40,7 @@ it('reports generic parts longer than 96 inches instead of dropping them', () =>
 
 it('reports oversized generic panels and exports fitting generic panels with unspecified prices', () => {
   const project = createProject();
-  project.parts = [{ id: 'panel', name: 'Panel', kind: 'sheet', materialId: '', length: { um: umFromInches(24) }, width: { um: umFromInches(18) }, grainLocked: true, quantity: 2 }];
+  project.parts = [{ id: 'panel', name: 'Panel', kind: 'sheet', materialId: '', cutlistId: project.cutlists[0].id, length: { um: umFromInches(24) }, width: { um: umFromInches(18) }, grainLocked: true, quantity: 2 }];
   const result = optimizeMixedProject(project);
   expect(result.valid).toBe(true);
   expect(result.sheets.plans.flatMap(plan => plan.placements)).toHaveLength(2);
@@ -55,7 +55,7 @@ it('reports oversized generic panels and exports fitting generic panels with uns
 it('shares owned inventory between specific stock assignments and legacy material assignments', () => {
   const project = createProject();
   project.materials = [{ id: 'm', name: 'Pine', type: 'linear', stocks: [{ id: 'only', name: 'Owned board', length: { um: umFromInches(96) }, ownedQuantity: 1, quantityLimit: 0 }] }];
-  project.parts = [{ id: 'specific', name: 'Specific', kind: 'linear', materialId: 'm', stockId: 'only', length: { um: umFromInches(70) }, quantity: 1 }, { id: 'legacy', name: 'Legacy', materialId: 'm', length: { um: umFromInches(70) }, quantity: 1 }];
+  project.parts = [{ id: 'specific', name: 'Specific', kind: 'linear', materialId: 'm', cutlistId: project.cutlists[0].id, stockId: 'only', length: { um: umFromInches(70) }, quantity: 1 }, { id: 'legacy', name: 'Legacy', materialId: 'm', cutlistId: project.cutlists[0].id, length: { um: umFromInches(70) }, quantity: 1 }];
   const result = optimizeMixedProject(project);
   expect(result.valid).toBe(false);
   expect(result.linear.plans.reduce((count, plan) => count + plan.ownedUsed, 0)).toBe(1);

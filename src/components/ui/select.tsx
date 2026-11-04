@@ -1,5 +1,5 @@
 import { Popover } from 'radix-ui';
-import { useId, useState, type KeyboardEvent } from 'react';
+import { useId, useState, type KeyboardEvent, type Ref } from 'react';
 
 export type SelectOption = { value: string; label: string };
 
@@ -10,9 +10,11 @@ type SelectProps = {
   options: SelectOption[];
   disabled?: boolean;
   className?: string;
+  id?: string;
+  ref?: Ref<HTMLButtonElement>;
 };
 
-export function Select({ 'aria-label': ariaLabel, value, onValueChange, options, disabled, className }: SelectProps) {
+export function Select({ 'aria-label': ariaLabel, value, onValueChange, options, disabled, className, id, ref }: SelectProps) {
   const [open, setOpen] = useState(false);
   const [activeIndex, setActiveIndex] = useState(() => Math.max(0, options.findIndex(option => option.value === value)));
   const listboxId = useId();
@@ -56,6 +58,8 @@ export function Select({ 'aria-label': ariaLabel, value, onValueChange, options,
     }}>
       <Popover.Trigger asChild>
         <button
+          ref={ref}
+          id={id}
           type="button"
           role="combobox"
           aria-label={ariaLabel}

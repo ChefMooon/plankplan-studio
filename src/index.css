@@ -538,9 +538,11 @@ button,a,input,select { outline-offset:3px; }
 .dark .notes-field textarea { background: var(--pp-input-bg); border-color: var(--pp-border); color: var(--pp-text); }
 
 /* Cutlist header is intentionally arranged as three rows: identity, project tools, then notes. */
-.cutlist-workspace-head{display:grid;grid-template-columns:minmax(0,1fr);align-items:stretch;gap:12px;padding-bottom:16px}
-.cutlist-page .project-navigation{margin-bottom:0}
-.cutlist-workspace-head{padding-top:16px}
+.cutlist-workspace-head{display:grid;grid-template-columns:minmax(0,1fr);align-items:stretch;gap:12px;padding:0 0 12px}
+.cutlist-page .project-navigation{margin-bottom:12px}
+.cutlist-page .cutlist-manager{margin-bottom:12px}
+.cutlist-page .workspace-grid{padding-top:12px}
+@media print{.cutlist-page .workspace-grid{padding-top:0}}
 .cutlist-title-row{display:flex;align-items:flex-start;flex-direction:column;gap:6px;min-width:0}
 .cutlist-title-row .project-name{width:min(480px,100%)}
 .cutlist-action-row{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px}
@@ -765,6 +767,11 @@ button,a,input,select { outline-offset:3px; }
 .design-readonly-note { margin: 12px 0 0; }
 .design-toggle { display: flex; align-items: center; gap: 8px; min-height: 34px; color: var(--pp-text); font-size: 11px; }
 .design-object-list,.design-selection-list ul { display: grid; gap: 4px; margin: 0; padding: 0; list-style: none; }
+.design-cutlist-assignment { display: grid; gap: 8px; margin-top: 10px; padding: 10px; border: 1px solid var(--pp-border); border-radius: 7px; background: var(--pp-raised); }
+.design-cutlist-assignment > label,.design-create-cutlist-from-model > label,.design-assignment-label { color: var(--pp-muted); font-size: 10px; }
+.design-cutlist-assignment > select,.design-create-cutlist-from-model > input { box-sizing: border-box; width: 100%; min-width: 0; min-height: 32px; padding: 6px 8px; border: 1px solid var(--pp-border); border-radius: 5px; background: var(--pp-surface); color: var(--pp-text); font: inherit; font-size: 11px; }
+.design-create-cutlist-from-model { display: grid; gap: 7px; padding-top: 8px; border-top: 1px solid var(--pp-border); }
+.design-projection-message { margin: 5px 0; color: var(--pp-muted); font-size: 10px; line-height: 1.45; }
 .design-object-list button,.design-selection-list li button { display: flex; justify-content: space-between; gap: 8px; width: 100%; min-height: 34px; padding: 6px 7px; border: 1px solid transparent; border-radius: 5px; background: transparent; color: var(--pp-text); text-align: left; font: inherit; font-size: 10px; cursor: pointer; }
 .design-object-list button[aria-pressed="true"],.design-selection-list li button[aria-current="true"] { border-color: var(--pp-border); background: var(--pp-raised); }
 .design-object-list small,.design-selection-list li span { flex: 0 0 auto; color: var(--pp-muted); font-size: 9px; }

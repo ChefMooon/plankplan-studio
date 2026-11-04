@@ -10,7 +10,8 @@ const design=(overrides:Partial<DesignDocumentV1>={}):DesignDocumentV1=>({schema
 
 describe('ProjectCardPreview',()=>{
   it('keeps a chosen design view empty when geometry is missing or hidden, while automatic uses the cutlist',()=>{
-    const project={...createProject('Shelf'),previewView:'top' as const,parts:[{id:'rail',name:'Rail',materialId:'',length:{um:500_000},quantity:1}]};
+    const base=createProject('Shelf');
+    const project={...base,previewView:'top' as const,parts:[{id:'rail',name:'Rail',materialId:'',cutlistId:base.cutlists[0].id,length:{um:500_000},quantity:1}]};
     const {rerender}=render(<ProjectCardPreview project={project}/>);
     expect(screen.getByText('No visible design yet')).toBeTruthy();
     expect(document.querySelector('[data-cutlist-piece="rail"]')).toBeNull();
@@ -23,7 +24,8 @@ describe('ProjectCardPreview',()=>{
     expect(screen.getByText('No parts or design yet')).toBeTruthy();
   });
   it('shows the chosen cutlist even when a design exists, and an empty state when its parts are removed',()=>{
-    const project={...createProject('Both'),design:design(),previewView:'cutlist' as const,parts:[{id:'rail',name:'Rail',materialId:'',length:{um:500_000},quantity:1}]};
+    const base=createProject('Both');
+    const project={...base,design:design(),previewView:'cutlist' as const,parts:[{id:'rail',name:'Rail',materialId:'',cutlistId:base.cutlists[0].id,length:{um:500_000},quantity:1}]};
     const {rerender}=render(<ProjectCardPreview project={project}/>);
     expect(document.querySelector('[data-cutlist-piece="rail"]')).toBeTruthy();
     expect(screen.queryByRole('img',{name:/design preview/})).toBeNull();
@@ -34,9 +36,9 @@ describe('ProjectCardPreview',()=>{
   });
   it('draws panels and boards at a shared scale, with minimum sizes for small pieces',()=>{
     const project={...createProject('Mixed'),parts:[
-      {id:'panel',name:'Panel',materialId:'',kind:'sheet' as const,length:{um:1_000_000},width:{um:500_000},quantity:1},
-      {id:'board',name:'Board',materialId:'',kind:'linear' as const,length:{um:500_000},crossSection:{width:{um:100_000},thickness:{um:20_000}},quantity:1},
-      {id:'small',name:'Small',materialId:'',kind:'sheet' as const,length:{um:1_000},width:{um:1_000},quantity:1},
+      {id:'panel',name:'Panel',materialId:'',cutlistId:'default-cutlist',kind:'sheet' as const,length:{um:1_000_000},width:{um:500_000},quantity:1},
+      {id:'board',name:'Board',materialId:'',cutlistId:'default-cutlist',kind:'linear' as const,length:{um:500_000},crossSection:{width:{um:100_000},thickness:{um:20_000}},quantity:1},
+      {id:'small',name:'Small',materialId:'',cutlistId:'default-cutlist',kind:'sheet' as const,length:{um:1_000},width:{um:1_000},quantity:1},
     ]};
     render(<ProjectCardPreview project={project}/>);
     const rect=(id:string)=>document.querySelector(`[data-cutlist-piece="${id}"] rect`)!;
@@ -67,7 +69,7 @@ describe('ProjectCardPreview',()=>{
   it('falls back to cutlist parts when design geometry has no drawable vertices, then shows empty state',()=>{
     const project=createProject('Parts');
     const noGeometry=design({definitions:[{id:'empty',name:'Empty',geometry:{vertices:[],edges:[],faces:[],extrusions:[]},appearance:{color:'#126789'}}]});
-    const withParts={...project,design:noGeometry,parts:[{id:'part',name:'Rail',materialId:'',length:{um:900_000},quantity:1}]};
+    const withParts={...project,design:noGeometry,parts:[{id:'part',name:'Rail',materialId:'',cutlistId:project.cutlists[0].id,length:{um:900_000},quantity:1}]};
     const {rerender}=render(<ProjectCardPreview project={withParts}/>);
     expect(document.querySelector('.project-card-illustration')?.getAttribute('aria-hidden')).toBe('true');
     expect(document.querySelector('.project-card-design-surface')).toBeNull();

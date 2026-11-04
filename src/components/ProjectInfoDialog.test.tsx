@@ -7,7 +7,8 @@ import { ProjectInfoDialog, type ProjectInfoDraft } from './ProjectInfoDialog';
 
 describe('project preview choice', () => {
   it('offers the cutlist when parts exist and updates the live preview', async () => {
-    const project = { ...createProject('Both'), parts: [{ id: 'rail', name: 'Rail', materialId: '', length: { um: 100000 }, quantity: 1 }] };
+    const base = createProject('Both');
+    const project = { ...base, parts: [{ id: 'rail', name: 'Rail', materialId: '', cutlistId: base.cutlists[0].id, length: { um: 100000 }, quantity: 1 }] };
     function Settings() {
       const [draft, setDraft] = useState<ProjectInfoDraft>({ name: project.name, notes: '', unitSystem: project.unitSystem, previewView: 'auto' });
       return <ProjectInfoDialog open onOpenChange={vi.fn()} project={project} draft={draft} onDraftChange={setDraft} error="" onSave={vi.fn()}/>;

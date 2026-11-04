@@ -3,7 +3,7 @@ import { exportProject } from './model';
 import { importProjectAsNew } from './storage';
 import type { Project } from './model';
 
-const project: Project = { schemaVersion: 2, id: 'same-id', name: 'Backup', unitSystem: 'imperial', kerf: { um: 0 }, trim: { um: 0 }, minOffcutLinear: { um: 0 }, minOffcutSheet: { shortSideUm: 0, longSideUm: 0 }, currency: 'CAD', createdAt: '2026-10-22T00:00:00.000Z', updatedAt: '2026-10-22T00:00:00.000Z', parts: [], materials: [] };
+const project: Project = { schemaVersion: 3, id: 'same-id', name: 'Backup', unitSystem: 'imperial', kerf: { um: 0 }, trim: { um: 0 }, minOffcutLinear: { um: 0 }, minOffcutSheet: { shortSideUm: 0, longSideUm: 0 }, currency: 'CAD', cutlists: [{ id: 'default-cutlist', name: 'Default' }], planningGroups: [], createdAt: '2026-10-22T00:00:00.000Z', updatedAt: '2026-10-22T00:00:00.000Z', parts: [], materials: [] };
 
 describe('project backup import', () => {
   it('assigns a fresh id when an imported backup would duplicate a local project', () => {

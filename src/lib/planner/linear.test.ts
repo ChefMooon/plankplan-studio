@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { exactLinearCostCents, naiveLinearCostCents, optimizeLinear, validateLinearPlan } from './linear';
 import { umFromInches, type Project } from './model';
-const project: Project = { schemaVersion: 2, id: 'p', name: 'Test', unitSystem: 'imperial', kerf: { um: umFromInches(.125) }, trim: { um: umFromInches(.25) }, minOffcutLinear: { um: umFromInches(12) }, minOffcutSheet: { shortSideUm: 150000, longSideUm: 300000 }, currency: 'CAD', createdAt: '', updatedAt: '', parts: [{ id: 'a', name: 'Rail', materialId: 'm', length: { um: umFromInches(48) }, quantity: 2 }, { id: 'b', name: 'Stile', materialId: 'm', length: { um: umFromInches(24) }, quantity: 2 }], materials: [] };
+const project: Project = { schemaVersion: 3, id: 'p', name: 'Test', unitSystem: 'imperial', kerf: { um: umFromInches(.125) }, trim: { um: umFromInches(.25) }, minOffcutLinear: { um: umFromInches(12) }, minOffcutSheet: { shortSideUm: 150000, longSideUm: 300000 }, currency: 'CAD', cutlists: [{ id: 'default-cutlist', name: 'Default' }], planningGroups: [], createdAt: '', updatedAt: '', parts: [{ id: 'a', name: 'Rail', materialId: 'm', cutlistId: 'default-cutlist', length: { um: umFromInches(48) }, quantity: 2 }, { id: 'b', name: 'Stile', materialId: 'm', cutlistId: 'default-cutlist', length: { um: umFromInches(24) }, quantity: 2 }], materials: [] };
 const material = { id: 'm', name: 'Pine', type: 'linear' as const, stocks: [{ id: 's', name: '8 ft board', length: { um: umFromInches(96) }, price: { cents: 2000 }, widthUm: umFromInches(6), thicknessUm: umFromInches(1), priceBasis: 'board-foot' as const, ownedQuantity: 0 }] };
 describe('linear optimizer contracts', () => {
   it('emits complete, independently valid, kerf and trim aware plans', () => {
@@ -39,7 +39,7 @@ describe('linear optimizer contracts', () => {
   it('benchmarks a small case against exact and naive costs', () => {
     const pieces = [{ id: 'a', lengthUm: umFromInches(48) }, { id: 'b', lengthUm: umFromInches(48) }, { id: 'c', lengthUm: umFromInches(24) }];
     const exact = exactLinearCostCents(pieces, material.stocks, project.kerf.um, project.trim.um);
-    const result = optimizeLinear({ ...project, parts: pieces.map(p => ({ id: p.id, name: p.id, materialId: 'm', length: { um: p.lengthUm }, quantity: 1 })) }, [material]);
+    const result = optimizeLinear({ ...project, parts: pieces.map(p => ({ id: p.id, name: p.id, materialId: 'm', cutlistId: 'default-cutlist', length: { um: p.lengthUm }, quantity: 1 })) }, [material]);
     expect(result.valid).toBe(true);
     expect(result.totalCostCents).toBeLessThanOrEqual(naiveLinearCostCents(pieces, material.stocks, project.trim.um));
     expect(result.totalCostCents).toBe(exact);
@@ -49,7 +49,7 @@ describe('linear optimizer contracts', () => {
     expect(validateLinearPlan(project, [{ ...material, stocks: [{ ...material.stocks[0], quantityLimit: 1 }] }], plans)).toContain('Stock limit exceeded: 8 ft board');
   });
   it('handles adversarial kerf and trim boundaries exactly', () => {
-    const boundary = { ...project, kerf: { um: umFromInches(.125) }, trim: { um: umFromInches(.25) }, parts: [{ id: 'x', name: 'Exact fit', materialId: 'm', length: { um: umFromInches(95.625) }, quantity: 1 }] };
+    const boundary = { ...project, kerf: { um: umFromInches(.125) }, trim: { um: umFromInches(.25) }, parts: [{ id: 'x', name: 'Exact fit', materialId: 'm', cutlistId: 'default-cutlist', length: { um: umFromInches(95.625) }, quantity: 1 }] };
     expect(optimizeLinear(boundary, [material]).valid).toBe(true);
     const tooLong = { ...boundary, parts: [{ ...boundary.parts[0], length: { um: umFromInches(95.751) } }] };
     expect(optimizeLinear(tooLong, [material]).valid).toBe(false);

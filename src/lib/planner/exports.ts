@@ -5,14 +5,15 @@ import type { LinearPlan } from './model';
 
 const csvCell = (value: string | number) => `"${String(value).replaceAll('"', '""')}"`;
 export function exportCutCsv(project: Project, linearPlans: LinearPlan[], sheetPlans: SheetPlan[]): string {
-  const rows: (string | number)[][] = [['Material', 'Stock', 'Stock count', 'Owned', 'Buy cost', 'Part', 'Length um', 'Width um', 'X um', 'Y um', 'Rotated']];
+  const rows: (string | number)[][] = [['Material', 'Stock', 'Stock count', 'Owned', 'Buy cost', 'Part', 'Length um', 'Width um', 'X um', 'Y um', 'Rotated', 'Cutlist']];
   const prepared = preparePlanningProject(project);
   const stocks = new Map(prepared.project.materials.flatMap(m => m.stocks.map(s => [s.id, { material: m.name, stock: s.name }] as const)));
+  const cutlistNames = new Map(project.cutlists.map(cutlist => [cutlist.id, cutlist.name]));
   for (const plan of linearPlans) for (const cut of plan.cuts) {
-    const entry = stocks.get(plan.stockId); rows.push([entry?.material ?? '', entry?.stock ?? '', plan.stockCount, plan.ownedUsed, prepared.genericStockIds.has(plan.stockId) ? 'Unspecified' : plan.costCents, project.parts.find(p => p.id === cut.partId)?.name ?? cut.partId, cut.lengthUm, '', '', '', '']);
+    const entry = stocks.get(plan.stockId); const part = project.parts.find(p => p.id === cut.partId); rows.push([entry?.material ?? '', entry?.stock ?? '', plan.stockCount, plan.ownedUsed, prepared.genericStockIds.has(plan.stockId) ? 'Unspecified' : plan.costCents, part?.name ?? cut.partId, cut.lengthUm, '', '', '', '', cutlistNames.get(part?.cutlistId ?? '') ?? '']);
   }
   for (const plan of sheetPlans) for (const placement of plan.placements) {
-    const entry = stocks.get(plan.stockId); const part = project.parts.find(p => p.id === placement.partId); rows.push([entry?.material ?? '', entry?.stock ?? '', plan.stockCount, plan.ownedUsed, prepared.genericStockIds.has(plan.stockId) ? 'Unspecified' : plan.costCents, part?.name ?? placement.partId, part?.length.um ?? '', part?.width?.um ?? '', placement.rect.x, placement.rect.y, placement.rotated ? 'yes' : 'no']);
+    const entry = stocks.get(plan.stockId); const part = project.parts.find(p => p.id === placement.partId); rows.push([entry?.material ?? '', entry?.stock ?? '', plan.stockCount, plan.ownedUsed, prepared.genericStockIds.has(plan.stockId) ? 'Unspecified' : plan.costCents, part?.name ?? placement.partId, part?.length.um ?? '', part?.width?.um ?? '', placement.rect.x, placement.rect.y, placement.rotated ? 'yes' : 'no', cutlistNames.get(part?.cutlistId ?? '') ?? '']);
   }
   return rows.map(row => row.map(csvCell).join(',')).join('\r\n');
 }

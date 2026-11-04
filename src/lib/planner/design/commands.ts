@@ -26,14 +26,17 @@ export type DesignCommand =
   | {type:'delete-instance';instanceId:string}
   | {type:'delete-loose';objectId:string}
   | {type:'delete-definition';definitionId:string}
-  | {type:'include-in-projection';instanceIds:string[]}
+  | {type:'include-in-projection';instanceIds:string[];cutlistId?:string}
+  | {type:'create-design-group';id:string;name:string;instanceIds:string[]}
+  | {type:'delete-design-group';groupId:string}
+  | {type:'assign-instances-to-cutlist';instanceIds?:string[];all?:boolean;cutlistId:string;mode:'copy'|'move'|'skip';modeByInstance?:Record<string,'copy'|'move'|'skip'>}
   | {type:'detach-part';partId:string}
   | {type:'delete-part';partId:string}
   | {type:'edit-part';part:Part};
 
 export type CommandResult = {ok:true;project:Project;label:string}|{ok:false;project:Project;code:string;message:string};
 const clone=(<T>(v:T):T=>structuredClone(v));
-const reasonOrder:LinkReason[]=['source-deleted','definition-edited','instance-scaled','material-changed','made-unique','part-deleted'];
+const reasonOrder:LinkReason[]=['source-deleted','definition-edited','instance-scaled','material-changed','made-unique','cutlist-membership-changed','part-deleted'];
 function markLinks(design:DesignDocumentV1,definitionId:string,reason:LinkReason, surviving?:Set<string>):DesignDocumentV1 {
   const partLinks={...design.partLinks};
   for(const [id,link] of Object.entries(partLinks)) if(link.current?.definitionId===definitionId){
@@ -49,6 +52,20 @@ function markInstanceLinks(design:DesignDocumentV1,instanceId:string,reason:Link
   for(const [id,link] of Object.entries(partLinks))if(link.current?.instanceIds.includes(instanceId)){
     const reasons:LinkReason[]=[...new Set([...(link.state==='active'?[]:link.reasons),reason])].sort((a,b)=>reasonOrder.indexOf(a)-reasonOrder.indexOf(b));
     partLinks[id]={state:link.state==='pending-part-deletion'?'pending-part-deletion':'pending-reconcile',reasons,...(link.current?{current:link.current}:{}),lastApplied:link.lastApplied};
+  }
+  return {...design,partLinks};
+}
+function markMovedMembershipLinks(design:DesignDocumentV1,instanceIds:string[],targetCutlistId:string,parts:Part[],defaultCutlistId:string):DesignDocumentV1 {
+  const moved=new Set(instanceIds),partLinks={...design.partLinks};
+  for(const [partId,link] of Object.entries(partLinks)){
+    const cutlistId=link.cutlistId??parts.find(part=>part.id===partId)?.cutlistId??defaultCutlistId;
+    if(cutlistId===targetCutlistId)continue;
+    const sources=link.current??(link.state==='active'?link.current:undefined);if(!sources)continue;
+    const remaining=sources.instanceIds.filter(id=>!moved.has(id));if(remaining.length===sources.instanceIds.length)continue;
+    const reasons:LinkReason[]=[...new Set<LinkReason>([...(link.state==='active'?[]:link.reasons),'cutlist-membership-changed'])].sort((a,b)=>reasonOrder.indexOf(a)-reasonOrder.indexOf(b));
+    if(link.state==='pending-part-deletion')partLinks[partId]={...link,cutlistId,reasons};
+    else if(remaining.length)partLinks[partId]={state:'pending-reconcile',cutlistId,reasons,current:{definitionId:sources.definitionId,instanceIds:remaining},lastApplied:link.lastApplied};
+    else partLinks[partId]={state:'pending-removal',cutlistId,reasons,lastApplied:link.lastApplied};
   }
   return {...design,partLinks};
 }
@@ -77,7 +94,7 @@ export function applyDesignCommand(project:Project,command:DesignCommand):Comman
         if(d.definitions.length>=1000||d.instances.length>=5000)throw Error('design-count-limit');
         const geometry=rectangleGeometry(command.lengthUm,command.widthUm,p=>`${command.definitionId}-${p}-${crypto.randomUUID()}`,command.thicknessUm);
         const def:Definition={id:command.definitionId,name:command.name,geometry,appearance:{color:'#b8895b'},...(command.materialId?{materialId:command.materialId}:{}),cutSpec:{kind:command.type==='create-board'?'board':'panel',lengthUm:command.lengthUm,widthUm:command.widthUm,thicknessUm:command.thicknessUm,grainAxis:command.grainAxis??'length',confirmation:'confirmed'}};
-        d={...d,definitions:[...d.definitions,def],instances:[...d.instances,{id:command.id,definitionId:def.id,pose:command.pose??clone(IDENTITY_POSE),scalePpm:[...IDENTITY_SCALE],hidden:false,locked:false}]}; label='Create component';break;
+        d={...d,definitions:[...d.definitions,def],instances:[...d.instances,{id:command.id,definitionId:def.id,pose:command.pose??clone(IDENTITY_POSE),scalePpm:[...IDENTITY_SCALE],hidden:false,locked:false,projectionCutlistIds:[]}]}; label='Create component';break;
       }
       case 'create-loose': d={...d,looseObjects:[...d.looseObjects,clone(command.object)]}; label='Create geometry';break;
       case 'append-profile-segment': {
@@ -108,7 +125,7 @@ export function applyDesignCommand(project:Project,command:DesignCommand):Comman
         const geometry:Geometry={vertices,edges,faces,extrusions};
         const def:Definition={id:command.definitionId,name:command.name.trim(),geometry,appearance:clone(sources[0].appearance),...(command.cutSpec?{cutSpec:clone(command.cutSpec)}:{})};
         if(!def.name)throw Error('empty-name');
-        d={...d,definitions:[...d.definitions,def],looseObjects:d.looseObjects.filter(x=>!objectIds.includes(x.id)),instances:[...d.instances,{id:command.instanceId,definitionId:def.id,pose:clone(IDENTITY_POSE),scalePpm:[...IDENTITY_SCALE],hidden:sources[0].hidden,locked:sources[0].locked}]};label='Make component';break;
+        d={...d,definitions:[...d.definitions,def],looseObjects:d.looseObjects.filter(x=>!objectIds.includes(x.id)),instances:[...d.instances,{id:command.instanceId,definitionId:def.id,pose:clone(IDENTITY_POSE),scalePpm:[...IDENTITY_SCALE],hidden:sources[0].hidden,locked:sources[0].locked,projectionCutlistIds:[]}]};label='Make component';break;
       }
       case 'set-geometry': {
         const def=d.definitions.find(x=>x.id===command.definitionId);if(!def)throw Error('definition-not-found');
@@ -185,18 +202,50 @@ export function applyDesignCommand(project:Project,command:DesignCommand):Comman
       case 'set-state': {if(command.target==='instance'){if(!d.instances.some(x=>x.id===command.id))throw Error('instance-not-found');d={...d,instances:d.instances.map(x=>x.id===command.id?{...x,...(command.hidden===undefined?{}:{hidden:command.hidden}),...(command.locked===undefined?{}:{locked:command.locked})}:x)};}else{if(!d.looseObjects.some(x=>x.id===command.id))throw Error('loose-object-not-found');d={...d,looseObjects:d.looseObjects.map(x=>x.id===command.id?{...x,...(command.hidden===undefined?{}:{hidden:command.hidden}),...(command.locked===undefined?{}:{locked:command.locked})}:x)};}label='Set visibility and lock';break;}
       case 'duplicate-instance': {const source=d.instances.find(x=>x.id===command.sourceId);if(!source)throw Error('instance-not-found');const offset=command.offsetUm??100_000;d={...d,instances:[...d.instances,{...source,id:command.id,pose:{...source.pose,positionUm:[source.pose.positionUm[0]+offset,source.pose.positionUm[1],source.pose.positionUm[2]]}}]};label='Duplicate component';break;}
       case 'make-unique': {const source=d.instances.find(x=>x.id===command.instanceId);if(!source)throw Error('instance-not-found');const def=d.definitions.find(x=>x.id===source.definitionId);if(!def)throw Error('definition-not-found');const unique={...clone(def),id:command.definitionId};d={...d,definitions:[...d.definitions,unique],instances:d.instances.map(x=>x.id===source.id?{...x,definitionId:unique.id}:x)};d=markLinks(d,def.id,'made-unique');label='Make unique';break;}
-      case 'delete-instance': {const inst=d.instances.find(x=>x.id===command.instanceId);if(!inst)throw Error('instance-not-found');d={...d,instances:d.instances.filter(x=>x.id!==inst.id)};d=markLinks(d,inst.definitionId,'source-deleted');label='Delete component';break;}
+      case 'delete-instance': {const inst=d.instances.find(x=>x.id===command.instanceId);if(!inst)throw Error('instance-not-found');d={...d,instances:d.instances.filter(x=>x.id!==inst.id),...(d.groups?{groups:d.groups.map(group=>({...group,instanceIds:group.instanceIds.filter(id=>id!==inst.id)}))}:{})};d=markLinks(d,inst.definitionId,'source-deleted');label='Delete component';break;}
       case 'delete-loose': {if(!d.looseObjects.some(x=>x.id===command.objectId))throw Error('loose-object-not-found');d={...d,looseObjects:d.looseObjects.filter(x=>x.id!==command.objectId)};label='Erase geometry';break;}
-      case 'delete-definition': {const def=d.definitions.find(x=>x.id===command.definitionId);if(!def)throw Error('definition-not-found');d={...d,definitions:d.definitions.filter(x=>x.id!==def.id),instances:d.instances.filter(x=>x.definitionId!==def.id)};d=markLinks(d,def.id,'source-deleted',new Set());label='Delete definition';break;}
-      case 'include-in-projection': {if(!command.instanceIds.length||new Set(command.instanceIds).size!==command.instanceIds.length||command.instanceIds.some(id=>!d.instances.some(x=>x.id===id)))throw Error('invalid-instance-selection');d={...d,instances:d.instances.map(x=>{if(!command.instanceIds.includes(x.id))return x;const included={...x};delete included.projectionExcluded;return included;})};label='Include in cutlist';break;}
-      case 'detach-part': {const link=d.partLinks[command.partId];if(!link)throw Error('link-not-found');const sourceIds=new Set([...(link.current?.instanceIds??[]),...link.lastApplied.sources.instanceIds]);d={...d,instances:d.instances.map(i=>sourceIds.has(i.id)?{...i,projectionExcluded:true}:i)};const partLinks={...d.partLinks};delete partLinks[command.partId];d={...d,partLinks};label='Detach cutlist row';break;}
-      case 'delete-part': {const link=d.partLinks[command.partId];if(link){const reasons:LinkReason[]=[...new Set<LinkReason>([...(link.state==='active'?[]:link.reasons),'part-deleted'])];d={...d,partLinks:{...d.partLinks,[command.partId]:{state:'pending-part-deletion',reasons,lastApplied:link.lastApplied}}};}next.parts=next.parts.filter(p=>p.id!==command.partId);label='Delete cutlist row';break;}
+      case 'delete-definition': {const def=d.definitions.find(x=>x.id===command.definitionId);if(!def)throw Error('definition-not-found');const removed=new Set(d.instances.filter(x=>x.definitionId===def.id).map(x=>x.id));d={...d,definitions:d.definitions.filter(x=>x.id!==def.id),instances:d.instances.filter(x=>x.definitionId!==def.id),...(d.groups?{groups:d.groups.map(group=>({...group,instanceIds:group.instanceIds.filter(id=>!removed.has(id))}))}:{})};d=markLinks(d,def.id,'source-deleted',new Set());label='Delete definition';break;}
+      case 'create-design-group': {
+        const name=command.name.trim();
+        if(!name||name.length>256)throw Error('invalid-name');
+        if(!command.id||command.id.length>128||d.groups?.some(group=>group.id===command.id))throw Error('invalid-group-id');
+        if(!command.instanceIds.length||new Set(command.instanceIds).size!==command.instanceIds.length||command.instanceIds.some(id=>!d.instances.some(instance=>instance.id===id)))throw Error('invalid-group-members');
+        d={...d,groups:[...(d.groups??[]),{id:command.id,name,instanceIds:[...command.instanceIds]}]};label='Save design group';break;
+      }
+      case 'delete-design-group': {if(!d.groups?.some(group=>group.id===command.groupId))throw Error('group-not-found');d={...d,groups:d.groups.filter(group=>group.id!==command.groupId)};label='Delete design group';break;}
+      case 'include-in-projection': {const cutlistId=command.cutlistId??next.cutlists?.[0]?.id??'default-cutlist';if(!command.instanceIds.length||new Set(command.instanceIds).size!==command.instanceIds.length||command.instanceIds.some(id=>!d.instances.some(x=>x.id===id)))throw Error('invalid-instance-selection');d={...d,instances:d.instances.map(x=>{if(!command.instanceIds.includes(x.id))return x;const included={...x};delete included.projectionExcluded;included.projectionCutlistIds=[...new Set([...(included.projectionCutlistIds??[cutlistId]),cutlistId])].sort();included.projectionExcludedCutlistIds=(included.projectionExcludedCutlistIds??[]).filter(id=>id!==cutlistId);if(!included.projectionExcludedCutlistIds.length)delete included.projectionExcludedCutlistIds;return included;})};label='Include in cutlist';break;}
+      case 'assign-instances-to-cutlist': {
+        const instanceIds=command.all?d.instances.map(i=>i.id):command.instanceIds??[];
+        if(!next.cutlists?.some(c=>c.id===command.cutlistId)||!instanceIds.length||new Set(instanceIds).size!==instanceIds.length||instanceIds.some(id=>!d.instances.some(x=>x.id===id)))throw Error('invalid-instance-selection');
+        if(command.modeByInstance&&Object.entries(command.modeByInstance).some(([id,mode])=>!instanceIds.includes(id)||!['copy','move','skip'].includes(mode)))throw Error('invalid-instance-modes');
+        const defaultCutlistId=next.cutlists?.[0]?.id??'default-cutlist';
+        const modeFor=(id:string)=>command.modeByInstance?.[id]??command.mode;
+        for(const mode of ['move'] as const){const moving=instanceIds.filter(id=>modeFor(id)===mode);if(moving.length)d=markMovedMembershipLinks(d,moving,command.cutlistId,next.parts,defaultCutlistId);}
+        d={...d,instances:d.instances.map(x=>{
+          if(!instanceIds.includes(x.id))return x;
+          const mode=modeFor(x.id);
+          const currentIds=x.projectionCutlistIds??[defaultCutlistId];
+          if(mode==='skip'&&currentIds.length>0)return x;
+          const ids=new Set(currentIds);
+          if(mode==='move')ids.clear();
+          ids.add(command.cutlistId);
+          const projectionCutlistIds=[...ids].sort();
+          const excluded=new Set(x.projectionExcludedCutlistIds??[]);
+          excluded.delete(command.cutlistId);
+          const projectionExcludedCutlistIds=[...excluded].sort();
+          const clean={...x};delete clean.projectionExcludedCutlistIds;
+          return {...clean,projectionCutlistIds,...(projectionExcludedCutlistIds.length?{projectionExcludedCutlistIds}:{})};
+        })};
+        label=command.mode==='copy'?'Copy component to cutlist':command.mode==='move'?'Move component to cutlist':'Skip assigned components';break;
+      }
+      case 'detach-part': {const link=d.partLinks[command.partId];if(!link)throw Error('link-not-found');const cutlistId=link.cutlistId??next.parts.find(p=>p.id===command.partId)?.cutlistId??next.cutlists[0].id;const sourceIds=new Set([...(link.current?.instanceIds??[]),...link.lastApplied.sources.instanceIds]);d={...d,instances:d.instances.map(i=>{if(!sourceIds.has(i.id))return i;const ids=new Set(i.projectionExcludedCutlistIds??[]);ids.add(cutlistId);return {...i,projectionExcludedCutlistIds:[...ids].sort()};})};const partLinks={...d.partLinks};delete partLinks[command.partId];d={...d,partLinks};label='Detach cutlist row';break;}
+      case 'delete-part': {const link=d.partLinks[command.partId];if(link){const reasons:LinkReason[]=[...new Set<LinkReason>([...(link.state==='active'?[]:link.reasons),'part-deleted'])];const cutlistId=link.cutlistId??next.parts.find(p=>p.id===command.partId)?.cutlistId;d={...d,partLinks:{...d.partLinks,[command.partId]:{state:'pending-part-deletion',...(cutlistId?{cutlistId}:{}),reasons,lastApplied:link.lastApplied}}};}next.parts=next.parts.filter(p=>p.id!==command.partId);label='Delete cutlist row';break;}
       case 'edit-part': {if(!next.parts.some(p=>p.id===command.part.id))throw Error('part-not-found');next.parts=next.parts.map(p=>p.id===command.part.id?clone(command.part):p);label='Edit cutlist row';break;}
     }
     next.design=d; const invalid=validateNext(next);if(invalid)throw Error(invalid);
-    normalizeProjectDocument(next);
-    return {ok:true,project:next,label};
+    const normalized=normalizeProjectDocument(next);
+    return {ok:true,project:normalized,label};
   } catch(error) {return {ok:false,project,code:error instanceof Error?error.message:'command-rejected',message:error instanceof Error?error.message:'Command rejected'};}
 }
 
-export function newDesignDocument():DesignDocumentV1{return {schemaVersion:1,definitions:[],instances:[],looseObjects:[],partLinks:{}};}
+export function newDesignDocument():DesignDocumentV1{return {schemaVersion:1,definitions:[],instances:[],looseObjects:[],partLinks:{},groups:[]};}

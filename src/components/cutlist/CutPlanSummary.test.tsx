@@ -42,6 +42,8 @@ it('keeps linear and sheet summaries informative without duplicating prices', ()
       id: 'rail',
       name: 'Rail',
       materialId: 'pine',
+
+      cutlistId: project.cutlists[0].id,
       stockId: 'pine-board',
       length: { um: 20 * 25_400 },
       quantity: 1,
@@ -51,6 +53,8 @@ it('keeps linear and sheet summaries informative without duplicating prices', ()
       name: 'Panel',
       kind: 'sheet',
       materialId: 'plywood',
+
+      cutlistId: project.cutlists[0].id,
       stockId: 'plywood-sheet',
       length: { um: 24 * 25_400 },
       width: { um: 18 * 25_400 },
@@ -150,6 +154,8 @@ it('omits the sheet-layout heading when the plan only has linear boards', () => 
       name: 'Rail',
       kind: 'linear',
       materialId: '',
+
+      cutlistId: project.cutlists[0].id,
       length: { um: 24 * 25_400 },
       quantity: 1,
     },
@@ -177,6 +183,8 @@ it('shows only the sheet-layout heading when the plan only has panels', () => {
       name: 'Panel',
       kind: 'sheet',
       materialId: '',
+
+      cutlistId: project.cutlists[0].id,
       length: { um: 24 * 25_400 },
       width: { um: 18 * 25_400 },
       quantity: 1,
@@ -219,6 +227,8 @@ it('keeps plural quantities and partial, unspecified-price qualifiers in their p
       id: 'rail',
       name: 'Rail',
       materialId: 'pine',
+
+      cutlistId: project.cutlists[0].id,
       stockId: 'pine-board',
       length: { um: 40 * 25_400 },
       quantity: 4,
@@ -228,6 +238,8 @@ it('keeps plural quantities and partial, unspecified-price qualifiers in their p
       name: 'Panel',
       kind: 'sheet',
       materialId: '',
+
+      cutlistId: project.cutlists[0].id,
       length: { um: 48 * 25_400 },
       width: { um: 48 * 25_400 },
       quantity: 3,
@@ -236,6 +248,8 @@ it('keeps plural quantities and partial, unspecified-price qualifiers in their p
       id: 'unassigned',
       name: 'Unassigned rail',
       materialId: 'pine',
+
+      cutlistId: project.cutlists[0].id,
       stockId: 'missing-stock',
       length: { um: 20 * 25_400 },
       quantity: 1,
@@ -286,6 +300,8 @@ it('avoids repeating generic stock names and price labels across linear and pane
       name: 'Rail',
       kind: 'linear',
       materialId: '',
+
+      cutlistId: project.cutlists[0].id,
       length: { um: 24 * 25_400 },
       quantity: 1,
     },
@@ -294,6 +310,8 @@ it('avoids repeating generic stock names and price labels across linear and pane
       name: 'Panel',
       kind: 'sheet',
       materialId: '',
+
+      cutlistId: project.cutlists[0].id,
       length: { um: 24 * 25_400 },
       width: { um: 18 * 25_400 },
       quantity: 1,

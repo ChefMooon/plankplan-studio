@@ -187,7 +187,7 @@ describe('DesignScene rotation rendering', () => {
     await renderer.update(<DesignScene {...props} design={design} activeTool="erase" />);
     expect(targets()).toHaveLength(0);
     expect(designVertices(design)).toEqual([]);
-    expect(snapshotObjects({design} as Project)).toEqual([]);
+    expect(snapshotObjects({design} as unknown as Project)).toEqual([]);
     await renderer.update(<DesignScene {...props} design={design} editingDefinitionId="definition-1" />);
     expect(targets().some(node => node.instance.userData.designTargetId === 'definition-1')).toBe(true);
     expect(designVertices(design, 'definition-1')).not.toHaveLength(0);

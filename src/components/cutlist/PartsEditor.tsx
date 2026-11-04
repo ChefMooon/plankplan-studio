@@ -2,7 +2,7 @@ import type { Project } from '@/lib/planner/model';
 import type { Dispatch, SetStateAction } from 'react';
 import { Select } from '@/components/ui/select';
 import { NumberStepper } from '@/components/ui/number-stepper';
-import { insertEditorCopy, withEditorOrder } from '@/lib/planner/editor-order';
+import { insertEditorCopy } from '@/lib/planner/editor-order';
 import type { SharedEditorProps } from './editorTypes';
 import { PartTypeField, PartLumberField, PartCustomSize } from './PartSizeSettings';
 import { PartDisclosure } from './PartDisclosure';
@@ -542,7 +542,9 @@ export function PartsEditor({
                       update({
                         ...project,
                         parts: [...project.parts, copy],
-                        editorOrder: withEditorOrder(project.editorOrder, { parts: ids }),
+                        cutlists: project.cutlists.map(list => list.id === part.cutlistId
+                          ? { ...list, editorOrder: { ...list.editorOrder, parts: ids } }
+                          : list),
                       });
                       setOrderAnnouncement(`${copy.name} duplicated.`);
                       window.setTimeout(() => document.getElementById(`part-name-${id}`)?.focus(), 0);

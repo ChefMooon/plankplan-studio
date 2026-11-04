@@ -8,7 +8,7 @@ import { CutPlan } from './CutPlan';
 it('starts sheet cut orders collapsed and supports individual and bulk controls', async () => {
   const user = userEvent.setup();
   const project = createProject();
-  project.parts.push({ kind: 'sheet', id: 'panel', name: 'Panel', materialId: '', length: { um: 600000 }, width: { um: 300000 }, quantity: 1 });
+  project.parts.push({ kind: 'sheet', id: 'panel', name: 'Panel', materialId: '', cutlistId: project.cutlists[0].id, length: { um: 600000 }, width: { um: 300000 }, quantity: 1 });
   const result = optimizeMixedProject(project);
   const first = result.sheets.plans[0];
   result.sheets.plans.push({ ...first, layout: first.layout === 'strips' ? 'guillotine' : 'strips' });

@@ -9,11 +9,83 @@ import userEvent from '@testing-library/user-event';
 vi.mock('./DesignViewport', () => ({ DesignViewport: ({ onSelect, onSubSelect, onEnterDefinition, editingDefinitionId, editingObjectId, activeTool, moveConstraint, moveShiftHeld, onToolMeasurementChange, onRegisterMeasurementActions }: { onSelect: (id?: string) => void; onSubSelect?:(id:string,element:{type:'vertex';id:string})=>void; onEnterDefinition?:(id:string)=>void; editingDefinitionId?:string; editingObjectId?:string; activeTool?:string; moveConstraint?:string; moveShiftHeld?:boolean; onToolMeasurementChange?:(session?:{id:string;tool:string;canPlace:boolean;fields:{id:string;label:string;value:string;unit:string}[]})=>void; onRegisterMeasurementActions?:(actions?:{commit:()=>void;cancel:()=>void})=>void }) => <><button type="button" aria-label="Select sample in model" onClick={() => onSelect('instance-1')}>Sample viewport</button><button type="button" onClick={()=>{onSelect('instance-1');onSubSelect?.('instance-1',{type:'vertex',id:'corner-1-1-1'});}}>Pick model corner</button><button type="button" onClick={()=>onEnterDefinition?.('definition-1')}>Enter shared definition</button><button type="button" onClick={()=>onEnterDefinition?.('loose-1')}>Enter loose shape edit</button>{activeTool==='move'&&<button type="button" onClick={()=>{onToolMeasurementChange?.({id:'move-test',tool:'Move',canPlace:false,fields:[{id:'distance',label:'Length',value:'0',unit:'mm'}]});onRegisterMeasurementActions?.({commit:vi.fn(),cancel:vi.fn()});}}>Start mocked Move</button>}<span data-testid="mock-move-constraint">{moveConstraint??'free'}</span><span data-testid="mock-move-shift">{moveShiftHeld?'held':'released'}</span>{editingDefinitionId&&<span role="status">Editing {editingDefinitionId}</span>}{editingObjectId&&<span role="status">Editing shape {editingObjectId}</span>}</> }));
 
 const project: Project = {
-  schemaVersion: 2, id: 'workspace-test', name: 'Sample bench', unitSystem: 'imperial', kerf: { um: 0 }, trim: { um: 0 }, minOffcutLinear: { um: 0 }, minOffcutSheet: { shortSideUm: 0, longSideUm: 0 }, currency: 'CAD', createdAt: '2026-01-01T00:00:00.000Z', updatedAt: '2026-01-01T00:00:00.000Z', parts: [], materials: [],
+  schemaVersion: 3, id: 'workspace-test', name: 'Sample bench', unitSystem: 'imperial', kerf: { um: 0 }, trim: { um: 0 }, minOffcutLinear: { um: 0 }, minOffcutSheet: { shortSideUm: 0, longSideUm: 0 }, currency: 'CAD', cutlists: [{id:'default-cutlist',name:'Default'}], planningGroups: [], createdAt: '2026-01-01T00:00:00.000Z', updatedAt: '2026-01-01T00:00:00.000Z', parts: [], materials: [],
   design: { schemaVersion: 1, definitions: [{ id: 'definition-1', name: 'Side panel', geometry: rectangleGeometry(400_000,300_000,(()=>{let id=0;return p=>`fixture-${p}-${id++}`;})(),18_000), cutSpec: { kind: 'panel', lengthUm: 400_000, widthUm: 300_000, thicknessUm: 18_000, grainAxis: 'length', confirmation: 'confirmed' }, appearance: { color: '#bd8a56' } }], instances: [{ id: 'instance-1', definitionId: 'definition-1', name: 'Left side', pose: { positionUm: [0,0,0], rotation: [0,0,0,1] }, scalePpm: [1_000_000,1_000_000,1_000_000], hidden: false, locked: false }], looseObjects: [], partLinks: {} },
 };
 
 describe('DesignWorkspace', () => {
+  it('assigns all modeled components to a selected cutlist without changing other memberships', () => {
+    const fixture={...project,cutlists:[...project.cutlists,{id:'second-cutlist',name:'Second'}]};
+    const onCommit=vi.fn();render(<DesignWorkspace project={fixture} onCommit={onCommit}/>);
+    fireEvent.click(screen.getByRole('tab',{name:'Components'}));
+    fireEvent.click(screen.getByRole('button',{name:'Add board'}));
+    fireEvent.click(screen.getByRole('button',{name:'Apply choices to all components (2)'}));
+    fireEvent.click(screen.getByLabelText('Target cutlist')); fireEvent.click(screen.getByRole('option', { name: 'Second' }));
+    fireEvent.click(screen.getByRole('button',{name:'Apply choices to all components (2)'}));
+    let assigned=onCommit.mock.calls.at(-1)?.[0] as Project;
+    expect(assigned.design?.instances.at(-1)?.projectionCutlistIds).toEqual(['default-cutlist','second-cutlist']);
+    fireEvent.click(screen.getByRole('radio',{name:'Skip assigned'}));
+    fireEvent.click(screen.getByRole('button',{name:'Apply choices to all components (2)'}));
+    assigned=onCommit.mock.calls.at(-1)?.[0] as Project;
+    const added=assigned.design?.instances.at(-1);
+    expect(added?.projectionCutlistIds).toEqual(['default-cutlist','second-cutlist']);
+    expect(added?.projectionExcludedCutlistIds).toBeUndefined();
+  });
+  it('applies independent copy and skip choices to overlapping and unassigned components', () => {
+    const fixture={...project,cutlists:[...project.cutlists,{id:'second-cutlist',name:'Second'}]};
+    const onCommit=vi.fn();render(<DesignWorkspace project={fixture} onCommit={onCommit}/>);
+    fireEvent.click(screen.getByRole('tab',{name:'Components'}));
+    fireEvent.click(screen.getByRole('button',{name:'Add board'}));
+    fireEvent.click(screen.getByLabelText('Target cutlist')); fireEvent.click(screen.getByRole('option', { name: 'Second' }));
+    fireEvent.click(screen.getByRole('combobox',{name:'Assignment for Left side'})); fireEvent.click(screen.getByRole('option', { name: 'Skip if assigned; include if unassigned' }));
+    fireEvent.click(screen.getByRole('button',{name:'Apply choices to all components (2)'}));
+    const saved=onCommit.mock.calls.at(-1)?.[0] as Project;
+    expect(saved.design?.instances.find(instance=>instance.id==='instance-1')?.projectionCutlistIds).toBeUndefined();
+    expect(saved.design?.instances.find(instance=>instance.id!=='instance-1')?.projectionCutlistIds).toEqual(['second-cutlist']);
+  });
+  it('creates a new cutlist from the selected design instances and leaves row creation for review', async () => {
+    const onCommit=vi.fn();render(<DesignWorkspace project={project} onCommit={onCommit}/>);
+    fireEvent.click(screen.getByRole('tab',{name:'Components'}));
+    fireEvent.click(document.querySelector('.design-object-list button')!);
+    fireEvent.change(screen.getByLabelText('Create cutlist from modeled components'),{target:{value:'Doors'}});
+    fireEvent.click(screen.getByRole('button',{name:'Create from selected (1)'}));
+    const saved=onCommit.mock.calls.at(-1)?.[0] as Project;
+    expect(saved.cutlists).toHaveLength(2);
+    expect(saved.cutlists[1].name).toBe('Doors');
+    expect(saved.design?.instances[0].projectionCutlistIds).toContain(saved.cutlists[1].id);
+    expect(saved.parts).toHaveLength(0);
+    expect(screen.getByRole('tab',{name:'Model Info'})).toHaveAttribute('aria-expanded','true');
+  });
+  it('creates a cutlist from a saved design group snapshot without adding later components', async () => {
+    const onCommit=vi.fn();render(<DesignWorkspace project={project} onCommit={onCommit}/>);
+    fireEvent.click(screen.getByRole('tab',{name:'Components'}));
+    fireEvent.click(document.querySelector('.design-object-list button')!);
+    fireEvent.change(screen.getByLabelText('Save current selection as a group snapshot'),{target:{value:'Door set'}});
+    fireEvent.click(screen.getByRole('button',{name:'Save selected group (1)'}));
+    fireEvent.click(screen.getByRole('button',{name:'Add board'}));
+    expect((onCommit.mock.calls.at(-1)?.[0] as Project).design?.groups?.[0].instanceIds).toHaveLength(1);
+    fireEvent.change(screen.getByLabelText('Create cutlist from modeled components'),{target:{value:'Doors'}});
+    fireEvent.click(screen.getByRole('button',{name:'Create from group snapshot (1)'}));
+    await waitFor(()=>expect((onCommit.mock.calls.at(-1)?.[0] as Project).cutlists).toHaveLength(2));
+    const saved=onCommit.mock.calls.at(-1)?.[0] as Project;
+    expect(saved.design?.instances.filter(instance=>instance.projectionCutlistIds?.includes(saved.cutlists[1].id))).toHaveLength(1);
+    expect(saved.design?.groups?.[0].instanceIds).toEqual(['instance-1']);
+  });
+  it('previews and applies design rows only to the chosen cutlist', async () => {
+    const fixture={...project,cutlists:[...project.cutlists,{id:'second-cutlist',name:'Second'}],materials:[{id:'sheet',name:'Sheet',type:'sheet' as const,stocks:[]}],design:{...project.design!,definitions:project.design!.definitions.map(definition=>({...definition,materialId:'sheet'})),instances:project.design!.instances.map(instance=>({...instance,projectionCutlistIds:['second-cutlist']}))}};
+    const onCommit=vi.fn();render(<DesignWorkspace project={fixture} onCommit={onCommit}/>);
+    fireEvent.click(screen.getByRole('tab',{name:'Components'}));
+    fireEvent.click(screen.getByLabelText('Target cutlist')); fireEvent.click(screen.getByRole('option', { name: 'Second' }));
+    fireEvent.click(screen.getByRole('tab',{name:'Model Info'}));
+    fireEvent.click(screen.getByRole('button',{name:'Update cutlist from design'}));
+    expect(await screen.findByText('1 change ready for review.')).toBeInTheDocument();
+    expect(screen.getByRole('article')).toHaveTextContent('Side panel');
+    fireEvent.click(screen.getByRole('combobox',{name:'Decision for Side panel'})); fireEvent.click(screen.getByRole('option',{name:'Apply design values'}));
+    fireEvent.click(screen.getByRole('button',{name:'Apply reviewed changes'}));
+    await waitFor(()=>expect(onCommit.mock.calls.at(-1)?.[0].parts).toHaveLength(1));
+    expect((onCommit.mock.calls.at(-1)?.[0] as Project).parts[0].cutlistId).toBe('second-cutlist');
+    expect((onCommit.mock.calls.at(-1)?.[0] as Project).design?.partLinks).toMatchObject({[((onCommit.mock.calls.at(-1)?.[0] as Project).parts[0].id)]:{cutlistId:'second-cutlist'}});
+  });
   it('offers per-gesture rotation pivot choices in the floating tool bar and resets to center on tool change', async () => {
     const user=userEvent.setup();
     render(<DesignWorkspace project={project}/>);
@@ -252,9 +324,9 @@ describe('DesignWorkspace', () => {
     expect(screen.getByText(/Paint controls visual appearance/)).toBeInTheDocument();
     expect(screen.getByRole('combobox', { name: 'Cutlist material' })).toHaveTextContent('Birch plywood');
     fireEvent.click(screen.getByRole('tab', { name: 'Model Info' }));
-    fireEvent.click(screen.getByRole('button', { name: 'Review cutlist changes' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Update cutlist from design' }));
     const decision = await screen.findByRole('combobox', { name: 'Decision for Side panel' });
-    fireEvent.change(decision, { target: { value: 'apply' } });
+    fireEvent.click(decision); fireEvent.click(screen.getByRole('option', { name: 'Apply design values' }));
     fireEvent.click(screen.getByRole('button', { name: 'Apply reviewed changes' }));
     await waitFor(() => expect(onCommit).toHaveBeenCalledOnce());
     expect(onCommit.mock.calls[0][0].parts).toHaveLength(1);
@@ -266,8 +338,8 @@ describe('DesignWorkspace', () => {
     const onCommit = vi.fn();
     const view = render(<DesignWorkspace project={withMaterial} onCommit={onCommit} localGeneration={4} />);
     fireEvent.click(screen.getByRole('tab', { name: 'Model Info' }));
-    fireEvent.click(screen.getByRole('button', { name: 'Review cutlist changes' }));
-    fireEvent.change(await screen.findByRole('combobox', { name: 'Decision for Side panel' }), { target: { value: 'apply' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Update cutlist from design' }));
+    fireEvent.click(await screen.findByRole('combobox', { name: 'Decision for Side panel' })); fireEvent.click(screen.getByRole('option', { name: 'Apply design values' }));
     view.rerender(<DesignWorkspace project={withMaterial} onCommit={onCommit} localGeneration={5} />);
     expect(screen.getByRole('alert')).toHaveTextContent(/preview is stale/i);
     expect(screen.getByRole('button', { name: 'Apply reviewed changes' })).toBeDisabled();
@@ -279,11 +351,11 @@ describe('DesignWorkspace', () => {
     const onCommit = vi.fn().mockResolvedValue(false);
     render(<DesignWorkspace project={withMaterial} onCommit={onCommit} />);
     fireEvent.click(screen.getByRole('tab', { name: 'Model Info' }));
-    fireEvent.click(screen.getByRole('button', { name: 'Review cutlist changes' }));
-    fireEvent.change(await screen.findByRole('combobox', { name: 'Decision for Side panel' }), { target: { value: 'apply' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Update cutlist from design' }));
+    fireEvent.click(await screen.findByRole('combobox', { name: 'Decision for Side panel' })); fireEvent.click(screen.getByRole('option', { name: 'Apply design values' }));
     fireEvent.click(screen.getByRole('button', { name: 'Apply reviewed changes' }));
     expect(await screen.findByText(/cutlist changes were not saved/i)).toBeInTheDocument();
-    expect(screen.getByRole('region', { name: 'Cutlist review' })).toBeInTheDocument();
+    expect(screen.getByRole('region', { name: 'Default design review' })).toBeInTheDocument();
     expect(onCommit).toHaveBeenCalledOnce();
   });
 

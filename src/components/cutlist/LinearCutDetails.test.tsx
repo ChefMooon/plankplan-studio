@@ -8,7 +8,7 @@ import { CutPlan } from './CutPlan';
 it('keeps board cuts collapsed by default on desktop and supports individual and bulk controls', async () => {
   const user = userEvent.setup();
   const project = createProject();
-  project.parts.push({ id: 'leg', name: 'Leg', materialId: '', length: { um: 500000 }, quantity: 6 });
+  project.parts.push({ id: 'leg', name: 'Leg', materialId: '', cutlistId: project.cutlists[0].id, length: { um: 500000 }, quantity: 6 });
   render(<CutPlan project={project} mixedResult={optimizeMixedProject(project)} expanded={false} onExpandedChange={() => {}} />);
   const toggles = screen.getAllByRole('button', { name: /^Board cuts/ });
   expect(toggles).toHaveLength(2);
@@ -45,7 +45,7 @@ it('shows board cuts by default on mobile and keeps the disclosure state synchro
 
   try {
     const project = createProject();
-    project.parts.push({ id: 'leg', name: 'Leg', materialId: '', length: { um: 500000 }, quantity: 6 });
+    project.parts.push({ id: 'leg', name: 'Leg', materialId: '', cutlistId: project.cutlists[0].id, length: { um: 500000 }, quantity: 6 });
     render(<CutPlan project={project} mixedResult={optimizeMixedProject(project)} expanded={false} onExpandedChange={() => {}} />);
     const toggle = screen.getAllByRole('button', { name: /^Board cuts/ })[0];
     const details = document.getElementById(toggle.getAttribute('aria-controls')!);

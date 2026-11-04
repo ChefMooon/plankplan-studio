@@ -3,14 +3,14 @@ import { createProject } from './storage';
 import { projectRepository } from './repository.indexeddb';
 
 describe('per-project IndexedDB repository', () => {
-  it('creates and reopens a v2 project with a generation token', async () => {
+  it('creates and reopens a v3 project with a generation token', async () => {
     const project = createProject('Repository test');
     const created = await projectRepository.create('local', project);
     expect(created).toMatchObject({ ok: true, token: { localGeneration: 1 } });
     expect(await projectRepository.list('local')).toMatchObject({ ok: true });
     if (!created.ok) return;
     const opened = await projectRepository.get({ namespaceId: 'local', projectId: project.id });
-    expect(opened).toMatchObject({ ok: true, token: { localGeneration: 1 }, value: { name: 'Repository test', schemaVersion: 2 } });
+    expect(opened).toMatchObject({ ok: true, token: { localGeneration: 1 }, value: { name: 'Repository test', schemaVersion: 3 } });
   });
 
   it('rejects a stale generation without replacing a project', async () => {

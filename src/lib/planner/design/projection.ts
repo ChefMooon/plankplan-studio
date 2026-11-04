@@ -2,22 +2,23 @@ import { normalizeProjectDocument, type Part, type Project } from '../model';
 import type { DesignDocumentV1, ProjectionSnapshot, Sources } from './schema';
 import { scaleDimensionUm } from './geometry';
 
-export type ProjectionRow = { key: string; sources: Sources; fields: Omit<Part,'id'|'group'|'notes'> & { crossSection?: Part['crossSection'] }; designThicknessUm: number };
+export type ProjectionRow = { key: string; cutlistId: string; sources: Sources; fields: Omit<Part,'id'|'group'|'notes'|'cutlistId'> & { cutlistId: string; crossSection?: Part['crossSection'] }; designThicknessUm: number };
 export type FieldName = 'name'|'materialId'|'length'|'width'|'crossSection'|'grainLocked'|'quantity';
 export type RowChange = { kind:'add'|'update'|'remove'|'split'|'merge'; rowKey:string; partId?:string; relatedPartIds?:string[]; sources?:Sources; fields?:ProjectionRow['fields']; conflicts: FieldName[]; changedFields: FieldName[]; requiresDisposition:boolean };
-export type ProjectionPreview = { editSequence:number; localGeneration:number; rows:ProjectionRow[]; changes:RowChange[]; reservedIds:Record<string,string> };
+export type ProjectionPreview = { cutlistId:string; editSequence:number; localGeneration:number; rows:ProjectionRow[]; changes:RowChange[]; reservedIds:Record<string,string> };
 export type RowDecision = { fieldChoices?: Partial<Record<FieldName,'manual'|'design'>>; disposition?: 'apply'|'keep'|'detach'|'remove'; partId?:string };
 const fields: FieldName[]=['name','materialId','length','width','crossSection','grainLocked','quantity'];
 const eq=(a:unknown,b:unknown)=>JSON.stringify(a)===JSON.stringify(b);
 const srcKey=(s:Sources)=>`${s.definitionId}:${[...s.instanceIds].sort().join(',')}`;
 const cmp=(a:string,b:string)=>a<b?-1:a>b?1:0;
 
-export function projectEligibleRows(project: Project): ProjectionRow[] {
+export function projectEligibleRows(project: Project, cutlistId = project.cutlists?.[0]?.id ?? 'default-cutlist'): ProjectionRow[] {
   const design=project.design; if(!design)return [];
   const definitions=new Map(design.definitions.map(d=>[d.id,d])); const materials=new Map(project.materials.map(m=>[m.id,m.type]));
   const groups=new Map<string,ProjectionRow>();
   for(const instance of design.instances){
-    if(instance.projectionExcluded)continue;
+    const allowed=instance.projectionCutlistIds??[project.cutlists?.[0]?.id ?? 'default-cutlist'];
+    if(!allowed.includes(cutlistId)||instance.projectionExcluded&&cutlistId===(project.cutlists?.[0]?.id ?? 'default-cutlist')||instance.projectionExcludedCutlistIds?.includes(cutlistId))continue;
     const def=definitions.get(instance.definitionId), spec=def?.cutSpec;
     if(!def||!spec||spec.confirmation!=='confirmed')continue;
     const materialId=instance.materialId??def.materialId, kind=materialId?materials.get(materialId):undefined;
@@ -29,10 +30,10 @@ export function projectEligibleRows(project: Project): ProjectionRow[] {
     else if(spec.grainAxis==='width'){partLength=width;partWidth={um:length};grainLocked=true;}
     else {partWidth={um:width};grainLocked=spec.grainAxis==='length';}
     const crossSection=kind==='linear'?{width:{um:width},thickness:{um:thickness}}:undefined;
-    const key=JSON.stringify([def.id,materialId,partLength,partWidth,thickness,crossSection,grainLocked]);
+    const key=JSON.stringify([cutlistId,def.id,materialId,partLength,partWidth,thickness,crossSection,grainLocked]);
     const old=groups.get(key); const instanceIds=old?[...old.sources.instanceIds,instance.id]:[instance.id];
-    const partFields={name:def.name,materialId,length:{um:partLength},...(partWidth?{width:partWidth}:{}),...(crossSection?{crossSection}:{}),...(grainLocked!==undefined?{grainLocked}:{}),quantity:instanceIds.length};
-    groups.set(key,{key,sources:{definitionId:def.id,instanceIds},fields:partFields,designThicknessUm:thickness});
+    const partFields={cutlistId,name:def.name,materialId,length:{um:partLength},...(partWidth?{width:partWidth}:{}),...(crossSection?{crossSection}:{}),...(grainLocked!==undefined?{grainLocked}:{}),quantity:instanceIds.length};
+    groups.set(key,{key,cutlistId,sources:{definitionId:def.id,instanceIds},fields:partFields,designThicknessUm:thickness});
   }
   return [...groups.values()].sort((a,b)=>cmp(a.key,b.key));
 }
@@ -40,9 +41,9 @@ export function projectEligibleRows(project: Project): ProjectionRow[] {
 function snapshotOf(sources:Sources, part:Part):ProjectionSnapshot { return {sources:{definitionId:sources.definitionId,instanceIds:[...sources.instanceIds]},fields:{name:part.name,materialId:part.materialId,length:part.length,...(part.width?{width:part.width}:{}),...(part.crossSection?{crossSection:part.crossSection}:{}),...(part.grainLocked!==undefined?{grainLocked:part.grainLocked}:{}),quantity:part.quantity}}; }
 function valueFor(part:Part|undefined,key:FieldName):unknown { return part?.[key]; }
 
-export function createProjectionPreview(project:Project,editSequence:number,localGeneration:number,reserveId:(row:ProjectionRow)=>string):ProjectionPreview {
-  const rows=projectEligibleRows(project), links=project.design?.partLinks??{}, parts=new Map(project.parts.map(p=>[p.id,p]));
-  const tracked=Object.entries(links).map(([id,link])=>[id,link,link.state==='active'?link.current:link.current??link.lastApplied.sources] as const).sort(([a],[b])=>cmp(a,b));
+export function createProjectionPreview(project:Project,editSequence:number,localGeneration:number,reserveId:(row:ProjectionRow)=>string,cutlistId=project.cutlists?.[0]?.id??'default-cutlist'):ProjectionPreview {
+  const rows=projectEligibleRows(project,cutlistId), links=project.design?.partLinks??{}, parts=new Map(project.parts.filter(p=>p.cutlistId===cutlistId).map(p=>[p.id,p]));
+  const tracked=Object.entries(links).filter(([id,link])=>(link.cutlistId??project.parts.find(p=>p.id===id)?.cutlistId??project.cutlists?.[0]?.id??'default-cutlist')===cutlistId).map(([id,link])=>[id,link,link.state==='active'?link.current:link.current??link.lastApplied.sources] as const).sort(([a],[b])=>cmp(a,b));
   const linkedRows=new Map(tracked.map(([id,,sources])=>[id,rows.flatMap((row,index)=>row.sources.definitionId===sources.definitionId&&row.sources.instanceIds.some(v=>sources.instanceIds.includes(v))?[index]:[])]));
   const rowLinks=new Map(rows.map((row,index)=>[index,tracked.filter(([,link,sources])=>link.state!=='pending-part-deletion'&&row.sources.definitionId===sources.definitionId&&row.sources.instanceIds.some(v=>sources.instanceIds.includes(v))).map(([id])=>id)]));
   const changes:RowChange[]=[], reservedIds:Record<string,string>={}, reused=new Set<string>();
@@ -62,7 +63,7 @@ export function createProjectionPreview(project:Project,editSequence:number,loca
   });
   const mergedAway=new Set(changes.filter(change=>change.kind==='merge').flatMap(change=>(change.relatedPartIds??[]).filter(id=>id!==change.partId)));
   for(const [id,,sources] of tracked)if(!reused.has(id)&&!mergedAway.has(id))changes.push({kind:'remove',rowKey:`removed:${id}`,partId:id,sources,conflicts:[],changedFields:[],requiresDisposition:true});
-  return {editSequence,localGeneration,rows,changes,reservedIds};
+  return {cutlistId,editSequence,localGeneration,rows,changes,reservedIds};
 }
 
 export function isProjectionPreviewCurrent(preview:ProjectionPreview,editSequence:number,localGeneration:number){return preview.editSequence===editSequence&&preview.localGeneration===localGeneration;}
@@ -71,8 +72,9 @@ export type ApplyIntent = { parts:Part[]; design:DesignDocumentV1; consumedPrevi
 export function createApplyIntent(project:Project,preview:ProjectionPreview,decisions:Record<string,RowDecision>,current:{editSequence:number;localGeneration:number}):ApplyIntent {
   if(!isProjectionPreviewCurrent(preview,current.editSequence,current.localGeneration))throw new Error('stale-preview');
   const unresolved=preview.changes.filter(c=>!decisions[c.rowKey]?.disposition||c.conflicts.some(field=>!decisions[c.rowKey].fieldChoices?.[field])); if(unresolved.length)throw new Error('unresolved-projection-conflict');
-  if(!project.design)throw new Error('missing-design');
-  let nextParts=[...project.parts]; const links={...project.design.partLinks};
+  const base=normalizeProjectDocument(project);
+  if(!base.design)throw new Error('missing-design');
+  let nextParts=[...base.parts]; const links={...base.design.partLinks};
   const excluded=new Set<string>(), included=new Set<string>();
   for(const change of preview.changes){const decision=decisions[change.rowKey]??{disposition:'apply'}; const row=preview.rows.find(r=>r.key===change.rowKey);
     if(change.kind==='remove'){if(decision.disposition==='keep')continue;if(decision.disposition==='detach'){delete links[change.partId!];continue;} if(decision.disposition!=='remove')throw new Error('removal-disposition-required'); nextParts=nextParts.filter(p=>p.id!==change.partId);delete links[change.partId!];continue;}
@@ -92,13 +94,20 @@ export function createApplyIntent(project:Project,preview:ProjectionPreview,deci
     if(change.kind==='merge'&&decision.disposition!=='apply')throw new Error('merge-disposition-required');
     const existing=nextParts.find(p=>p.id===id); let next={...(existing??{}),...structuredClone(row.fields),id} as Part;
     if(existing){ for(const f of fields){if(decision.fieldChoices?.[f]==='manual')next={...next,[f]:existing[f]};} nextParts=nextParts.map(p=>p.id===id?next:p); } else nextParts=[...nextParts,next];
-    const snapshot=snapshotOf(row.sources,next); links[id]={state:'active',current:snapshot.sources,lastApplied:{...snapshot,fields:structuredClone(row.fields)}};
+    next.cutlistId=preview.cutlistId;
+    const snapshot=snapshotOf(row.sources,{...next,...row.fields}); links[id]={state:'active',cutlistId:preview.cutlistId,current:snapshot.sources,lastApplied:structuredClone(snapshot)};
     row.sources.instanceIds.forEach(sourceId=>included.add(sourceId));
     if(change.kind==='merge')for(const priorId of change.relatedPartIds??[])if(priorId!==id){nextParts=nextParts.filter(p=>p.id!==priorId);delete links[priorId];}
     for(const priorId of change.relatedPartIds??[])if(links[priorId]?.state==='pending-part-deletion')delete links[priorId];
   }
-  for(const change of preview.changes)if(['detach','remove'].includes(decisions[change.rowKey]?.disposition??''))for(const id of [...(change.sources?.instanceIds??[]),...(change.partId?project.design.partLinks[change.partId]?.lastApplied.sources.instanceIds??[]:[])])excluded.add(id);
-  const instances=project.design.instances.map(instance=>excluded.has(instance.id)&&!included.has(instance.id)?{...instance,projectionExcluded:true as const}:instance);
-  const validated=normalizeProjectDocument({...project,parts:nextParts,design:{...project.design,instances,partLinks:links}});
+  for(const change of preview.changes)if(['detach','remove'].includes(decisions[change.rowKey]?.disposition??''))for(const id of [...(change.sources?.instanceIds??[]),...(change.partId?base.design.partLinks[change.partId]?.lastApplied.sources.instanceIds??[]:[])])excluded.add(id);
+  const excludedListIds=new Set(base.design.instances.filter(instance=>excluded.has(instance.id)&&!included.has(instance.id)).map(i=>i.id));
+  const instances=base.design.instances.map(instance=>{
+    const excludedIds=new Set(instance.projectionExcludedCutlistIds??[]);
+    if(excludedListIds.has(instance.id))excludedIds.add(preview.cutlistId);
+    if(included.has(instance.id))excludedIds.delete(preview.cutlistId);
+    const ids=[...excludedIds].sort();const cleanInstance={...instance};delete cleanInstance.projectionExcludedCutlistIds;return {...cleanInstance,...(ids.length?{projectionExcludedCutlistIds:ids}:{})};
+  });
+  const validated=normalizeProjectDocument({...base,parts:nextParts,design:{...base.design,instances,partLinks:links}});
   return {parts:validated.parts,design:validated.design!,consumedPreview:{editSequence:preview.editSequence,localGeneration:preview.localGeneration}};
 }

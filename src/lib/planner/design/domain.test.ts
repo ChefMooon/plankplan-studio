@@ -1,15 +1,31 @@
 import { describe, expect, it } from 'vitest';
 import { getRectangularProfile, metersToUm, rectangleGeometry, rectangularProfileSide, resizeRectangularProfile, scaleDimensionUm, scalePoseKeepingLocalPivot, setExtrusionDistance, transformLocalPoint, validateGeometryTopology } from './geometry';
-import { applyDesignCommand } from './commands';
+import { applyDesignCommand as executeDesignCommand, type DesignCommand } from './commands';
 import { beginCommandSession, commitCommandSession, commitSessionCommand, createDesignHistory, redoSession, undoSession, updateCommandSession } from './history';
 import { createApplyIntent, createProjectionPreview, projectEligibleRows } from './projection';
 import type { Project } from '../model';
 import { copyProjectDocument, exportProject, importProject } from '../model';
 
-const empty:Project={schemaVersion:2,id:'p',name:'Project',unitSystem:'metric',kerf:{um:0},trim:{um:0},minOffcutLinear:{um:0},minOffcutSheet:{shortSideUm:0,longSideUm:0},currency:'CAD',parts:[],materials:[{id:'wood',name:'Wood',type:'linear',stocks:[]}],createdAt:'2026-01-01T00:00:00.000Z',updatedAt:'2026-01-01T00:00:00.000Z',design:{schemaVersion:1,definitions:[],instances:[],looseObjects:[],partLinks:{}}};
+const empty:Project={schemaVersion:3,id:'p',name:'Project',unitSystem:'metric',kerf:{um:0},trim:{um:0},minOffcutLinear:{um:0},minOffcutSheet:{shortSideUm:0,longSideUm:0},currency:'CAD',cutlists:[{id:'default-cutlist',name:'Default'}],planningGroups:[],parts:[],materials:[{id:'wood',name:'Wood',type:'linear',stocks:[]}],createdAt:'2026-01-01T00:00:00.000Z',updatedAt:'2026-01-01T00:00:00.000Z',design:{schemaVersion:1,definitions:[],instances:[],looseObjects:[],partLinks:{}}};
+const applyDesignCommand=(project:Project,command:DesignCommand)=>{
+  const result=executeDesignCommand(project,command);
+  if(!result.ok||command.type!=='create-board'&&command.type!=='create-panel')return result;
+  return executeDesignCommand(result.project,{type:'assign-instances-to-cutlist',instanceIds:[command.id],cutlistId:project.cutlists[0].id,mode:'copy'});
+};
 const applyReviewed=(project:Project,preview:ReturnType<typeof createProjectionPreview>,editSequence:number,localGeneration:number)=>createApplyIntent(project,preview,Object.fromEntries(preview.changes.map(c=>[c.rowKey,{disposition:'apply' as const,fieldChoices:Object.fromEntries(c.conflicts.map(field=>[field,'design' as const]))}])),{editSequence,localGeneration});
 
 describe('renderer-free design geometry',()=>{
+  it('stores design groups as explicit instance snapshots and removes deleted references',()=>{
+    const made=applyDesignCommand(empty,{type:'create-board',id:'board-1',definitionId:'def-1',name:'Board',lengthUm:1000,widthUm:500,thicknessUm:20});
+    expect(made.ok).toBe(true);if(!made.ok)return;
+    const grouped=applyDesignCommand(made.project,{type:'create-design-group',id:'group-1',name:'Door set',instanceIds:['board-1']});
+    expect(grouped.ok).toBe(true);if(!grouped.ok)return;
+    const later=applyDesignCommand(grouped.project,{type:'duplicate-instance',sourceId:'board-1',id:'board-2'});
+    expect(later.ok).toBe(true);if(!later.ok)return;
+    expect(later.project.design?.groups?.[0]).toEqual({id:'group-1',name:'Door set',instanceIds:['board-1']});
+    const removed=applyDesignCommand(later.project,{type:'delete-instance',instanceId:'board-1'});
+    expect(removed.ok).toBe(true);if(removed.ok)expect(removed.project.design?.groups?.[0].instanceIds).toEqual([]);
+  });
   it('detects and resizes axis-aligned rectangular profiles while preserving IDs and the anchored opposite edge',()=>{
     const geometry=rectangleGeometry(100,80,p=>`${p}-${Math.random()}`,20);const ids=geometry.vertices.map(vertex=>vertex.id);const faceId=geometry.faces[0].id;
     expect(getRectangularProfile(geometry)).toMatchObject({minX:0,maxX:100,minY:0,maxY:80,depthUm:20});
@@ -57,6 +73,12 @@ describe('renderer-free design geometry',()=>{
 });
 
 describe('commands and history',()=>{
+  it('leaves newly created components unassigned until a list is chosen',()=>{
+    const created=executeDesignCommand(empty,{type:'create-board',id:'new-instance',definitionId:'new-definition',name:'Unassigned board',materialId:'wood',lengthUm:100,widthUm:20,thicknessUm:10});
+    expect(created.ok).toBe(true);if(!created.ok)return;
+    expect(created.project.design!.instances[0].projectionCutlistIds).toEqual([]);
+    expect(projectEligibleRows(created.project,'default-cutlist')).toEqual([]);
+  });
   it('creates a board as one reversible command',()=>{
     const committed=commitSessionCommand(createDesignHistory(),empty,{type:'create-board',id:'i',definitionId:'d',name:'Board',lengthUm:100,widthUm:50,thicknessUm:20});
     expect(committed.project.design!.definitions[0].cutSpec?.confirmation).toBe('confirmed');
@@ -133,6 +155,46 @@ describe('commands and history',()=>{
 });
 
 describe('pure projection preview and atomic intent',()=>{
+  it('keeps projection membership, links, and preview/apply changes scoped to each cutlist',()=>{
+    const multi={...empty,cutlists:[{id:'default-cutlist',name:'Default'},{id:'second',name:'Second'}]};
+    const created=applyDesignCommand(multi,{type:'create-board',id:'i',definitionId:'d',name:'Board',materialId:'wood',lengthUm:100,widthUm:20,thicknessUm:10});if(!created.ok)throw Error(created.message);
+    const copied=applyDesignCommand(created.project,{type:'assign-instances-to-cutlist',instanceIds:['i'],cutlistId:'second',mode:'copy'});if(!copied.ok)throw Error(copied.message);
+    const first=createProjectionPreview(copied.project,1,1,()=> 'part-default');
+    const firstApplied=applyReviewed(copied.project,first,1,1);const linked={...copied.project,parts:firstApplied.parts,design:firstApplied.design};
+    const second=createProjectionPreview(linked,2,1,()=> 'part-second','second');
+    expect(second.rows).toHaveLength(1);expect(second.changes[0].kind).toBe('add');
+    const secondApplied=applyReviewed(linked,second,2,1);
+    expect(secondApplied.parts.map(p=>[p.id,p.cutlistId])).toEqual([['part-default','default-cutlist'],['part-second','second']]);
+    expect(secondApplied.design.partLinks['part-default'].cutlistId).toBe('default-cutlist');
+    expect(secondApplied.design.partLinks['part-second'].cutlistId).toBe('second');
+    const skipped=applyDesignCommand({...linked,parts:secondApplied.parts,design:secondApplied.design},{type:'assign-instances-to-cutlist',instanceIds:['i'],cutlistId:'second',mode:'skip'});
+    if(!skipped.ok)throw Error(skipped.message);
+    expect(projectEligibleRows(skipped.project,'default-cutlist')).toHaveLength(1);
+    expect(projectEligibleRows(skipped.project,'second')).toHaveLength(1);
+    expect(skipped.project.design!.instances[0].projectionCutlistIds).toEqual(['default-cutlist','second']);
+    expect(skipped.project.design!.instances[0].projectionExcludedCutlistIds).toBeUndefined();
+  });
+  it('skip adds unassigned instances but leaves memberships already assigned elsewhere unchanged',()=>{
+    const multi={...empty,cutlists:[...empty.cutlists,{id:'second',name:'Second'}]};
+    const created=executeDesignCommand(multi,{type:'create-board',id:'new',definitionId:'new-def',name:'New board',materialId:'wood',lengthUm:100,widthUm:20,thicknessUm:10});if(!created.ok)throw Error(created.message);
+    const added=applyDesignCommand(created.project,{type:'assign-instances-to-cutlist',instanceIds:['new'],cutlistId:'second',mode:'skip'});if(!added.ok)throw Error(added.message);
+    expect(added.project.design!.instances[0].projectionCutlistIds).toEqual(['second']);
+    const alreadyAssigned=executeDesignCommand(added.project,{type:'create-board',id:'old',definitionId:'old-def',name:'Existing board',materialId:'wood',lengthUm:100,widthUm:20,thicknessUm:10});if(!alreadyAssigned.ok)throw Error(alreadyAssigned.message);
+    const includedInFirst=applyDesignCommand(alreadyAssigned.project,{type:'assign-instances-to-cutlist',instanceIds:['old'],cutlistId:'default-cutlist',mode:'copy'});if(!includedInFirst.ok)throw Error(includedInFirst.message);
+    const skippedAgain=applyDesignCommand(includedInFirst.project,{type:'assign-instances-to-cutlist',instanceIds:['old'],cutlistId:'second',mode:'skip'});if(!skippedAgain.ok)throw Error(skippedAgain.message);
+    expect(skippedAgain.project.design!.instances.find(instance=>instance.id==='old')?.projectionCutlistIds).toEqual(['default-cutlist']);
+  });
+  it('marks moved source-list links for explicit reconciliation without silently deleting their manual rows',()=>{
+    const multi={...empty,cutlists:[...empty.cutlists,{id:'second',name:'Second'}]};
+    const created=applyDesignCommand(multi,{type:'create-board',id:'move-me',definitionId:'move-def',name:'Moving board',materialId:'wood',lengthUm:100,widthUm:20,thicknessUm:10});if(!created.ok)throw Error(created.message);
+    const preview=createProjectionPreview(created.project,1,1,()=> 'source-part');
+    const applied=applyReviewed(created.project,preview,1,1);const linked={...created.project,parts:applied.parts,design:applied.design};
+    const moved=applyDesignCommand(linked,{type:'assign-instances-to-cutlist',instanceIds:['move-me'],cutlistId:'second',mode:'move'});if(!moved.ok)throw Error(moved.message);
+    expect(moved.project.parts).toHaveLength(1);
+    expect(moved.project.design!.partLinks['source-part']).toMatchObject({state:'pending-removal',cutlistId:'default-cutlist',reasons:['cutlist-membership-changed']});
+    expect(projectEligibleRows(moved.project,'default-cutlist')).toHaveLength(0);
+    expect(projectEligibleRows(moved.project,'second')).toHaveLength(1);
+  });
   it('projects scaled eligible instances and excludes detached instances',()=>{
     const created=applyDesignCommand(empty,{type:'create-board',id:'i',definitionId:'d',name:'Board',materialId:'wood',lengthUm:100,widthUm:20,thicknessUm:10});if(!created.ok)throw Error(created.message);
     const scaled=applyDesignCommand(created.project,{type:'set-instance-transform',instanceId:'i',scalePpm:[2_000_000,1_000_000,1_000_000]});if(!scaled.ok)throw Error(scaled.message);
@@ -178,9 +240,9 @@ describe('pure projection preview and atomic intent',()=>{
     const created=applyDesignCommand(empty,{type:'create-board',id:'i',definitionId:'d',name:'Board',materialId:'wood',lengthUm:100,widthUm:20,thicknessUm:10});if(!created.ok)throw Error(created.message);
     const preview=createProjectionPreview(created.project,1,1,()=> 'part');const applied=applyReviewed(created.project,preview,1,1);
     const linked={...created.project,parts:applied.parts,design:applied.design};const detached=applyDesignCommand(linked,{type:'detach-part',partId:'part'});if(!detached.ok)throw Error(detached.message);
-    const copy=copyProjectDocument(detached.project,'Copy','2026-01-02T00:00:00.000Z');expect(copy.design!.instances[0].projectionExcluded).toBe(true);expect(projectEligibleRows(copy)).toEqual([]);
-    const reopened=importProject(exportProject(copy));expect(reopened.design!.instances[0].projectionExcluded).toBe(true);expect(projectEligibleRows(reopened)).toEqual([]);
-    const included=applyDesignCommand(copy,{type:'include-in-projection',instanceIds:['i']});if(!included.ok)throw Error(included.message);expect(included.project.design!.instances[0].projectionExcluded).toBeUndefined();
+    const copy=copyProjectDocument(detached.project,'Copy','2026-01-02T00:00:00.000Z');expect(copy.design!.instances[0].projectionExcludedCutlistIds).toContain('default-cutlist');expect(projectEligibleRows(copy)).toEqual([]);
+    const reopened=importProject(exportProject(copy));expect(reopened.design!.instances[0].projectionExcludedCutlistIds).toContain('default-cutlist');expect(projectEligibleRows(reopened)).toEqual([]);
+    const included=applyDesignCommand(copy,{type:'include-in-projection',instanceIds:['i']});if(!included.ok)throw Error(included.message);expect(included.project.design!.instances[0].projectionExcludedCutlistIds).toBeUndefined();
     expect(createProjectionPreview(included.project,2,2,()=> 'new-part').changes[0].kind).toBe('add');
   });
   it('keeps shared definitions independent through duplicate, Make Unique and source deletion',()=>{
@@ -196,7 +258,7 @@ describe('pure projection preview and atomic intent',()=>{
     const deleted=applyDesignCommand(linked,{type:'delete-part',partId:'part'});if(!deleted.ok)throw Error(deleted.message);expect(deleted.project.design!.partLinks.part.state).toBe('pending-part-deletion');
     const preview=createProjectionPreview(deleted.project,2,2,()=> 'part-new');expect(preview.changes[0].kind).toBe('add');expect(preview.changes[0].requiresDisposition).toBe(true);
     expect(()=>createApplyIntent(deleted.project,preview,{}, {editSequence:2,localGeneration:2})).toThrow('unresolved-projection-conflict');
-    const keptOut=createApplyIntent(deleted.project,preview,{[preview.changes[0].rowKey]:{disposition:'remove'}},{editSequence:2,localGeneration:2});expect(keptOut.parts).toHaveLength(0);expect(keptOut.design.instances[0].projectionExcluded).toBe(true);
+    const keptOut=createApplyIntent(deleted.project,preview,{[preview.changes[0].rowKey]:{disposition:'remove'}},{editSequence:2,localGeneration:2});expect(keptOut.parts).toHaveLength(0);expect(keptOut.design.instances[0].projectionExcludedCutlistIds).toContain('default-cutlist');
   });
   it('updates current membership and pending reasons when a linked instance becomes unique',()=>{
     const created=applyDesignCommand(empty,{type:'create-board',id:'i1',definitionId:'d',name:'Board',materialId:'wood',lengthUm:100,widthUm:20,thicknessUm:10});if(!created.ok)throw Error(created.message);

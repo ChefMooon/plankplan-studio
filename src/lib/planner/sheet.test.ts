@@ -3,9 +3,9 @@ import { umFromInches } from './model';
 import { naiveSheetCostCents, optimizeSheets, validateSheetPlan } from './sheet';
 import type { Project, Material } from './model';
 
-const project: Project = { schemaVersion: 2, id: 'p', name: 'Sheet test', unitSystem: 'imperial', kerf: { um: umFromInches(.125) }, trim: { um: 0 }, minOffcutLinear: { um: umFromInches(12) }, minOffcutSheet: { shortSideUm: umFromInches(6), longSideUm: umFromInches(12) }, currency: 'CAD', createdAt: '', updatedAt: '', parts: [
-  { id: 'a', name: 'Top', materialId: 'm', length: { um: umFromInches(30) }, width: { um: umFromInches(18) }, quantity: 1 },
-  { id: 'b', name: 'Side', materialId: 'm', length: { um: umFromInches(20) }, width: { um: umFromInches(12) }, quantity: 2, grainLocked: true },
+const project: Project = { schemaVersion: 3, id: 'p', name: 'Sheet test', unitSystem: 'imperial', kerf: { um: umFromInches(.125) }, trim: { um: 0 }, minOffcutLinear: { um: umFromInches(12) }, minOffcutSheet: { shortSideUm: umFromInches(6), longSideUm: umFromInches(12) }, currency: 'CAD', cutlists: [{ id: 'default-cutlist', name: 'Default' }], planningGroups: [], createdAt: '', updatedAt: '', parts: [
+  { id: 'a', name: 'Top', materialId: 'm', cutlistId: 'default-cutlist', length: { um: umFromInches(30) }, width: { um: umFromInches(18) }, quantity: 1 },
+  { id: 'b', name: 'Side', materialId: 'm', cutlistId: 'default-cutlist', length: { um: umFromInches(20) }, width: { um: umFromInches(12) }, quantity: 2, grainLocked: true },
 ], materials: [] };
 const material: Material = { id: 'm', name: 'Plywood', type: 'sheet', stocks: [{ id: 's', name: 'Half sheet', length: { um: umFromInches(48) }, widthUm: umFromInches(48), price: { cents: 2500 }, ownedQuantity: 0 }] };
 
@@ -44,7 +44,7 @@ describe('sheet guillotine optimizer', () => {
   });
 
   it('beats a deterministic one-sheet-per-part baseline when a larger sheet has lower cost per part', () => {
-    const fourParts = { ...project, kerf: { um: 0 }, parts: Array.from({ length: 4 }, (_, i) => ({ id: `square-${i}`, name: `Square ${i + 1}`, materialId: 'm', length: { um: umFromInches(10) }, width: { um: umFromInches(10) }, quantity: 1 })) };
+    const fourParts = { ...project, kerf: { um: 0 }, parts: Array.from({ length: 4 }, (_, i) => ({ id: `square-${i}`, name: `Square ${i + 1}`, materialId: 'm', cutlistId: 'default-cutlist', length: { um: umFromInches(10) }, width: { um: umFromInches(10) }, quantity: 1 })) };
     const choices: Material = { id: 'm', name: 'Sheet stock', type: 'sheet', stocks: [
       { id: 'small', name: 'Cheap small sheet', length: { um: umFromInches(10) }, widthUm: umFromInches(10), price: { cents: 500 }, ownedQuantity: 0 },
       { id: 'large', name: 'Larger sheet', length: { um: umFromInches(20) }, widthUm: umFromInches(20), price: { cents: 1500 }, ownedQuantity: 0 },

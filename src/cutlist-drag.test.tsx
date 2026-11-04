@@ -8,7 +8,7 @@ import { ThemeProvider } from './components/theme-provider';
 
 it.each(['parts', 'materials', 'stocks'] as const)('shows drop feedback and persists insertions and swaps for %s', async kind => {
   const project = createProject(`Drag ${kind}`);
-  project.parts = (kind === 'parts' ? [0, 1, 2] : []).map(i => ({ id: crypto.randomUUID(), name: `Part ${i}`, materialId: '', length: { um: 100000 }, quantity: 1 }));
+  project.parts = (kind === 'parts' ? [0, 1, 2] : []).map(i => ({ id: crypto.randomUUID(), name: `Part ${i}`, materialId: '', cutlistId: project.cutlists[0].id, length: { um: 100000 }, quantity: 1 }));
   project.materials = (kind === 'parts' ? [] : kind === 'materials' ? [0, 1, 2] : [0, 1]).map(i => ({ id: crypto.randomUUID(), name: `Material ${i}`, type: 'linear', stocks: (kind === 'stocks' && i === 0 ? [0, 1, 2] : [0]).map(j => ({ id: crypto.randomUUID(), name: `Stock ${i}-${j}`, length: { um: 1000000 }, ownedQuantity: 1 })) }));
   expect((await projectRepository.create('local', project)).ok).toBe(true);
   const router = createRouter({ routeTree, history: createMemoryHistory({ initialEntries: [`/projects/${project.id}/cutlist`] }) });
@@ -32,7 +32,11 @@ it.each(['parts', 'materials', 'stocks'] as const)('shows drop feedback and pers
   const readIds = async () => {
     const saved = await projectRepository.get({ namespaceId: 'local', projectId: project.id });
     if (!saved.ok) throw new Error('Missing saved project');
-    return kind === 'stocks' ? saved.value.editorOrder?.stocks?.[project.materials[0].id] : saved.value.editorOrder?.[kind];
+    return kind === 'stocks'
+      ? saved.value.editorOrder?.stocks?.[project.materials[0].id]
+      : kind === 'parts'
+        ? saved.value.cutlists[0].editorOrder?.parts
+        : saved.value.editorOrder?.materials;
   };
   for (const [y, intent, expected] of [
     [110, 'before', [items[2].id, items[0].id, items[1].id]],

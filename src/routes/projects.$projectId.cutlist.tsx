@@ -4,8 +4,8 @@ import { createFileRoute } from '@tanstack/react-router';
 import { useEffect, useMemo, useRef, useState, type ChangeEvent, type DragEvent } from 'react';
 import { exportProject, importProject, parseFractionalInches, restoreProjectDocument, umFromInches, umFromMillimeters, type Material, type Project, type StockOption } from '@/lib/planner/model';
 import { partKind } from '@/lib/planner/part-stock';
-import { optimizeMixedProject } from '@/lib/planner/combined';
 import { exportCutCsv } from '@/lib/planner/exports';
+import { optimizePlanningScope, type PlanningSelection } from '@/lib/planner/planning-scope';
 import { projectRepository } from '@/lib/planner/repository.indexeddb';
 import type { ConcurrencyToken } from '@/lib/planner/repository';
 import { PageSkeleton, useProjectShell } from '@/components/ProjectWorkspaceShell';
@@ -17,6 +17,10 @@ import { PartsEditor } from '@/components/cutlist/PartsEditor';
 import { MaterialsStockEditor } from '@/components/cutlist/MaterialsStockEditor';
 import { ConfirmationDialog } from '@/components/ConfirmationDialog';
 import { DeleteConfirmationDialog, type DeleteConfirmation } from '@/components/DeleteConfirmationDialog';
+import { CutlistManager, type CutlistDeleteOutcome } from '@/components/cutlist/CutlistManager';
+import { PlanningScopeControls } from '@/components/cutlist/PlanningScopeControls';
+import { DesignProjectionReview } from '@/components/design/DesignProjectionReview';
+import { createCutlist, createPlanningGroup, deleteCutlist, duplicateCutlist, findCutlistMoveConflicts, removePlanningGroup, renameCutlist, updatePlanningGroup, type CutlistMoveAllocations, type CutlistMoveConflict, type CutlistMoveResolutions, type DuplicateCutlistMode } from '@/lib/planner/cutlists';
 
 export const Route = createFileRoute('/projects/$projectId/cutlist')({ component: Cutlist });
 
@@ -33,6 +37,11 @@ function Cutlist() {
   const setShellStatus = shell.setStatus;
   const { projectId } = Route.useParams();
   const [all, setAll] = useState<Project[]>([]);
+  const [activeCutlistId, setActiveCutlistId] = useState('');
+  const [planningSelection, setPlanningSelection] = useState<PlanningSelection | null>(null);
+  const [sharedSourceAcknowledgment, setSharedSourceAcknowledgment] = useState<{ fingerprint: string; acknowledged: boolean } | null>(null);
+  const [editSequence, setEditSequence] = useState(0);
+  const [localGeneration, setLocalGeneration] = useState(0);
   const [loadStatus, setLoadStatus] = useState('Loading project…');
   const tokenRef = useRef<ConcurrencyToken | null>(null);
   const saveQueue = useRef(Promise.resolve());
@@ -49,6 +58,7 @@ function Cutlist() {
   const [projectInfoOpen, setProjectInfoOpen] = useState(false);
   const [projectInfoDraft, setProjectInfoDraft] = useState<ProjectInfoDraft>({ name: '', notes: '', unitSystem: 'imperial', previewView: 'auto' });
   const [projectInfoError, setProjectInfoError] = useState('');
+  const [planningGroupError, setPlanningGroupError] = useState('');
   const [draggingItem, setDraggingItem] = useState<string | null>(null);
   const [draggingKind, setDraggingKind] = useState<'parts' | 'materials' | 'stocks' | null>(null);
   const [draggingMaterialId, setDraggingMaterialId] = useState<string | null>(null);
@@ -59,7 +69,7 @@ function Cutlist() {
   const [pendingReplacement, setPendingReplacement] = useState<Project | null>(null);
   const [importError, setImportError] = useState('');
   useEffect(() => {
-    const load=async()=>{const result=await projectRepository.get({namespaceId:'local',projectId});if(result.ok){setAll([result.value]);tokenRef.current=result.token;setLoadStatus('');}else setLoadStatus(result.kind==='not-found'?'Project not found.':'Project could not be opened. Your saved data has not been changed.');};
+    const load=async()=>{const result=await projectRepository.get({namespaceId:'local',projectId});if(result.ok){setAll([result.value]);setActiveCutlistId(current => result.value.cutlists.some(list => list.id === current) ? current : result.value.cutlists[0]?.id ?? '');tokenRef.current=result.token;setLocalGeneration(result.token.localGeneration);setLoadStatus('');}else setLoadStatus(result.kind==='not-found'?'Project not found.':'Project could not be opened. Your saved data has not been changed.');};
     void load();
     return projectRepository.subscribe('local',changed=>{if(changed.some(key=>key.projectId===projectId))void load();});
   },[projectId]);
@@ -71,15 +81,37 @@ function Cutlist() {
   const update = (nextProject: Project) => {
     const savedProject = { ...nextProject, parts: nextProject.parts.map(part => Object.fromEntries(Object.entries(part).filter(([, value]) => value !== undefined)) as typeof part), updatedAt: new Date().toISOString() };
     setAll([savedProject]);
+    setEditSequence(value => value + 1);
+    setSaveStatus('Saving…');
     const captured = savedProject;
     saveQueue.current = saveQueue.current.then(async () => {
       const expected=tokenRef.current;
       if(!expected){setSaveStatus('Not saved · project must be reloaded');return;}
       const result=await projectRepository.save({namespaceId:'local',projectId},captured,expected);
-      if(result.ok){tokenRef.current=result.token;setSaveStatus('Saved');}
+      if(result.ok){tokenRef.current=result.token;setLocalGeneration(result.token.localGeneration);setSaveStatus('Saved');}
       else setSaveStatus(result.kind==='conflict'?'Conflict · newer project data exists. Reload before saving.':result.kind==='quota'?'Not saved · storage is full. Your edits remain here.':'Not saved · your edits remain here. Retry after checking storage.');
     });
   };
+  const applyReviewedProjection = (nextProject: Project) => new Promise<boolean>(resolve => {
+    const savedProject = { ...nextProject, parts: nextProject.parts.map(part => Object.fromEntries(Object.entries(part).filter(([, value]) => value !== undefined)) as typeof part), updatedAt: new Date().toISOString() };
+    setSaveStatus('Saving…');
+    saveQueue.current = saveQueue.current.then(async () => {
+      const expected = tokenRef.current;
+      if (!expected) { setSaveStatus('Not saved · project must be reloaded'); resolve(false); return; }
+      const result = await projectRepository.save({ namespaceId: 'local', projectId }, savedProject, expected);
+      if (result.ok) {
+        tokenRef.current = result.token;
+        setLocalGeneration(result.token.localGeneration);
+        setAll([result.value]);
+        setEditSequence(value => value + 1);
+        setSaveStatus('Saved');
+        resolve(true);
+      } else {
+        setSaveStatus(result.kind === 'conflict' ? 'Conflict · newer project data exists. Reload before saving.' : result.kind === 'quota' ? 'Not saved · storage is full. Your edits remain here.' : 'Not saved · your edits remain here. Retry after checking storage.');
+        resolve(false);
+      }
+    });
+  });
   const saveProjectInfo = (currentProject: Project) => {
     const name = projectInfoDraft.name.trim();
     if (!name) { setProjectInfoError('Enter a project name.'); return; }
@@ -92,7 +124,10 @@ function Cutlist() {
     setDimensionDrafts({});
     setProjectInfoOpen(false);
   };
-  const orderedParts = project ? resolveEditorOrder(project.parts, project.editorOrder?.parts) : [];
+  const activeCutlist = project?.cutlists.find(item => item.id === activeCutlistId) ?? project?.cutlists[0];
+  const activeParts = project && activeCutlist ? project.parts.filter(part => part.cutlistId === activeCutlist.id) : [];
+  const activePartOrder = activeCutlist?.editorOrder?.parts ?? project?.editorOrder?.parts?.filter(id => activeParts.some(part => part.id === id));
+  const orderedParts = project ? resolveEditorOrder(activeParts, activePartOrder) : [];
   const orderedMaterials = project ? resolveEditorOrder(project.materials, project.editorOrder?.materials) : [];
   const orderedStocks = (material: Material) => resolveEditorOrder(material.stocks, project?.editorOrder?.stocks?.[material.id]);
   const announceMove = (name: string, direction: -1 | 1) => setOrderAnnouncement(`${name} moved ${direction < 0 ? 'up' : 'down'}.`);
@@ -100,7 +135,7 @@ function Cutlist() {
     if (!project) return;
     const ids = kind === 'parts' ? orderedParts.map(item => item.id) : kind === 'materials' ? orderedMaterials.map(item => item.id) : orderedStocks(project.materials.find(item => item.id === materialId)!).map(item => item.id);
     const nextIds = moveEditorItem(ids, id, direction);
-    if (nextIds !== ids) update({ ...project, editorOrder: withEditorOrder(project.editorOrder, kind === 'stocks' ? { stocks: { ...project.editorOrder?.stocks, [materialId!]: nextIds } } : { [kind]: nextIds }) });
+    if (nextIds !== ids) update(kind === 'parts' && activeCutlist ? { ...project, cutlists: project.cutlists.map(item => item.id === activeCutlist.id ? { ...item, editorOrder: withEditorOrder(item.editorOrder, { parts: nextIds }) } : item) } : { ...project, editorOrder: withEditorOrder(project.editorOrder, kind === 'stocks' ? { stocks: { ...project.editorOrder?.stocks, [materialId!]: nextIds } } : { [kind]: nextIds }) });
   };
   const reorderByDrop = (kind: 'parts' | 'materials' | 'stocks', sourceId: string, targetId: string, intent: EditorDropIntent, materialId?: string) => {
     if (!project || sourceId === targetId) return;
@@ -109,7 +144,7 @@ function Cutlist() {
     if (from < 0 || to < 0) return;
     const nextIds = dropEditorItem(ids, sourceId, targetId, intent);
     const itemName = kind === 'parts' ? project.parts.find(item => item.id === sourceId)?.name : kind === 'materials' ? project.materials.find(item => item.id === sourceId)?.name : project.materials.find(item => item.id === materialId)?.stocks.find(item => item.id === sourceId)?.name;
-    update({ ...project, editorOrder: withEditorOrder(project.editorOrder, kind === 'stocks' ? { stocks: { ...project.editorOrder?.stocks, [materialId!]: nextIds } } : { [kind]: nextIds }) });
+    update(kind === 'parts' && activeCutlist ? { ...project, cutlists: project.cutlists.map(item => item.id === activeCutlist.id ? { ...item, editorOrder: withEditorOrder(item.editorOrder, { parts: nextIds }) } : item) } : { ...project, editorOrder: withEditorOrder(project.editorOrder, kind === 'stocks' ? { stocks: { ...project.editorOrder?.stocks, [materialId!]: nextIds } } : { [kind]: nextIds }) });
     setOrderAnnouncement(`${itemName ?? 'Item'} moved to a new position.`);
   };
   const clearDrag = () => {
@@ -159,7 +194,33 @@ function Cutlist() {
     try { window.localStorage.setItem(PROJECT_SETTINGS_EXPANDED_KEY, String(nextExpanded)); }
     catch { /* Keep the control usable when browser storage is unavailable. */ }
   };
-  const mixedResult = useMemo(() => { const currentProject = all.find(item => item.id === projectId); return currentProject ? optimizeMixedProject(currentProject) : null; }, [all, projectId]);
+  const effectiveSelection = useMemo<PlanningSelection>(() => planningSelection ?? { kind: 'cutlist', cutlistId: activeCutlist?.id ?? '' }, [planningSelection, activeCutlist?.id]);
+  const selectedCutlistIds = useMemo(() => effectiveSelection.kind === 'cutlist' ? [effectiveSelection.cutlistId] : effectiveSelection.kind === 'group' ? project?.planningGroups.find(group => group.id === effectiveSelection.groupId)?.cutlistIds ?? [] : effectiveSelection.cutlistIds, [effectiveSelection, project?.planningGroups]);
+  const scopeFingerprint = project ? JSON.stringify([
+    effectiveSelection.kind,
+    effectiveSelection.kind === 'group' ? effectiveSelection.groupId : null,
+    selectedCutlistIds,
+    project.parts.filter(part => selectedCutlistIds.includes(part.cutlistId)).map(part => {
+      const link = project.design?.partLinks[part.id];
+      return [part.id, part.cutlistId, link?.lastApplied.sources, link?.state === 'active' ? link.current : link?.current];
+    }),
+  ]) : '';
+  const acknowledgedSourceIds = useMemo(() => sharedSourceAcknowledgment?.fingerprint === scopeFingerprint && sharedSourceAcknowledgment.acknowledged && project?.design
+    ? project.parts.filter(part => selectedCutlistIds.includes(part.cutlistId)).flatMap(part => {
+      const link = project.design!.partLinks[part.id];
+      if (!link) return [];
+      const current = link.state === 'active' ? link.current : link.current;
+      return [link.lastApplied.sources.definitionId, ...link.lastApplied.sources.instanceIds, ...(current ? [current.definitionId, ...current.instanceIds] : [])];
+    })
+    : [], [project, selectedCutlistIds, scopeFingerprint, sharedSourceAcknowledgment]);
+  const scopedPlanning = useMemo(() => {
+    if (!project || !selectedCutlistIds.length) return null;
+    try { return optimizePlanningScope(project, effectiveSelection, { acknowledgedSourceIds }); }
+    catch { return null; }
+  }, [project, effectiveSelection, selectedCutlistIds, acknowledgedSourceIds]);
+  const planningProject = project && scopedPlanning ? { ...project, parts: project.parts.filter(part => scopedPlanning.scope.cutlistIds.includes(part.cutlistId)) } : null;
+  const displayPlanningProject = planningProject ?? (project ? { ...project, parts: [] } : null);
+  const mixedResult = scopedPlanning?.result ?? null;
   const result = mixedResult?.linear ?? null;
   const sheetResult = mixedResult?.sheets ?? null;
   if (!project) return <>{loadStatus.startsWith('Project not found') || loadStatus.startsWith('Project could not') ? <section className="project-load-error"><h1>{loadStatus}</h1><button type="button" onClick={() => { setLoadStatus('Loading project…'); void projectRepository.get({namespaceId:'local',projectId}).then(r=>{if(r.ok){setAll([r.value]);tokenRef.current=r.token;setLoadStatus('');}else setLoadStatus(r.kind==='not-found'?'Project not found.':'Project could not be opened.');}); }}>Retry</button></section> : <PageSkeleton page="cutlist" />}</>;
@@ -176,19 +237,106 @@ function Cutlist() {
   const addPart = () => {
     const entry = project.materials.flatMap(material => material.stocks.map(stock => ({ material, stock }))).find(item => item.stock.id === newPartMaterialId);
     const material = entry?.material;
-    update({ ...project, parts: [...project.parts, { id: crypto.randomUUID(), name: `Part ${project.parts.length + 1}`, materialId: material?.id ?? '', kind: material?.type ?? 'linear', stockId: entry?.stock.id, ...(material?.type === 'linear' && entry?.stock.widthUm && entry.stock.thicknessUm ? { crossSection: { width: { um: entry.stock.widthUm }, thickness: { um: entry.stock.thicknessUm } } } : {}), length: { um: umFromInches(24) }, ...(material?.type === 'sheet' ? { width: { um: project.unitSystem === 'imperial' ? umFromInches(12) : umFromMillimeters(300) } } : {}), quantity: 1 }] });
+    if (!activeCutlist) return;
+    update({ ...project, parts: [...project.parts, { id: crypto.randomUUID(), name: `Part ${activeParts.length + 1}`, cutlistId: activeCutlist.id, materialId: material?.id ?? '', kind: material?.type ?? 'linear', stockId: entry?.stock.id, ...(material?.type === 'linear' && entry?.stock.widthUm && entry.stock.thicknessUm ? { crossSection: { width: { um: entry.stock.widthUm }, thickness: { um: entry.stock.thicknessUm } } } : {}), length: { um: umFromInches(24) }, ...(material?.type === 'sheet' ? { width: { um: project.unitSystem === 'imperial' ? umFromInches(12) : umFromMillimeters(300) } } : {}), quantity: 1 }] });
   };
   const updateMaterial = (materialId: string, updateFn: (material: Material) => Material) => update({ ...project, materials: project.materials.map(m => m.id === materialId ? updateFn(m) : m) });
   const updateStock = (materialId: string, stockId: string, updateFn: (stock: StockOption) => StockOption) => updateMaterial(materialId, m => ({ ...m, stocks: m.stocks.map(s => s.id === stockId ? updateFn(s) : s) }));
+  const manageCutlist = (action: 'create' | 'rename' | 'duplicate' | 'delete', id: string, name?: string, destinationId?: string, deleteParts = false, duplicateMode: DuplicateCutlistMode = 'independent', resolutions?: CutlistMoveResolutions, reviewedConflicts?: CutlistMoveConflict[], allocations?: CutlistMoveAllocations): CutlistDeleteOutcome | undefined => {
+    if (!project) return action === 'delete' ? { kind: 'error', message: 'The project is not ready. Try again.' } : undefined;
+    if (action === 'create' && name) {
+      const next = createCutlist(project, name); const createdId = next.cutlists[next.cutlists.length - 1].id; update(next); setActiveCutlistId(createdId); if (!planningSelection || planningSelection.kind === 'cutlist') { setPlanningSelection({ kind: 'cutlist', cutlistId: createdId }); setSharedSourceAcknowledgment(null); } return;
+    }
+    if (action === 'rename' && name) { update(renameCutlist(project, id, name)); return; }
+    if (action === 'duplicate') {
+      try {
+        const withCopy = duplicateCutlist(project, id, duplicateMode);
+        const copy = withCopy.cutlists[withCopy.cutlists.length - 1];
+        update(withCopy); setActiveCutlistId(copy.id); if (!planningSelection || planningSelection.kind === 'cutlist') { setPlanningSelection({ kind: 'cutlist', cutlistId: copy.id }); setSharedSourceAcknowledgment(null); }
+      } catch {
+        return undefined;
+      }
+      return;
+    }
+    if (action === 'delete' && destinationId) {
+      const conflicts = findCutlistMoveConflicts(project, id, destinationId);
+      if (reviewedConflicts) {
+        const unchanged = conflicts.length === reviewedConflicts.length && conflicts.every((conflict, index) => conflict.id === reviewedConflicts[index]?.id && conflict.sourceSignature === reviewedConflicts[index]?.sourceSignature);
+        if (!unchanged) return { kind: 'error', message: 'Design membership changed after the review opened. Reopen the delete dialog and review the current overlaps.' };
+      } else if (resolutions) return { kind: 'error', message: 'The overlap review is missing. Reopen the delete dialog and review the current overlaps.' };
+      if (!deleteParts && conflicts.some(conflict => !conflict.canSplit)) return { kind: 'error', message: 'An overlap cannot be resolved safely because a linked row has a pending or missing Design source. Resolve the link in Design before moving this cutlist.' };
+      if (conflicts.length && !resolutions) return { kind: 'review', conflicts };
+      if (deleteParts && conflicts.some(conflict => resolutions?.[conflict.id] !== 'existing')) return { kind: 'error', message: 'When deleting the source parts, keep the existing destination row for every shared Design component.' };
+      let current = project;
+      try {
+      if (deleteParts) {
+        const sourcePartIds = new Set(project.parts.filter(part => part.cutlistId === id).map(part => part.id));
+        const incomingConflicts = new Map<string, CutlistMoveConflict[]>();
+        for (const conflict of conflicts) incomingConflicts.set(conflict.incomingPartId, [...(incomingConflicts.get(conflict.incomingPartId) ?? []), conflict]);
+        const excludedInstanceIds = new Set<string>();
+        const partLinks = { ...project.design?.partLinks };
+        for (const [partId, link] of Object.entries(partLinks)) {
+          const scope = link.cutlistId ?? project.parts.find(part => part.id === partId)?.cutlistId ?? project.cutlists[0]?.id;
+          if (scope !== id && !sourcePartIds.has(partId)) continue;
+          const rowConflicts = incomingConflicts.get(partId);
+          let instances = [...(link.current?.instanceIds ?? link.lastApplied.sources.instanceIds)];
+          if (rowConflicts?.length) {
+            const shared = new Set(rowConflicts.flatMap(conflict => conflict.overlappingInstanceIds));
+            instances = instances.filter(instanceId => !shared.has(instanceId));
+          }
+          instances.forEach(instanceId => excludedInstanceIds.add(instanceId));
+          delete partLinks[partId];
+        }
+        current = { ...project, parts: project.parts.filter(part => part.cutlistId !== id), ...(project.design ? { design: { ...project.design, partLinks } } : {}) };
+        current = deleteCutlist(current, id, destinationId, undefined, [...excludedInstanceIds]);
+      } else current = deleteCutlist(current, id, destinationId, resolutions, [], allocations);
+      } catch (error) {
+        if (error instanceof Error && error.message === 'cutlist-partial-aggregate-unsupported') return { kind: 'error', message: 'An overlap cannot be resolved safely because a linked row has a pending or missing Design source. Resolve the link in Design before moving this cutlist.' };
+        if (error instanceof Error && error.message === 'cutlist-move-history-ambiguous') return { kind: 'error', message: 'The historical Design snapshot cannot be partitioned reliably. Review or reconcile this link in Design before moving this cutlist.' };
+        if (error instanceof Error && error.message === 'cutlist-move-allocation-required') return { kind: 'error', message: 'Enter positive quantities for every resulting row and preserve each original total.' };
+        if (error instanceof Error && error.message === 'cutlist-move-review-required') return { kind: 'error', message: 'Choose which linked row to keep for every overlap before applying the move.' };
+        if (error instanceof Error && error.message === 'cutlist-move-resolution-stale') return { kind: 'error', message: 'The Design link overlap changed after review. Reopen the delete dialog and review the current overlaps.' };
+        return { kind: 'error', message: 'This cutlist could not be deleted. Reload the project and try again.' };
+      }
+      update(current);
+      if (id === activeCutlistId) setActiveCutlistId(destinationId);
+      setPlanningSelection(selection => {
+        if (!selection) return selection;
+        if (selection.kind === 'cutlist' && selection.cutlistId === id) return { kind: 'cutlist', cutlistId: destinationId };
+        if (selection.kind === 'combined' && selection.cutlistIds.includes(id)) {
+          const remaining = selection.cutlistIds.filter(cutlistId => cutlistId !== id);
+          return { kind: 'combined', cutlistIds: remaining.length ? remaining : [destinationId] };
+        }
+        return selection;
+      });
+      setSharedSourceAcknowledgment(null);
+    }
+    return action === 'delete' ? { kind: 'done' } : undefined;
+  };
   const downloadBackup = () => {
     const url = URL.createObjectURL(new Blob([exportProject(project)], { type: 'application/json' }));
     const anchor = document.createElement('a'); anchor.href = url; anchor.download = `${project.name || 'project'}.json`; anchor.click();
     window.setTimeout(() => URL.revokeObjectURL(url), 0);
   };
   const downloadCsv = () => {
-    if (!result || !sheetResult) return;
-    const url = URL.createObjectURL(new Blob([exportCutCsv(project, result.plans, sheetResult.plans)], { type: 'text/csv;charset=utf-8' }));
+    if (!result || !sheetResult || !planningProject) return;
+    const url = URL.createObjectURL(new Blob([exportCutCsv(planningProject, result.plans, sheetResult.plans)], { type: 'text/csv;charset=utf-8' }));
     const anchor = document.createElement('a'); anchor.href = url; anchor.download = `${project.name || 'project'}-cutlist.csv`; anchor.click(); window.setTimeout(() => URL.revokeObjectURL(url), 0);
+  };
+  const savePlanningGroup = (name: string, cutlistIds: string[], groupId?: string) => {
+    setPlanningGroupError('');
+    try {
+      const planningGroups = groupId
+        ? project.planningGroups.map(group => group.id === groupId ? updatePlanningGroup(group, name, cutlistIds, project.cutlists) : group)
+        : createPlanningGroup(project.planningGroups, name, cutlistIds);
+      update({ ...project, planningGroups });
+      const saved = planningGroups.find(group => group.id === groupId) ?? planningGroups[planningGroups.length - 1];
+      if (saved) setPlanningSelection({ kind: 'group', groupId: saved.id });
+    } catch { setPlanningGroupError('This planning group could not be saved. Choose a name and at least one cutlist.'); }
+  };
+  const deletePlanningGroup = (groupId: string) => {
+    update({ ...project, planningGroups: removePlanningGroup(project.planningGroups, groupId) });
+    setPlanningSelection({ kind: 'cutlist', cutlistId: activeCutlist?.id ?? project.cutlists[0].id });
   };
   const importBackup = async (file?: File) => {
     if (!file) return;
@@ -272,14 +420,19 @@ function Cutlist() {
         window.setTimeout(() => (survivor ? document.getElementById(`stock-name-${survivor.id}`) : document.getElementById(`add-stock-${material.id}`))?.focus(), 0);
       }
     }} />
-      <div className="workspace-head cutlist-workspace-head">
+    <CutlistManager lists={project.cutlists} activeId={activeCutlist?.id ?? ''} onActiveChange={id => { setActiveCutlistId(id); setDimensionDrafts({}); if (!planningSelection || planningSelection.kind === 'cutlist') { setPlanningSelection({ kind: 'cutlist', cutlistId: id }); setSharedSourceAcknowledgment(null); } }} onCreate={name => manageCutlist('create', '', name)} onRename={(id, name) => manageCutlist('rename', id, name)} onDuplicate={(id, mode) => { manageCutlist('duplicate', id, undefined, undefined, false, mode); }} onDelete={(id, destinationId, deleteParts, resolutions, reviewedConflicts, allocations) => manageCutlist('delete', id, undefined, destinationId, deleteParts, 'independent', resolutions, reviewedConflicts, allocations) ?? { kind: 'done' }} linkedPartCount={id => project.parts.filter(part => part.cutlistId === id && !!project.design?.partLinks[part.id]).length} designReview={activeCutlist && <DesignProjectionReview project={project} cutlistId={activeCutlist.id} editSequence={editSequence} localGeneration={localGeneration} saveStatus={saveStatus || 'Saved locally'} onApply={applyReviewedProjection} />} />
+    <PlanningScopeControls key={project.id} project={project} activeCutlistId={activeCutlist?.id ?? ''} selection={effectiveSelection} onSelectionChange={selection => { setPlanningSelection(selection); setSharedSourceAcknowledgment(null); }} onSaveGroup={savePlanningGroup} onDeleteGroup={deletePlanningGroup} />
+    {planningGroupError && <p className="planning-scope-error" role="alert">{planningGroupError}</p>}
+    {!!scopedPlanning?.scope.sharedDesignSources.length && <aside className="planning-scope-warning" aria-labelledby="shared-design-warning-title"><strong id="shared-design-warning-title">Some design sources appear in more than one selected cutlist.</strong><p>Review shared components before treating this combined plan as independent work.</p><ul>{scopedPlanning.scope.sharedDesignSources.map(source => <li key={source.key}>{source.sourceId} · {source.partIds.map(id => project.parts.find(part => part.id === id)?.name ?? id).join(', ')}</li>)}</ul><label><input type="checkbox" checked={!scopedPlanning.scope.acknowledgmentRequired} onChange={event => setSharedSourceAcknowledgment({ fingerprint: scopeFingerprint, acknowledged: event.target.checked })} />I reviewed the shared design sources for this planning scope.</label></aside>}
+    <div className="workspace-head cutlist-workspace-head">
       <div className="workspace-actions cutlist-action-row"><div className="cutlist-export-actions"><button className="secondary compact" onClick={downloadBackup}>Export JSON</button><label className="secondary compact import-backup">Replace from JSON<input id="replace-project-json" type="file" accept="application/json,.json" aria-label="Replace project from JSON" onChange={e => { void importBackup(e.target.files?.[0]); e.currentTarget.value = ''; }}/></label><button className="secondary compact" onClick={downloadCsv}>Export CSV</button><button className="secondary compact" onClick={() => window.print()}>Print / Save PDF</button></div></div>
     </div>
     {importError && <p className="warning" role="alert">{importError}</p>}
+    <div className="planning-scope-output"><strong>Cut plan for {scopedPlanning?.scope.cutlists.map(list => list.name).join(' + ') ?? 'selected cutlists'}</strong><span>{scopedPlanning?.scope.cutlists.length ?? 0} cutlists · shared stock optimized together</span></div>
     <div className={`workspace-grid ${planExpanded ? 'plan-expanded' : ''}`}><section className="editor-column">
       <PartsEditor project={project} update={update} dimensionProps={dimensionProps} dropProps={dropProps} dragHandle={dragHandle} quickActions={quickActions} moveItem={moveItem} announceMove={announceMove} setOrderAnnouncement={setOrderAnnouncement} deletionTriggerId={deletionTriggerId} setPendingDeletion={setPendingDeletion} projectSettingsExpanded={projectSettingsExpanded} toggleProjectSettings={toggleProjectSettings} newPartMaterialId={newPartMaterialId} setNewPartMaterialId={setNewPartMaterialId} stockOptions={stockOptions} addPart={addPart} settingsTab={settingsTab} setSettingsTab={setSettingsTab} setDimensionDrafts={setDimensionDrafts} orderedParts={orderedParts} orderAnnouncement={orderAnnouncement} />
       <MaterialsStockEditor project={project} update={update} dimensionProps={dimensionProps} dropProps={dropProps} dragHandle={dragHandle} quickActions={quickActions} moveItem={moveItem} announceMove={announceMove} setOrderAnnouncement={setOrderAnnouncement} deletionTriggerId={deletionTriggerId} setPendingDeletion={setPendingDeletion} materialFormOpen={materialFormOpen} setMaterialFormOpen={setMaterialFormOpen} closeMaterialForm={closeMaterialForm} orderedMaterials={orderedMaterials} orderedStocks={orderedStocks} collapsedMaterialIds={collapsedMaterialIds} setCollapsedMaterialIds={setCollapsedMaterialIds} collapsedStockIds={collapsedStockIds} setCollapsedStockIds={setCollapsedStockIds} stockFormMaterialId={stockFormMaterialId} setStockFormMaterialId={setStockFormMaterialId} updateMaterial={updateMaterial} updateStock={updateStock} />
     </section>
-    <CutPlan project={project} mixedResult={mixedResult} expanded={planExpanded} onExpandedChange={setPlanExpanded} /></div>
+    {displayPlanningProject && <CutPlan project={displayPlanningProject} mixedResult={mixedResult} expanded={planExpanded} onExpandedChange={setPlanExpanded} />}</div>
   </>;
 }

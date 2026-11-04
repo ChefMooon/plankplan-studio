@@ -10,12 +10,13 @@ export type Geometry = { vertices: { id: string; positionUm: Vec3Um }[]; edges: 
 export type CutSpec = { kind: 'board' | 'panel' | 'explicit'; lengthUm: number; widthUm: number; thicknessUm: number; grainAxis: 'length' | 'width' | 'none'; confirmation: 'confirmed' | 'requires-confirmation' };
 export type Sources = { definitionId: string; instanceIds: string[] };
 export type ProjectionSnapshot = { sources: Sources; fields: Pick<Part, 'name' | 'materialId' | 'length' | 'width' | 'crossSection' | 'grainLocked' | 'quantity'> };
-export type LinkReason = 'source-deleted' | 'definition-edited' | 'instance-scaled' | 'material-changed' | 'made-unique' | 'part-deleted';
-export type ActiveLink = { state: 'active'; current: Sources; lastApplied: ProjectionSnapshot };
-export type PendingLink = { state: 'pending-removal' | 'pending-reconcile' | 'pending-part-deletion'; reasons: LinkReason[]; current?: Sources; lastApplied: ProjectionSnapshot };
-export type DesignDocumentV1 = { schemaVersion: 1; definitions: Definition[]; instances: Instance[]; looseObjects: LooseObject[]; partLinks: Record<string, ActiveLink | PendingLink> };
+export type LinkReason = 'source-deleted' | 'definition-edited' | 'instance-scaled' | 'material-changed' | 'made-unique' | 'cutlist-membership-changed' | 'part-deleted';
+export type ActiveLink = { state: 'active'; cutlistId?: string; current: Sources; lastApplied: ProjectionSnapshot };
+export type PendingLink = { state: 'pending-removal' | 'pending-reconcile' | 'pending-part-deletion'; cutlistId?: string; reasons: LinkReason[]; current?: Sources; lastApplied: ProjectionSnapshot };
+export type DesignGroup = { id: string; name: string; instanceIds: string[] };
+export type DesignDocumentV1 = { schemaVersion: 1; definitions: Definition[]; instances: Instance[]; looseObjects: LooseObject[]; partLinks: Record<string, ActiveLink | PendingLink>; groups?: DesignGroup[] };
 export type Definition = { id: string; name: string; geometry: Geometry; cutSpec?: CutSpec; materialId?: string; appearance: Appearance };
-export type Instance = { id: string; definitionId: string; name?: string; pose: Pose; scalePpm: ScalePpm; hidden: boolean; locked: boolean; projectionExcluded?: true; materialId?: string; appearance?: Appearance };
+export type Instance = { id: string; definitionId: string; name?: string; pose: Pose; scalePpm: ScalePpm; hidden: boolean; locked: boolean; projectionExcluded?: true; projectionCutlistIds?: string[]; projectionExcludedCutlistIds?: string[]; materialId?: string; appearance?: Appearance };
 export type LooseObject = { id: string; name: string; geometry: Geometry; pose: Pose; scalePpm: ScalePpm; appearance: Appearance; hidden: boolean; locked: boolean };
 
 const record = (v: unknown): v is Record<string, unknown> => !!v && typeof v === 'object' && !Array.isArray(v);
@@ -26,7 +27,7 @@ export function validateDesignDocument(value: unknown, projectParts: Part[], mat
   const issues: Issue[] = [];
   const issue = (code: string, path: string) => issues.push({ code, path, severity: 'error' });
   if (!record(value)) return [{ code: 'invalid-record', path: basePath, severity: 'error' }];
-  keys(value, ['schemaVersion', 'definitions', 'instances', 'looseObjects', 'partLinks'], basePath, issues);
+  keys(value, ['schemaVersion', 'definitions', 'instances', 'looseObjects', 'partLinks', 'groups'], basePath, issues);
   if (value.schemaVersion !== 1) issue('unsupported-design-version', `${basePath}.schemaVersion`);
   for (const field of ['definitions', 'instances', 'looseObjects'] as const) if (!Array.isArray(value[field])) issue('invalid-array', `${basePath}.${field}`);
   const defs = Array.isArray(value.definitions) ? value.definitions : [];
@@ -39,6 +40,22 @@ export function validateDesignDocument(value: unknown, projectParts: Part[], mat
     return found;
   };
   const defIds = ids(defs, `${basePath}.definitions`); ids(instances, `${basePath}.instances`); ids(loose, `${basePath}.looseObjects`);
+  if (value.groups !== undefined) {
+    if (!Array.isArray(value.groups)) issue('invalid-array', `${basePath}.groups`);
+    else {
+      if (value.groups.length > 1000) issue('count-limit', `${basePath}.groups`);
+      const groupIds = new Set<string>(), instanceIds = new Set(instances.filter(record).map(instance => String(instance.id)));
+      value.groups.forEach((group, index) => {
+        const path = `${basePath}.groups[${index}]`;
+        if (!record(group)) { issue('invalid-group', path); return; }
+        keys(group, ['id', 'name', 'instanceIds'], path, issues);
+        if (typeof group.id !== 'string' || !group.id || group.id.length > 128 || groupIds.has(group.id)) issue('invalid-or-duplicate-id', `${path}.id`);
+        else groupIds.add(group.id);
+        if (typeof group.name !== 'string' || !group.name.trim() || group.name.length > 256) issue('invalid-name', `${path}.name`);
+        if (!Array.isArray(group.instanceIds) || group.instanceIds.length > 5000 || group.instanceIds.some(id => typeof id !== 'string' || !instanceIds.has(id)) || new Set(group.instanceIds).size !== group.instanceIds.length) issue('invalid-group-members', `${path}.instanceIds`);
+      });
+    }
+  }
   let totalVertices=0,totalEdges=0,totalFaces=0,totalExtrusions=0;
   const validateGeometry = (g: unknown, path: string) => {
     if (!record(g)) { issue('invalid-geometry', path); return; }
@@ -81,7 +98,7 @@ export function validateDesignDocument(value: unknown, projectParts: Part[], mat
     else { const norm = Math.hypot(...pose.rotation as number[]); if (Math.abs(norm - 1) > 0.000001) issue('invalid-quaternion', `${path}.pose.rotation`); }
     if (!Array.isArray(r.scalePpm) || r.scalePpm.length !== 3 || !r.scalePpm.every(n => integer(n, 1, 1_000_000_000))) issue('invalid-scale', `${path}.scalePpm`);
   };
-  instances.forEach((v, i) => { const p = `${basePath}.instances[${i}]`; if (!record(v)) { issue('invalid-instance', p); return; } keys(v, ['id', 'definitionId', 'name', 'pose', 'scalePpm', 'hidden', 'locked', 'projectionExcluded', 'materialId', 'appearance'], p, issues); if (!defIds.has(String(v.definitionId))) issue('invalid-definition-reference', `${p}.definitionId`); validateTransform(v, p); if (v.name!==undefined&&(typeof v.name!=='string'||!v.name.trim()||v.name.length>256))issue('invalid-name',`${p}.name`);if (typeof v.hidden !== 'boolean' || typeof v.locked !== 'boolean' || (v.projectionExcluded !== undefined && v.projectionExcluded !== true)) issue('invalid-instance-state', p); if (v.materialId !== undefined && !materialIds.has(String(v.materialId))) issue('invalid-material-reference', `${p}.materialId`);if(v.appearance!==undefined&&(!record(v.appearance)||Object.keys(v.appearance).some(k=>!['color','opacity'].includes(k))||typeof v.appearance.color!=='string'||!/^#[0-9a-fA-F]{6}$/.test(v.appearance.color)||v.appearance.opacity!==undefined&&(typeof v.appearance.opacity!=='number'||!Number.isFinite(v.appearance.opacity)||v.appearance.opacity<0||v.appearance.opacity>1)))issue('invalid-appearance',`${p}.appearance`); });
+  instances.forEach((v, i) => { const p = `${basePath}.instances[${i}]`; if (!record(v)) { issue('invalid-instance', p); return; } keys(v, ['id', 'definitionId', 'name', 'pose', 'scalePpm', 'hidden', 'locked', 'projectionExcluded', 'projectionCutlistIds', 'projectionExcludedCutlistIds', 'materialId', 'appearance'], p, issues); if (!defIds.has(String(v.definitionId))) issue('invalid-definition-reference', `${p}.definitionId`); validateTransform(v, p); if (v.name!==undefined&&(typeof v.name!=='string'||!v.name.trim()||v.name.length>256))issue('invalid-name',`${p}.name`);if (typeof v.hidden !== 'boolean' || typeof v.locked !== 'boolean' || (v.projectionExcluded !== undefined && v.projectionExcluded !== true)) issue('invalid-instance-state', p); for(const field of ['projectionCutlistIds','projectionExcludedCutlistIds'] as const) if(v[field]!==undefined&&(!Array.isArray(v[field])||v[field].some(id=>typeof id!=='string'||!id)||new Set(v[field]).size!==v[field].length))issue('invalid-projection-cutlists',`${p}.${field}`); if (v.materialId !== undefined && !materialIds.has(String(v.materialId))) issue('invalid-material-reference', `${p}.materialId`);if(v.appearance!==undefined&&(!record(v.appearance)||Object.keys(v.appearance).some(k=>!['color','opacity'].includes(k))||typeof v.appearance.color!=='string'||!/^#[0-9a-fA-F]{6}$/.test(v.appearance.color)||v.appearance.opacity!==undefined&&(typeof v.appearance.opacity!=='number'||!Number.isFinite(v.appearance.opacity)||v.appearance.opacity<0||v.appearance.opacity>1)))issue('invalid-appearance',`${p}.appearance`); });
   loose.forEach((v, i) => { const p = `${basePath}.looseObjects[${i}]`; if (!record(v)) { issue('invalid-loose-object', p); return; } keys(v, ['id', 'name', 'geometry', 'pose', 'scalePpm', 'appearance', 'hidden', 'locked'], p, issues); validateGeometry(v.geometry, `${p}.geometry`); validateTransform(v, p);if(typeof v.name!=='string'||!v.name.trim()||v.name.length>256)issue('invalid-name',`${p}.name`);if(!record(v.appearance)||Object.keys(v.appearance).some(k=>!['color','opacity'].includes(k))||typeof v.appearance.color!=='string'||!/^#[0-9a-fA-F]{6}$/.test(v.appearance.color)||v.appearance.opacity!==undefined&&(typeof v.appearance.opacity!=='number'||!Number.isFinite(v.appearance.opacity)||v.appearance.opacity<0||v.appearance.opacity>1))issue('invalid-appearance',`${p}.appearance`); if (typeof v.hidden !== 'boolean' || typeof v.locked !== 'boolean') issue('invalid-loose-state', p); });
   if(totalVertices>20_000||totalEdges>40_000||totalFaces>10_000||totalExtrusions>2_000)issue('geometry-count-limit',basePath);
   const definitionById=new Map(defs.filter(record).map(def=>[String(def.id),def]));
@@ -108,9 +125,10 @@ export function validateDesignDocument(value: unknown, projectParts: Part[], mat
       if(typeof fields.name!=='string'||!fields.name.trim()||fields.name.length>256||typeof fields.materialId!=='string'||!fields.materialId||!validDim(fields.length)||fields.width!==undefined&&!validDim(fields.width)||fields.crossSection!==undefined&&(!record(fields.crossSection)||Object.keys(fields.crossSection).some(k=>!['width','thickness'].includes(k))||!validDim(fields.crossSection.width)||!validDim(fields.crossSection.thickness))||fields.grainLocked!==undefined&&typeof fields.grainLocked!=='boolean'||!integer(fields.quantity,1,10000))issue('invalid-snapshot-fields',`${p}.lastApplied.fields`);
     }
     const current = record(link.current) ? link.current : undefined;
-    if(record(link))keys(link,link.state==='active'?['state','current','lastApplied']:['state','reasons','current','lastApplied'],p,issues);
-    if(current){if(typeof current.definitionId!=='string'||!defIds.has(current.definitionId))issue('dangling-source-definition',p);if(record(current))keys(current,['definitionId','instanceIds'],`${p}.current`,issues);if(!Array.isArray(current.instanceIds)||!current.instanceIds.length||current.instanceIds.length>5000||new Set(current.instanceIds).size!==current.instanceIds.length)issue('invalid-source-instances',p);else if(current.instanceIds.some(id=>!instances.some(inst=>record(inst)&&inst.id===id&&inst.definitionId===current.definitionId)))issue('dangling-current-instance',p);else for(const id of current.instanceIds as string[]){const found=instances.find(inst=>record(inst)&&inst.id===id);if(record(found)&&found.projectionExcluded===true)issue('excluded-current-instance',p);if(linkedInstances.has(id))issue('duplicate-current-source',p);linkedInstances.add(id);}}
-    if(record(link)&&link.state!=='active'&&(!Array.isArray(link.reasons)||link.reasons.length===0||link.reasons.some(reason=>!['source-deleted','definition-edited','instance-scaled','material-changed','made-unique','part-deleted'].includes(String(reason)))||new Set(link.reasons).size!==link.reasons.length))issue('invalid-link-reasons',`${p}.reasons`);
+    if(record(link))keys(link,link.state==='active'?['state','cutlistId','current','lastApplied']:['state','cutlistId','reasons','current','lastApplied'],p,issues);
+    if(record(link)&&link.cutlistId!==undefined&&(typeof link.cutlistId!=='string'||!link.cutlistId))issue('invalid-link-cutlist',`${p}.cutlistId`);
+    if(current){if(typeof current.definitionId!=='string'||!defIds.has(current.definitionId))issue('dangling-source-definition',p);if(record(current))keys(current,['definitionId','instanceIds'],`${p}.current`,issues);if(!Array.isArray(current.instanceIds)||!current.instanceIds.length||current.instanceIds.length>5000||new Set(current.instanceIds).size!==current.instanceIds.length)issue('invalid-source-instances',p);else if(current.instanceIds.some(id=>!instances.some(inst=>record(inst)&&inst.id===id&&inst.definitionId===current.definitionId)))issue('dangling-current-instance',p);else for(const id of current.instanceIds as string[]){const found=instances.find(inst=>record(inst)&&inst.id===id);if(record(found)&&found.projectionExcluded===true&&!link.cutlistId)issue('excluded-current-instance',p);const scope=String(link.cutlistId??projectParts.find(part=>part.id===partId)?.cutlistId??'default-cutlist');const pair=`${scope}:${id}`;if(linkedInstances.has(pair))issue('duplicate-current-source',p);linkedInstances.add(pair);}}
+    if(record(link)&&link.state!=='active'&&(!Array.isArray(link.reasons)||link.reasons.length===0||link.reasons.some(reason=>!['source-deleted','definition-edited','instance-scaled','material-changed','made-unique','cutlist-membership-changed','part-deleted'].includes(String(reason)))||new Set(link.reasons).size!==link.reasons.length))issue('invalid-link-reasons',`${p}.reasons`);
     if(record(link)&&link.state==='pending-removal'&&link.current!==undefined)issue('pending-removal-has-current',`${p}.current`);
     if(record(link)&&link.state==='pending-part-deletion'&&(!Array.isArray(link.reasons)||!link.reasons.includes('part-deleted')))issue('pending-part-deletion-missing-reason',`${p}.reasons`);
     if(record(link)&&link.state!=='pending-part-deletion'&&Array.isArray(link.reasons)&&link.reasons.includes('part-deleted'))issue('pending-state-precedence',p);

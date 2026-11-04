@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { validateDesignDocument } from './schema';
 import type { Part } from '../model';
 
-const part:Part={id:'part',name:'Panel',materialId:'sheet',length:{um:100},width:{um:80},quantity:1};
+const part:Part={id:'part',name:'Panel',materialId:'sheet',cutlistId:'default-cutlist',length:{um:100},width:{um:80},quantity:1};
 const definition={id:'def',name:'Panel',geometry:{vertices:[],edges:[],faces:[],extrusions:[]},appearance:{color:'#aabbcc'}};
 const instance={id:'inst',definitionId:'def',pose:{positionUm:[0,0,0],rotation:[0,0,0,1]},scalePpm:[1_000_000,1_000_000,1_000_000],hidden:false,locked:false};
 const fields={name:'Panel',materialId:'sheet',length:{um:100},width:{um:80},grainLocked:false,quantity:1};
@@ -10,6 +10,12 @@ const snapshot={sources:{definitionId:'old-definition',instanceIds:['old-instanc
 const validate=(value:Record<string,unknown>,parts:Part[]=[part])=>validateDesignDocument({schemaVersion:1,definitions:[definition],instances:[instance],looseObjects:[],partLinks:{},...value},parts,new Set(['sheet']));
 
 describe('DesignDocumentV1 portable schema',()=>{
+  it('accepts old documents without groups and validates named snapshot membership',()=>{
+    expect(validate({})).toEqual([]);
+    expect(validate({groups:[{id:'group',name:'Door set',instanceIds:['inst']}]})).toEqual([]);
+    expect(validate({groups:[{id:'group',name:'Door set',instanceIds:['missing']}]}).some(issue=>issue.code==='invalid-group-members')).toBe(true);
+    expect(validate({groups:[{id:'group',name:'Door set',instanceIds:['inst'],followNewInstances:true}]}).some(issue=>issue.code==='unknown-field')).toBe(true);
+  });
   it('accepts active and pending lifecycle records with historical source snapshots',()=>{
     const active={part:{state:'active',current:{definitionId:'def',instanceIds:['inst']},lastApplied:{sources:{definitionId:'def',instanceIds:['inst']},fields}}};
     expect(validate({partLinks:active})).toEqual([]);

@@ -8,7 +8,7 @@ import { exportProject, importProject } from './model';
 describe('mixed-material plan aggregation', () => {
   it('round trips unassigned panels and plans them on generic sheets without thickness or cost', () => {
     const project = createProject();
-    project.parts.push({ kind: 'sheet', id: 'unassigned', name: 'Top', materialId: '', length: { um: 600000 }, width: { um: 300000 }, quantity: 1 });
+    project.parts.push({ kind: 'sheet', id: 'unassigned', name: 'Top', materialId: '', cutlistId: project.cutlists[0].id, length: { um: 600000 }, width: { um: 300000 }, quantity: 1 });
     expect(importProject(exportProject(project))).toEqual(project);
     const result = optimizeMixedProject(project);
     expect(result.valid).toBe(true);
@@ -23,9 +23,9 @@ describe('mixed-material plan aggregation', () => {
     expect(project.materials).toEqual([]);
   });
   it('combines independent linear and sheet totals with display-only tax', () => {
-    const project: Project = { schemaVersion: 2, id: 'mix', name: 'Mixed', unitSystem: 'imperial', kerf: { um: 0 }, trim: { um: 0 }, minOffcutLinear: { um: 0 }, minOffcutSheet: { shortSideUm: 0, longSideUm: 0 }, currency: 'CAD', taxRate: 10, createdAt: '', updatedAt: '', parts: [
-      { id: 'board-part', name: 'Leg', materialId: 'board', length: { um: umFromInches(24) }, quantity: 1 },
-      { id: 'sheet-part', name: 'Top', materialId: 'sheet', length: { um: umFromInches(24) }, width: { um: umFromInches(18) }, quantity: 1 },
+    const project: Project = { schemaVersion: 3, id: 'mix', name: 'Mixed', unitSystem: 'imperial', kerf: { um: 0 }, trim: { um: 0 }, minOffcutLinear: { um: 0 }, minOffcutSheet: { shortSideUm: 0, longSideUm: 0 }, currency: 'CAD', taxRate: 10, cutlists: [{ id: 'default-cutlist', name: 'Default' }], planningGroups: [], createdAt: '', updatedAt: '', parts: [
+      { id: 'board-part', name: 'Leg', materialId: 'board', cutlistId: 'default-cutlist', length: { um: umFromInches(24) }, quantity: 1 },
+      { id: 'sheet-part', name: 'Top', materialId: 'sheet', cutlistId: 'default-cutlist', length: { um: umFromInches(24) }, width: { um: umFromInches(18) }, quantity: 1 },
     ], materials: [
       { id: 'board', name: 'Pine', type: 'linear', stocks: [{ id: 'b-stock', name: 'Board', length: { um: umFromInches(96) }, price: { cents: 1000 }, ownedQuantity: 0 }] },
       { id: 'sheet', name: 'Plywood', type: 'sheet', stocks: [{ id: 's-stock', name: 'Sheet', length: { um: umFromInches(48) }, widthUm: umFromInches(48), price: { cents: 2000 }, ownedQuantity: 0 }] },

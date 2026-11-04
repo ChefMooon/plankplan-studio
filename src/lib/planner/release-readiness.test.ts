@@ -8,16 +8,16 @@ const inch = (value: number) => ({ um: umFromInches(value) });
 
 // A small, reproducible shop job: an entry bench frame and two plywood panels.
 const entryBench: Project = {
-  schemaVersion: 2, id: 'entry-bench', name: 'Entry bench', unitSystem: 'imperial',
+  schemaVersion: 3, id: 'entry-bench', name: 'Entry bench', unitSystem: 'imperial', cutlists: [{ id: 'default-cutlist', name: 'Default' }], planningGroups: [],
   kerf: inch(.125), trim: inch(.25), minOffcutLinear: inch(12),
   minOffcutSheet: { shortSideUm: umFromInches(6), longSideUm: umFromInches(12) },
   currency: 'CAD', createdAt: '', updatedAt: '',
   parts: [
-    { id: 'leg', name: 'Leg', materialId: 'poplar', length: inch(18), quantity: 4 },
-    { id: 'long-apron', name: 'Long apron', materialId: 'poplar', length: inch(36), quantity: 2 },
-    { id: 'short-apron', name: 'Short apron', materialId: 'poplar', length: inch(12), quantity: 2 },
-    { id: 'seat', name: 'Seat panel', materialId: 'plywood', length: inch(36), width: inch(18), quantity: 1 },
-    { id: 'lower-shelf', name: 'Lower shelf', materialId: 'plywood', length: inch(30), width: inch(12), quantity: 1 },
+    { id: 'leg', name: 'Leg', materialId: 'poplar', cutlistId: 'default-cutlist', length: inch(18), quantity: 4 },
+    { id: 'long-apron', name: 'Long apron', materialId: 'poplar', cutlistId: 'default-cutlist', length: inch(36), quantity: 2 },
+    { id: 'short-apron', name: 'Short apron', materialId: 'poplar', cutlistId: 'default-cutlist', length: inch(12), quantity: 2 },
+    { id: 'seat', name: 'Seat panel', materialId: 'plywood', cutlistId: 'default-cutlist', length: inch(36), width: inch(18), quantity: 1 },
+    { id: 'lower-shelf', name: 'Lower shelf', materialId: 'plywood', cutlistId: 'default-cutlist', length: inch(30), width: inch(12), quantity: 1 },
   ],
   materials: [
     { id: 'poplar', name: 'Poplar', type: 'linear', stocks: [{ id: 'poplar-8ft', name: '8 ft poplar board', length: inch(96), price: { cents: 2600 }, ownedQuantity: 0 }] },

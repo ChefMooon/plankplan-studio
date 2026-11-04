@@ -15,7 +15,7 @@ describe('planner units and serialization', () => {
   });
   it('imports only supported schema and computes board foot cost without a yield factor', () => {
     const project = { schemaVersion: 1, id: 'p', name: 'Bench', unitSystem: 'imperial', kerf: { um: 0 }, trim: { um: 0 }, parts: [], materials: [], updatedAt: '2026-10-22T00:00:00.000Z', currency: 'CAD', minOffcutLinear: { um: 304800 }, minOffcutSheet: { shortSideUm: 150000, longSideUm: 300000 } };
-    expect(importProject(JSON.stringify(project))).toMatchObject({ name: 'Bench', schemaVersion: 2 });
+    expect(importProject(JSON.stringify(project))).toMatchObject({ name: 'Bench', schemaVersion: 3, cutlists: [{ id: 'default-cutlist', name: 'Default' }] });
     expect(() => importProject('{"schemaVersion":2}')).toThrow();
     expect(() => importProject(JSON.stringify({ ...project, sheetLayout: 'random' }))).toThrow(/sheetLayout/i);
     expect(() => importProject(JSON.stringify({ ...project, parts: [{ id: 'bad', materialId: 'missing', name: 'Bad', length: { um: 100 }, quantity: 1 }] }))).toThrow(/parts\[0\]/i);
@@ -38,13 +38,13 @@ describe('planner units and serialization', () => {
   it('migrates every documented v1 default, keeps editorOrder and does not add design', () => {
     const early={schemaVersion:1,id:'legacy-id',name:'Early',unitSystem:'imperial',kerf:{um:0},trim:{um:0},parts:[],materials:[{id:'m',name:'Pine',stocks:[]}],updatedAt:'2026-10-22T12:00:00.000Z',editorOrder:{parts:['old-part']}};
     const migrated=importProject(JSON.stringify(early));
-    expect(migrated).toMatchObject({schemaVersion:2,id:'legacy-id',createdAt:early.updatedAt,currency:'CAD',minOffcutLinear:{um:304800},minOffcutSheet:{shortSideUm:150000,longSideUm:300000},materials:[{type:'linear'}],editorOrder:early.editorOrder});
+    expect(migrated).toMatchObject({schemaVersion:3,id:'legacy-id',createdAt:early.updatedAt,currency:'CAD',minOffcutLinear:{um:304800},minOffcutSheet:{shortSideUm:150000,longSideUm:300000},materials:[{type:'linear'}],editorOrder:early.editorOrder,cutlists:[{id:'default-cutlist',name:'Default'}],planningGroups:[]});
     expect(migrated).not.toHaveProperty('design');
   });
 
   it('rejects future versions, unknown v2 fields and invalid legacy timestamps', () => {
     const source={schemaVersion:1,id:'x',name:'Test',unitSystem:'metric',kerf:{um:0},trim:{um:0},parts:[],materials:[],updatedAt:'2026-10-22T12:00:00.000Z'};
-    expect(()=>importProject(JSON.stringify({...source,schemaVersion:3}))).toThrow(/Unsupported project schema version/);
+    expect(()=>importProject(JSON.stringify({...source,schemaVersion:4}))).toThrow(/Unsupported project schema version/);
     expect(()=>importProject(JSON.stringify({...source,schemaVersion:2,createdAt:source.updatedAt,currency:'CAD',minOffcutLinear:{um:1},minOffcutSheet:{shortSideUm:1,longSideUm:2},futureField:true}))).toThrow(/unknown-field/);
     expect(()=>importProject(JSON.stringify({...source,updatedAt:''}))).toThrow(/invalid-timestamp/);
   });

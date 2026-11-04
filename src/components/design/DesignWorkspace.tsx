@@ -6,8 +6,8 @@ import type { Project } from '@/lib/planner/model';
 import { inchesFromUm, millimetersFromUm, umFromInches, umFromMillimeters } from '@/lib/planner/model';
 import { readDesignViewPreferences, writeDesignViewPreferences, type DesignViewPreferences } from '@/lib/planner/design/view-preferences';
 import { DESIGN_LIMIT_UM, getRectangularProfile, resizeRectangularProfile, scaleDimensionUm } from '@/lib/planner/design/geometry';
-import { createApplyIntent, createProjectionPreview, isProjectionPreviewCurrent, type ProjectionPreview, type ProjectionRow, type RowDecision } from '@/lib/planner/design/projection';
-import { newDesignDocument, type DesignCommand } from '@/lib/planner/design/commands';
+import { applyDesignCommand, newDesignDocument, type DesignCommand } from '@/lib/planner/design/commands';
+import { createCutlist } from '@/lib/planner/cutlists';
 import { createDesignHistory, commitSessionCommand, undoSession, redoSession, type DesignHistory } from '@/lib/planner/design/history';
 import { ContextMenu as RadixContextMenu } from 'radix-ui';
 import { keepGeometryCenter, geometryCenter, localizeDelta, resolveRotationPivotLocal, type AxisMode, type PivotMode } from './transform-pivot';
@@ -23,6 +23,8 @@ import { Tooltip } from '@/components/ui/tooltip';
 import { DesignToolIcon, type DesignToolIconName } from './DesignToolIcon';
 import { DesignPanelIcon, type DesignPanelIconName } from './DesignPanelIcon';
 import { ProjectInfoDialog, type ProjectInfoDraft } from '@/components/ProjectInfoDialog';
+import { DesignProjectionReview } from './DesignProjectionReview';
+import { DesignCutlistAssignment } from './DesignCutlistAssignment';
 const Viewport = lazy(() => import('./DesignViewport').then(module => ({ default: module.DesignViewport })));
 
 const tools = [
@@ -39,31 +41,7 @@ const drawerTooltips: Record<(typeof drawers)[number], string> = { 'Entity Info'
 const keyLabel=(key:string)=>key==='Space'?'Space':key.toUpperCase();
 const formatProjectLength=(project:Project,um:number)=>project.unitSystem==='imperial'?`${inchesFromUm(um).toFixed(3)} in`:`${millimetersFromUm(um).toFixed(1)} mm`;
 
-function previewStockFit(project: Project, row: ProjectionRow): { message: string; unverified: boolean } {
-  const material = project.materials.find(item => item.id === row.fields.materialId);
-  if (!material) return { message: 'Missing material; this row cannot be optimized.', unverified: false };
-  if (!material.stocks.length) return { message: `No stock options for ${material.name}.`, unverified: false };
-  if (material.type === 'linear') {
-    const matchingLength = material.stocks.filter(stock => stock.length.um >= row.fields.length.um + project.trim.um);
-    const verified = matchingLength.some(stock => stock.widthUm !== undefined && stock.thicknessUm !== undefined && row.fields.crossSection !== undefined && ((row.fields.crossSection.width.um <= stock.widthUm && row.fields.crossSection.thickness.um <= stock.thicknessUm) || (row.fields.crossSection.thickness.um <= stock.widthUm && row.fields.crossSection.width.um <= stock.thicknessUm)));
-    if (verified) return { message: `Cross-section fits at least one actual-size option in ${material.name}; 90° turn is allowed.`, unverified: false };
-    if (matchingLength.some(stock => stock.widthUm === undefined || stock.thicknessUm === undefined)) return { message: 'Stock length is sufficient, but actual cross-section dimensions are missing; fit is unverified.', unverified: true };
-    return { message: `No ${material.name} stock option has a verified length and cross-section fit.`, unverified: false };
-  }
-  const lengthFits = material.stocks.some(stock => {
-    if (stock.widthUm === undefined || row.fields.width === undefined) return false;
-    const direct = stock.length.um >= row.fields.length.um + project.trim.um && stock.widthUm >= row.fields.width.um;
-    const turned = !row.fields.grainLocked && stock.length.um >= row.fields.width.um + project.trim.um && stock.widthUm >= row.fields.length.um;
-    return direct || turned;
-  });
-  const missingWidth = material.stocks.some(stock => stock.widthUm === undefined);
-  const thicknessText = `Panel thickness (${formatProjectLength(project,row.designThicknessUm)}) compatibility is unverified by 2D sheet planning.`;
-  if (!lengthFits && missingWidth) return { message: `Sheet fit dimensions are incomplete. ${thicknessText}`, unverified: true };
-  if (!lengthFits) return { message: `No ${material.name} stock option has a verified 2D length/width fit. ${thicknessText}`, unverified: true };
-  return { message: `2D length/width fit is possible. ${thicknessText}`, unverified: true };
-}
-
-export function DesignWorkspace({ project, onCommit, localGeneration = 0, saveStatus = 'Saved locally' }: { project: Project; onCommit?: (project: Project) => void | Promise<boolean>; localGeneration?: number; saveStatus?: string }) {
+export function DesignWorkspace({ project, onCommit, localGeneration = 0, saveStatus = 'Saved locally', activeCutlistId }: { project: Project; onCommit?: (project: Project) => void | boolean | Promise<boolean>; localGeneration?: number; saveStatus?: string; activeCutlistId?: string }) {
   const [working, setWorking] = useState(project);
   const [history, setHistory] = useState<DesignHistory>(() => createDesignHistory());
   const [activeTool, setActiveTool] = useState('select');
@@ -138,10 +116,16 @@ export function DesignWorkspace({ project, onCommit, localGeneration = 0, saveSt
   const [frameRequest, setFrameRequest] = useState(0);
   const [drawer, setDrawer] = useState<(typeof drawers)[number]>('Entity Info');
   const [drawerOpen, setDrawerOpen] = useState(false);
-  const [projectionPreview, setProjectionPreview] = useState<ProjectionPreview>();
-  const [projectionDecisions, setProjectionDecisions] = useState<Record<string, RowDecision>>({});
   const [projectionBusy, setProjectionBusy] = useState(false);
   const [editSequence, setEditSequence] = useState(0);
+  const [targetCutlistId, setTargetCutlistId] = useState(activeCutlistId ?? project.cutlists[0]?.id ?? '');
+  const previousActiveCutlistId = useRef(activeCutlistId);
+  useEffect(() => {
+    const changed = activeCutlistId !== previousActiveCutlistId.current;
+    previousActiveCutlistId.current = activeCutlistId;
+    if (changed && activeCutlistId && project.cutlists.some(list => list.id === activeCutlistId)) setTargetCutlistId(activeCutlistId);
+    else setTargetCutlistId(current => project.cutlists.some(list => list.id === current) ? current : project.cutlists[0]?.id ?? '');
+  }, [activeCutlistId, project.cutlists]);
   const selection = useMemo(() => {
     const d = working.design;
     if (!d || !selectedId) return undefined;
@@ -166,7 +150,7 @@ export function DesignWorkspace({ project, onCommit, localGeneration = 0, saveSt
       if(!saved){setProjectInfoError('Project information was not saved. Resolve the save issue and try again.');return;}
       setWorking(next);
       setHistory(old=>({...old,entries:old.entries.map(entry=>({ ...entry,before:{...entry.before,name,notes:next.notes,unitSystem:next.unitSystem,previewView:next.previewView},after:{...entry.after,name,notes:next.notes,unitSystem:next.unitSystem,previewView:next.previewView}}))}));
-      if(projectInfoDraft.unitSystem!==working.unitSystem){measurementActions.current?.cancel();setToolMeasurement(undefined);setMeasurement(undefined);setNumeric('');setProjectionPreview(undefined);setProjectionDecisions({});setEditSequence(value=>value+1);}
+      if(projectInfoDraft.unitSystem!==working.unitSystem){measurementActions.current?.cancel();setToolMeasurement(undefined);setMeasurement(undefined);setNumeric('');setEditSequence(value=>value+1);}
       setProjectInfoOpen(false);
       setNotice('Project information saved.');
     } catch { setProjectInfoError('Project information could not be saved. Try again.'); }
@@ -249,34 +233,31 @@ export function DesignWorkspace({ project, onCommit, localGeneration = 0, saveSt
     const lengthUm = enteredLength && Number.isSafeInteger(enteredLength) ? enteredLength : stock?.length.um ?? 2_438_400;
     run({type:'create-board',id:newId(),definitionId:newId(),name:'Board',materialId:defaults?.id,lengthUm,widthUm:stock?.widthUm ?? 88_900,thicknessUm:stock?.thicknessUm ?? 38_100});
   };
-  const reviewCutlist = () => {
-    if (saveStatus.startsWith('Conflict')) { setNotice('Reload this project before creating a current cutlist review.'); return; }
-    if (saveStatus.startsWith('Saving')) { setNotice('Wait for the current project save before creating a cutlist review.'); return; }
-    if (!working.design) { setNotice('There is no model to review.'); return; }
-    const preview = createProjectionPreview(working, editSequence, localGeneration, () => newId());
-    setProjectionPreview(preview); setProjectionDecisions({}); setDrawer('Model Info'); setDrawerOpen(true);
-    setNotice(preview.changes.length ? `${preview.changes.length} cutlist change${preview.changes.length === 1 ? '' : 's'} ready for review` : 'No cutlist changes to review');
+  const applyReviewedProjection = async (next: Project) => {
+    const outcome = onCommit?.(next);
+    const saved = outcome instanceof Promise ? await outcome : outcome !== false;
+    if (!saved) { setNotice('Cutlist changes were not saved. Resolve the save issue and try again.'); return false; }
+    setWorking(next); setHistory(createDesignHistory()); setEditSequence(value => value + 1); setNotice('Reviewed cutlist changes saved with their design links.');
+    return true;
   };
-  const applyReviewedCutlist = async () => {
-    if (saveStatus.startsWith('Conflict')) { setNotice('Reload this project before applying a cutlist review.'); return; }
-    if (saveStatus.startsWith('Saving')) { setNotice('Wait for the current project save before applying this cutlist review.'); return; }
-    const preview = projectionPreview;
-    if (!preview) return;
-    if (!isProjectionPreviewCurrent(preview, editSequence, localGeneration)) { setNotice('Preview is stale. Review the current model again before applying.'); return; }
+  const createCutlistFromModel = async (name: string, scope: 'selection' | 'all' | 'group', mode: 'copy' | 'move' | 'skip', groupInstanceIds?: string[], modeByInstance?: Record<string, 'copy' | 'move' | 'skip'>) => {
+    if (saveStatus.startsWith('Conflict') || saveStatus.startsWith('Saving')) { setNotice('Wait for the project save to finish before creating a cutlist from the model.'); return; }
+    const instanceIds = scope === 'all' ? working.design?.instances.map(instance => instance.id) ?? [] : scope === 'group' ? [...(groupInstanceIds ?? [])] : working.design?.instances.filter(instance => selectionIds.includes(instance.id)).map(instance => instance.id) ?? [];
+    if (!instanceIds.length || !working.design) { setNotice('Select at least one modeled component to create a cutlist.'); return; }
     try {
-      const intent = createApplyIntent(working, preview, projectionDecisions, { editSequence, localGeneration });
-      const next = { ...working, parts: intent.parts, design: intent.design, updatedAt: new Date().toISOString() };
+      const withList = createCutlist(working, name, newId());
+      const list = withList.cutlists[withList.cutlists.length - 1];
+      const assignment = applyDesignCommand(withList, { type: 'assign-instances-to-cutlist', instanceIds, cutlistId: list.id, mode, ...(modeByInstance ? {modeByInstance}: {}) });
+      if (!assignment.ok) throw new Error(assignment.message);
       setProjectionBusy(true);
-      const outcome = onCommit?.(next);
-      const saved = outcome instanceof Promise ? await outcome : true;
-      if (!saved) { setNotice('Cutlist changes were not saved. Your current model and saved project remain available; retry after resolving the save issue.'); return; }
-      setWorking(next); setProjectionPreview(undefined); setProjectionDecisions({}); setHistory(createDesignHistory()); setEditSequence(value=>value+1);
-      setNotice('Reviewed cutlist changes saved with their design links.');
-    } catch (error) { setNotice(error instanceof Error ? `Could not apply review: ${error.message}` : 'Could not apply review.'); }
+      const outcome = onCommit?.(assignment.project);
+      const saved = outcome instanceof Promise ? await outcome : outcome !== false;
+      if (!saved) { setNotice('The cutlist was not saved. Resolve the save issue and try again.'); return; }
+      setWorking(assignment.project); setHistory(createDesignHistory()); setEditSequence(value => value + 1); setTargetCutlistId(list.id); setDrawer('Model Info'); setDrawerOpen(true);
+      setNotice(`Created “${list.name}” from ${scope === 'all' ? 'all' : scope === 'group' ? 'the saved group snapshot' : 'selected'} modeled components. Review its cutlist changes before applying them.`);
+    } catch (error) { setNotice(error instanceof Error ? `Could not create cutlist: ${error.message}` : 'Could not create cutlist.'); }
     finally { setProjectionBusy(false); }
   };
-  const changeProjectionDisposition = (rowKey: string, disposition: NonNullable<RowDecision['disposition']>) => setProjectionDecisions(old => ({ ...old, [rowKey]: { ...old[rowKey], disposition } }));
-  const changeProjectionField = (rowKey: string, field: string, choice: 'manual' | 'design') => setProjectionDecisions(old => ({ ...old, [rowKey]: { ...old[rowKey], fieldChoices: { ...old[rowKey]?.fieldChoices, [field]: choice } } }));
   const applyExact = () => {
     const raw=Number(numeric);if(!Number.isFinite(raw)||raw===0)return;
     const n=['rotate','scale'].includes(activeTool)?raw:lengthFromInput(numeric);if(!Number.isSafeInteger(n)||n===0)return;
@@ -331,11 +312,11 @@ export function DesignWorkspace({ project, onCommit, localGeneration = 0, saveSt
           {(selectedInstance||selectedLoose) && <button type="button" onClick={()=>{if(selectedInstance)run({type:'set-state',target:'instance',id:selectedInstance.id,hidden:!selectedInstance.hidden});else if(selectedLoose)run({type:'set-state',target:'loose',id:selectedLoose.id,hidden:!selectedLoose.hidden});}}>Hide / Show</button>}
           <button type="button" onClick={()=>{if(selectedInstance)run({type:'delete-instance',instanceId:selectedInstance.id});else if(selectedLoose)run({type:'delete-loose',objectId:selectedLoose.id});else if(selectedDefinition)run({type:'delete-definition',definitionId:selectedDefinition.id});}}>Remove</button></> : <p className="design-empty-hint">Select an item in the model or list to inspect its properties.</p>}</>}
         {drawer === 'Materials' && <><h3>Materials</h3>{(() => { const instance = selectedInstance; const definition = selectedDefinition ?? (instance ? working.design?.definitions.find(item => item.id === instance.definitionId) : undefined); const target = instance ? 'instance' as const : definition ? 'definition' as const : undefined; const targetId = instance?.id ?? definition?.id; const materialId = instance?.materialId ?? definition?.materialId; const expectedType = definition?.cutSpec?.kind === 'panel' ? 'sheet' : 'linear'; const choices = working.materials.filter(item => item.type === expectedType); return <>{selection ? <><p>Paint controls visual appearance. It does not change the cutlist material.</p><label>Cutlist material<Select aria-label="Cutlist material" value={materialId ?? '__none'} onValueChange={value => target && targetId && run({type:'set-material',target,id:targetId,materialId:value === '__none' ? undefined : value})} options={[{value:'__none',label:'Unassigned'},...choices.map(item=>({value:item.id,label:item.name}))]}/></label><label>Paint color<input aria-label="Paint color" type="color" value={instance?.appearance?.color ?? definition?.appearance.color ?? '#bd8a56'} onChange={event=>target&&targetId&&run(instance?{type:'set-appearance',instanceId:targetId,color:event.target.value}:{type:'set-appearance',definitionId:targetId,color:event.target.value})}/></label><p className="design-empty-hint">This assignment follows the selected {instance ? 'instance' : 'definition'}; paint remains visual only.</p></> : <p className="design-empty-hint">Select a modeled component to assign its cutlist material. Paint and material are independent.</p>}<h4>Project stock defaults</h4>{working.materials.filter(item=>item.type==='linear').map(item=><div className="design-stock-default" key={item.id}><strong>{item.name}</strong>{item.stocks[0] ? <small>{item.stocks[0].name} · {item.stocks[0].widthUm ? `${formatLength(item.stocks[0].widthUm)}` : 'width unverified'} × {item.stocks[0].thicknessUm ? `${formatLength(item.stocks[0].thicknessUm)}` : 'thickness unverified'}</small> : <small>No stock options</small>}</div>)}{!working.materials.some(item=>item.type==='linear')&&<p className="design-empty-hint">Add a linear material and stock in Cutlist to use project-owned board defaults.</p>}</>; })()}</>}
-        {drawer === 'Components' && <><h3>Components</h3><input aria-label="Search components" placeholder="Search components" value={query} onChange={e=>setQuery(e.target.value)} />{objects.length ? <ul className="design-object-list">{objects.filter(item=>item.name.toLowerCase().includes(query.toLowerCase())).map(item => <li key={item.id}><button type="button" aria-pressed={selectedId === item.id} onClick={() => setSelectedId(item.id)}><span>{item.name}</span><small>{item.type} · {working.design?.instances.filter(x=>x.definitionId===item.id).length ?? 0} instances</small></button></li>)}</ul> : <p className="design-empty-hint">This project has no model objects yet. Visiting Design does not create one.</p>}<button type="button" onClick={createBoard}>Add board</button></>}
+        {drawer === 'Components' && <><h3>Components</h3><input aria-label="Search components" placeholder="Search components" value={query} onChange={e=>setQuery(e.target.value)} />{objects.length ? <ul className="design-object-list">{objects.filter(item=>item.name.toLowerCase().includes(query.toLowerCase())).map(item => <li key={item.id}><button type="button" aria-pressed={selectedId === item.id} onClick={() => { setSelectedId(item.id); setSelectionIds([item.id]); }}><span>{item.name}</span><small>{item.type} · {working.design?.instances.filter(x=>x.definitionId===item.id).length ?? 0} instances</small></button></li>)}</ul> : <p className="design-empty-hint">This project has no model objects yet. Visiting Design does not create one.</p>}<button type="button" onClick={createBoard}>Add board</button><DesignCutlistAssignment project={working} selectedInstanceIds={selectionIds} targetCutlistId={targetCutlistId} onTargetChange={setTargetCutlistId} onAssign={command => run(command)} onCreateCutlist={(name, scope, mode, groupIds, modes) => { void createCutlistFromModel(name, scope, mode, groupIds, modes); }} onSaveGroup={(name, instanceIds) => { const id = newId(); run({type:'create-design-group',id,name,instanceIds}); return id; }} /></>}
         {drawer === 'Display' && <><h3>View options</h3>{([['grid','Show grid'],['axes','Show axes'],['snap','Snap indicator']] as const).map(([key,label]) => <label className="design-toggle" key={key}><input type="checkbox" checked={view[key]} onChange={event => updateView({ [key]: event.target.checked })} />{label}</label>)}</>}
-        {drawer === 'Model Info' && <><h3>Model information</h3><dl className="design-properties"><div><dt>Components</dt><dd>{working.design?.instances.length ?? 0}</dd></div><div><dt>Loose objects</dt><dd>{working.design?.looseObjects.length ?? 0}</dd></div><div><dt>Definitions</dt><dd>{working.design?.definitions.length ?? 0}</dd></div><div><dt>Document</dt><dd>{working.design ? 'Present' : 'Not created'}</dd></div><div><dt>History</dt><dd>{history.cursor} edits</dd></div><div><dt>Project</dt><dd>{saveStatus}</dd></div><div><dt>Cutlist links</dt><dd>{Object.keys(working.design?.partLinks ?? {}).length}</dd></div><div><dt>Unconfirmed cut sizes</dt><dd>{working.design?.definitions.filter(definition=>definition.cutSpec?.confirmation==='requires-confirmation').length??0}</dd></div><div><dt>Unassigned components</dt><dd>{working.design?.instances.filter(instance=>!instance.materialId&&!working.design?.definitions.find(definition=>definition.id===instance.definitionId)?.materialId).length??0}</dd></div></dl><button type="button" onClick={undo} disabled={!history.cursor}>Undo</button><button type="button" onClick={redo} disabled={history.cursor>=history.entries.length}>Redo</button><button type="button" onClick={reviewCutlist} disabled={!working.design}>Review cutlist changes</button>{projectionPreview&&<section className="projection-review" aria-label="Cutlist review"><h4>Review cutlist changes</h4>{working.design&&(()=>{const reviewed=new Set(projectionPreview.rows.flatMap(row=>row.sources.instanceIds));const skipped=working.design.instances.filter(instance=>!instance.projectionExcluded&&!reviewed.has(instance.id)).length;return skipped>0?<p className="design-empty-hint">{skipped} modeled component(s) are not included because their cut size is unconfirmed, material is missing/incompatible, or cut type is unsupported.</p>:null;})()}{!isProjectionPreviewCurrent(projectionPreview,editSequence,localGeneration)&&<p className="warning" role="alert">This preview is stale because the model or saved project changed. Create a new review.</p>}{projectionPreview.changes.map(change=>{const row=projectionPreview.rows.find(item=>item.key===change.rowKey);const decision=projectionDecisions[change.rowKey];return <article key={change.rowKey} className="projection-review-row"><strong>{change.kind}: {row?.fields.name ?? change.partId ?? 'Cutlist row'}</strong><p>{row?`${row.fields.quantity} part(s) · ${formatLength(row.fields.length.um)} long`: 'This linked cutlist row no longer has a matching modeled component.'}</p>{row&&(()=>{const fit=previewStockFit(working,row);return <p className={fit.unverified?'warning':'design-empty-hint'}>{fit.message}</p>;})()}<label>Decision<select aria-label={`Decision for ${row?.fields.name ?? change.partId ?? change.kind}`} value={decision?.disposition ?? ''} onChange={event=>changeProjectionDisposition(change.rowKey,event.target.value as NonNullable<RowDecision['disposition']>)}><option value="">Choose…</option>{change.kind==='remove'?<><option value="keep">Keep manual row</option><option value="detach">Detach from model</option><option value="remove">Remove cutlist row</option></>:<><option value="apply">Apply design values</option><option value="keep">Keep manual values</option><option value="detach">Detach / keep independent</option><option value="remove">Remove cutlist row</option></>}</select></label>{change.conflicts.map(field=><label key={field}>Conflict · {field}<select aria-label={`${field} choice for ${row?.fields.name ?? change.partId ?? change.kind}`} value={decision?.fieldChoices?.[field] ?? ''} onChange={event=>changeProjectionField(change.rowKey,field,event.target.value as 'manual'|'design')}><option value="">Choose…</option><option value="manual">Keep manual</option><option value="design">Use design</option></select></label>)}</article>;})}{projectionPreview.changes.length===0&&<p>No changes are needed.</p>}<button type="button" onClick={applyReviewedCutlist} disabled={projectionBusy||projectionPreview.changes.length===0||!isProjectionPreviewCurrent(projectionPreview,editSequence,localGeneration)}>{projectionBusy?'Saving…':'Apply reviewed changes'}</button><button type="button" onClick={()=>setProjectionPreview(undefined)} disabled={projectionBusy}>Close review</button></section>}</>}
+        {drawer === 'Model Info' && <><h3>Model information</h3><dl className="design-properties"><div><dt>Components</dt><dd>{working.design?.instances.length ?? 0}</dd></div><div><dt>Loose objects</dt><dd>{working.design?.looseObjects.length ?? 0}</dd></div><div><dt>Definitions</dt><dd>{working.design?.definitions.length ?? 0}</dd></div><div><dt>Document</dt><dd>{working.design ? 'Present' : 'Not created'}</dd></div><div><dt>History</dt><dd>{history.cursor} edits</dd></div><div><dt>Project</dt><dd>{saveStatus}</dd></div><div><dt>Cutlist links</dt><dd>{Object.keys(working.design?.partLinks ?? {}).length}</dd></div><div><dt>Unconfirmed cut sizes</dt><dd>{working.design?.definitions.filter(definition => definition.cutSpec?.confirmation === 'requires-confirmation').length ?? 0}</dd></div><div><dt>Unassigned components</dt><dd>{working.design?.instances.filter(instance => !(instance.projectionCutlistIds ?? []).length).length ?? 0}</dd></div></dl><button type="button" onClick={undo} disabled={!history.cursor}>Undo</button><button type="button" onClick={redo} disabled={history.cursor >= history.entries.length}>Redo</button><DesignProjectionReview project={working} cutlistId={targetCutlistId} editSequence={editSequence} localGeneration={localGeneration} saveStatus={saveStatus} onBusyChange={setProjectionBusy} onApply={applyReviewedProjection} /></>}
       </div>
-      <div className="design-selection-list"><h3>Selection list</h3>{objects.length ? <ul>{objects.map(item => <li key={item.id}><button type="button" aria-current={selectedId === item.id ? 'true' : undefined} onClick={() => { drawerReturnFocus.current=document.getElementById('design-tab-Entity-Info'); setSelectedId(item.id); setDrawer('Entity Info'); setDrawerOpen(true); }}>{item.name}<span>{item.type}</span></button></li>)}</ul> : <p className="design-empty-hint">No model items</p>}</div>
+      <div className="design-selection-list"><h3>Selection list</h3>{objects.length ? <ul>{objects.map(item => <li key={item.id}><button type="button" aria-current={selectedId === item.id ? 'true' : undefined} onClick={() => { drawerReturnFocus.current=document.getElementById('design-tab-Entity-Info'); setSelectedId(item.id); setSelectionIds([item.id]); setDrawer('Entity Info'); setDrawerOpen(true); }}>{item.name}<span>{item.type}</span></button></li>)}</ul> : <p className="design-empty-hint">No model items</p>}</div>
       </div>
       </div>
     </aside>
