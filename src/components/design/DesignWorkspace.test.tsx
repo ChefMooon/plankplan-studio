@@ -6,7 +6,7 @@ import { rectangleGeometry } from '@/lib/planner/design/geometry';
 import { readDesignViewPreferences } from '@/lib/planner/design/view-preferences';
 import userEvent from '@testing-library/user-event';
 
-vi.mock('./DesignViewport', () => ({ DesignViewport: ({ onSelect, onSubSelect, onEnterDefinition, editingDefinitionId, editingObjectId, activeTool, moveConstraint, moveShiftHeld, onToolMeasurementChange, onRegisterMeasurementActions }: { onSelect: (id?: string) => void; onSubSelect?:(id:string,element:{type:'vertex';id:string})=>void; onEnterDefinition?:(id:string)=>void; editingDefinitionId?:string; editingObjectId?:string; activeTool?:string; moveConstraint?:string; moveShiftHeld?:boolean; onToolMeasurementChange?:(session?:{id:string;tool:string;canPlace:boolean;fields:{id:string;label:string;value:string;unit:string}[]})=>void; onRegisterMeasurementActions?:(actions?:{commit:()=>void;cancel:()=>void})=>void }) => <><button type="button" aria-label="Select sample in model" onClick={() => onSelect('instance-1')}>Sample viewport</button><button type="button" onClick={()=>{onSelect('instance-1');onSubSelect?.('instance-1',{type:'vertex',id:'corner-1-1-1'});}}>Pick model corner</button><button type="button" onClick={()=>onEnterDefinition?.('definition-1')}>Enter shared definition</button><button type="button" onClick={()=>onEnterDefinition?.('loose-1')}>Enter loose shape edit</button>{activeTool==='move'&&<button type="button" onClick={()=>{onToolMeasurementChange?.({id:'move-test',tool:'Move',canPlace:false,fields:[{id:'distance',label:'Length',value:'0',unit:'mm'}]});onRegisterMeasurementActions?.({commit:vi.fn(),cancel:vi.fn()});}}>Start mocked Move</button>}<span data-testid="mock-move-constraint">{moveConstraint??'free'}</span><span data-testid="mock-move-shift">{moveShiftHeld?'held':'released'}</span>{editingDefinitionId&&<span role="status">Editing {editingDefinitionId}</span>}{editingObjectId&&<span role="status">Editing shape {editingObjectId}</span>}</> }));
+vi.mock('./DesignViewport', () => ({ DesignViewport: ({ onSelect, onSubSelect, onEnterDefinition, editingDefinitionId, editingObjectId, activeTool, moveConstraint, moveShiftHeld, onToolMeasurementChange, onRegisterMeasurementActions, annotations }: { onSelect: (id?: string) => void; onSubSelect?:(id:string,element:{type:'vertex';id:string})=>void; onEnterDefinition?:(id:string)=>void; editingDefinitionId?:string; editingObjectId?:string; activeTool?:string; moveConstraint?:string; moveShiftHeld?:boolean; annotations?:{onSelectAnnotation:(id?:string)=>void;onCommand:(command:{type:string;annotationId:string})=>void}; onToolMeasurementChange?:(session?:{id:string;tool:string;canPlace:boolean;fields:{id:string;label:string;value:string;unit:string}[]})=>void; onRegisterMeasurementActions?:(actions?:{commit:()=>void;cancel:()=>void})=>void }) => <><button type="button" aria-label="Select sample in model" onClick={() => onSelect('instance-1')}>Sample viewport</button><button type="button" aria-label="Select annotation" onClick={() => annotations?.onSelectAnnotation('a1')}>Select annotation</button><button type="button" aria-label="Erase annotation" onClick={() => annotations?.onCommand({type:'delete-annotation',annotationId:'a1'})}>Erase annotation</button><button type="button" onClick={()=>{onSelect('instance-1');onSubSelect?.('instance-1',{type:'vertex',id:'corner-1-1-1'});}}>Pick model corner</button><button type="button" onClick={()=>onEnterDefinition?.('definition-1')}>Enter shared definition</button><button type="button" onClick={()=>onEnterDefinition?.('loose-1')}>Enter loose shape edit</button>{activeTool==='move'&&<button type="button" onClick={()=>{onToolMeasurementChange?.({id:'move-test',tool:'Move',canPlace:false,fields:[{id:'distance',label:'Length',value:'0',unit:'mm'}]});onRegisterMeasurementActions?.({commit:vi.fn(),cancel:vi.fn()});}}>Start mocked Move</button>}<span data-testid="mock-move-constraint">{moveConstraint??'free'}</span><span data-testid="mock-move-shift">{moveShiftHeld?'held':'released'}</span>{editingDefinitionId&&<span role="status">Editing {editingDefinitionId}</span>}{editingObjectId&&<span role="status">Editing shape {editingObjectId}</span>}</> }));
 
 const project: Project = {
   schemaVersion: 3, id: 'workspace-test', name: 'Sample bench', unitSystem: 'imperial', kerf: { um: 0 }, trim: { um: 0 }, minOffcutLinear: { um: 0 }, minOffcutSheet: { shortSideUm: 0, longSideUm: 0 }, currency: 'CAD', cutlists: [{id:'default-cutlist',name:'Default'}], planningGroups: [], createdAt: '2026-01-01T00:00:00.000Z', updatedAt: '2026-01-01T00:00:00.000Z', parts: [], materials: [],
@@ -14,6 +14,61 @@ const project: Project = {
 };
 
 describe('DesignWorkspace', () => {
+  it('notifies when Make Component drops annotations that cannot be retargeted', () => {
+    let geometryId = 0;
+    const loose = { id: 'loose-1', name: 'Loose board', geometry: rectangleGeometry(1000, 800, prefix => `loose-${prefix}-${geometryId++}`), pose: { positionUm: [900_000_000, 0, 0] as [number,number,number], rotation: [0,0,0,1] as [number,number,number,number] }, scalePpm: [1_000_000,1_000_000,1_000_000] as [number,number,number], appearance: { color: '#bd8a56' }, hidden: false, locked: false };
+    const fixture: Project = { ...project, design: { ...project.design!, definitions: [], instances: [], looseObjects: [loose], annotations: [{ id: 'note-edge', kind: 'text', anchor: { target: { kind: 'loose', id: loose.id }, element: { type: 'vertex', id: loose.geometry.vertices[0].id }, localUm: [0,0,0] }, text: 'Note', labelLocalUm: [900_000_000,0,0] }] } };
+    const onCommit = vi.fn();
+    render(<DesignWorkspace project={fixture} onCommit={onCommit} />);
+    fireEvent.click(screen.getByRole('tab', { name: 'Components' }));
+    fireEvent.click(within(document.querySelector('.design-object-list')!).getByRole('button', { name: /Loose board/ }));
+    fireEvent.click(screen.getByRole('tab', { name: 'Entity Info' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Make Component' }));
+    expect((onCommit.mock.calls.at(-1)?.[0] as Project).design?.annotations).toEqual([]);
+    expect(screen.getByText(/some annotations could not be retargeted and were removed/i)).toBeInTheDocument();
+  });
+  const annotatedProject: Project = { ...project, design: { ...project.design!, annotations: [{ id: 'a1', kind: 'text', anchor: { target: { kind: 'instance', id: 'instance-1' }, element: { type: 'vertex', id: 'corner-1-1-1' }, localUm: [0, 0, 0] }, text: 'Note', labelLocalUm: [1000, 0, 0] }] } };
+
+  it('selects, deletes and undoes annotation deletion from the workspace', async () => {
+    const onCommit = vi.fn();
+    render(<DesignWorkspace project={annotatedProject} onCommit={onCommit} />);
+    fireEvent.click(await screen.findByRole('button', { name: 'Select annotation' }));
+    const viewport = document.querySelector('.design-viewport') as HTMLElement;
+    viewport.focus();
+    fireEvent.keyDown(viewport, { key: 'Delete' });
+    expect((onCommit.mock.calls.at(-1)?.[0] as Project).design?.annotations).toEqual([]);
+    expect(screen.getByText(/Delete annotation · unsaved changes/i)).toBeInTheDocument();
+    fireEvent.keyDown(viewport, { key: 'z', ctrlKey: true });
+    expect((onCommit.mock.calls.at(-1)?.[0] as Project).design?.annotations).toHaveLength(1);
+  });
+
+  it('clears annotation selection on part selection and then deletes the part', async () => {
+    const onCommit = vi.fn();
+    render(<DesignWorkspace project={annotatedProject} onCommit={onCommit} />);
+    fireEvent.click(await screen.findByRole('button', { name: 'Select annotation' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Select sample in model' }));
+    const viewport = document.querySelector('.design-viewport') as HTMLElement;
+    viewport.focus();
+    fireEvent.keyDown(viewport, { key: 'Delete' });
+    const saved = onCommit.mock.calls.at(-1)?.[0] as Project;
+    expect(saved.design?.instances).toHaveLength(0);
+    expect(saved.design?.annotations).toEqual([]);
+  });
+
+  it('does not delete an annotation while an editor is focused and supports the eraser command path', async () => {
+    const onCommit = vi.fn();
+    render(<DesignWorkspace project={annotatedProject} onCommit={onCommit} />);
+    fireEvent.click(await screen.findByRole('button', { name: 'Select annotation' }));
+    const textarea = document.createElement('textarea');
+    document.querySelector('.design-workspace')?.appendChild(textarea);
+    textarea.focus();
+    fireEvent.keyDown(textarea, { key: 'Delete' });
+    expect(onCommit).not.toHaveBeenCalled();
+    textarea.remove();
+    fireEvent.click(await screen.findByRole('button', { name: 'Erase annotation' }));
+    expect((onCommit.mock.calls.at(-1)?.[0] as Project).design?.annotations).toEqual([]);
+  });
+
   it('assigns all modeled components to a selected cutlist without changing other memberships', () => {
     const fixture={...project,cutlists:[...project.cutlists,{id:'second-cutlist',name:'Second'}]};
     const onCommit=vi.fn();render(<DesignWorkspace project={fixture} onCommit={onCommit}/>);
@@ -172,6 +227,19 @@ describe('DesignWorkspace', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Frame model' }));
     expect(screen.getByRole('radio', { name: 'Isometric' })).toBeChecked();
     expect(readDesignViewPreferences(fixture.id).preset).toBe('iso');
+  });
+
+  it('loads older view preferences and persists the Show annotations toggle', () => {
+    const fixture = { ...project, id: 'annotation-view-toggle-test' };
+    const key = `plankplan-studio.design-view.v1.${fixture.id}`;
+    window.localStorage.setItem(key, JSON.stringify({ projection: 'perspective', preset: 'iso', grid: true, axes: true, snap: true }));
+    render(<DesignWorkspace project={fixture} />);
+    expect(readDesignViewPreferences(fixture.id).annotations).toBe(true);
+    fireEvent.click(screen.getByRole('tab', { name: 'Display' }));
+    const toggle = screen.getByRole('checkbox', { name: 'Show annotations' });
+    expect(toggle).toBeChecked();
+    fireEvent.click(toggle);
+    expect(JSON.parse(window.localStorage.getItem(key) ?? 'null')).toMatchObject({ annotations: false });
   });
 
   it('renders the shared Project Info trigger in the navigation slot and opens its dialog', () => {
@@ -396,6 +464,59 @@ describe('DesignWorkspace', () => {
     screen.getByRole('button',{name:'Select (Space)'}).focus();
     fireEvent.keyDown(screen.getByRole('button',{name:'Select (Space)' }),{key:'r'});
     expect(screen.getByRole('button',{name:'Rectangle (R)'})).toHaveAttribute('aria-pressed','true');
+  });
+
+  it('places Text and Dimensions after Tape Measure with a separator and exposes their shortcuts', async () => {
+    const user = userEvent.setup();
+    render(<DesignWorkspace project={project} />);
+    const rail = screen.getByRole('complementary', { name: 'Design tools' });
+    const tape = within(rail).getByRole('button', { name: 'Tape Measure (T)' });
+    const text = within(rail).getByRole('button', { name: 'Text (N)' });
+    const dimensions = within(rail).getByRole('button', { name: 'Dimensions (D)' });
+    const separator = within(rail).getByRole('separator');
+    expect(tape.compareDocumentPosition(separator) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(separator.compareDocumentPosition(text) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(text.compareDocumentPosition(dimensions) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+
+    await user.hover(text);
+    expect(await screen.findAllByText('Text · N')).not.toHaveLength(0);
+    await user.unhover(text);
+    await user.hover(dimensions);
+    expect(await screen.findAllByText('Dimensions · D')).not.toHaveLength(0);
+
+    const viewport = document.querySelector('.design-viewport') as HTMLElement;
+    viewport.focus();
+    await user.keyboard('n');
+    expect(text).toHaveAttribute('aria-pressed', 'true');
+    await user.keyboard('d');
+    expect(dimensions).toHaveAttribute('aria-pressed', 'true');
+  });
+
+  it('lists Text and Dimensions in help and suppresses their keys and delete while typing', async () => {
+    const user = userEvent.setup();
+    const onCommit = vi.fn();
+    render(<DesignWorkspace project={project} onCommit={onCommit} />);
+    const viewport = document.querySelector('.design-viewport') as HTMLElement;
+    viewport.focus();
+    await user.keyboard('n');
+    const text = screen.getByRole('button', { name: 'Text (N)' });
+    expect(text).toHaveAttribute('aria-pressed', 'true');
+    await user.click(screen.getByRole('button', { name: 'Keyboard shortcuts' }));
+    const dialog = screen.getByRole('dialog', { name: 'Workspace shortcuts' });
+    expect(within(dialog).getByText('Text')).toBeInTheDocument();
+    expect(within(dialog).getByText('Dimensions')).toBeInTheDocument();
+    expect(within(dialog).getByText('N')).toBeInTheDocument();
+    expect(within(dialog).getByText('D')).toBeInTheDocument();
+    fireEvent.keyDown(dialog, { key: 'Escape' });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Select sample in model' }));
+    const textarea = document.createElement('textarea');
+    document.body.appendChild(textarea);
+    textarea.focus();
+    await user.keyboard('mdn{Delete}{Backspace}');
+    expect(screen.getByRole('button', { name: 'Text (N)' })).toHaveAttribute('aria-pressed', 'true');
+    expect(onCommit).not.toHaveBeenCalled();
+    textarea.remove();
   });
 
   it('cancels the selected tool on Escape and window blur', () => {

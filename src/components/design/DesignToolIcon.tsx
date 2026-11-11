@@ -10,9 +10,11 @@ import paint from '@/assets/design-tools/paint.svg?raw';
 import orbit from '@/assets/design-tools/orbit.svg?raw';
 import pan from '@/assets/design-tools/pan.svg?raw';
 import measure from '@/assets/design-tools/measure.svg?raw';
+import text from '@/assets/design-tools/text.svg?raw';
+import dimensions from '@/assets/design-tools/dimensions.svg?raw';
 
 const iconMarkup = {
-  select, line, rectangle, 'push-pull': pushPull, erase, move, rotate, scale, paint, orbit, pan, measure,
+  select, line, rectangle, 'push-pull': pushPull, erase, move, rotate, scale, paint, orbit, pan, measure, text, dimensions,
 } satisfies Record<string, string>;
 
 export type DesignToolIconName = keyof typeof iconMarkup;

@@ -39,7 +39,9 @@ async function write(entry: Entry): Promise<void> {
 }
 
 export function snapshotFingerprint(project: Project, aspect = 600 / 264): string {
-  return JSON.stringify([4, project.previewView ?? 'auto', aspect, project.design]);
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const design = project.design ? (({ annotations: _annotations, ...rest }) => rest)(project.design) : project.design;
+  return JSON.stringify([4, project.previewView ?? 'auto', aspect, design]);
 }
 
 export function getModelSnapshot(project: Project, aspect = 600 / 264): Promise<string | undefined> {

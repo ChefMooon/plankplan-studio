@@ -1,13 +1,15 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import { useFrame, useThree } from '@react-three/fiber';
+import { useThree } from '@react-three/fiber';
 import { Line } from '@react-three/drei';
 import { DoubleSide, Plane, Raycaster, Vector2, Vector3 } from 'three';
 import type { DesignDocumentV1 } from '@/lib/planner/design/schema';
 import type { DesignCommand } from '@/lib/planner/design/commands';
 import type { UnitSystem } from '@/lib/planner/model';
 import { designVertices, directRectangleEnd, fromPlane, planeCoordinates, rectangleCommand, rectanglePlaneAxes, reorientRectangleEnd, type RectangleAxis, type RectangleDirection, type VertexTarget } from '../rectangle-plane';
+import { pickVertexTarget } from '../vertex-pick';
 import { parseMeasurement, type ToolMeasurementSession } from '../tool-measurements';
 import type { SubElement } from '../sub-selection';
+import { VertexMarker } from './VertexMarker';
 
 type Props = {
   design?: DesignDocumentV1; editingDefinitionId?: string; selectedId?: string; activeTool: string; axis: RectangleAxis; direction: RectangleDirection; snap: boolean; unitSystem: UnitSystem;
@@ -19,7 +21,7 @@ type Props = {
 };
 type Gesture = { start: [number, number, number]; end: [number, number, number]; axis: RectangleAxis; id: string };
 export function VertexDrawing(props: Props) {
-  const { camera, gl, size, invalidate } = useThree();
+  const { camera, gl, invalidate } = useThree();
   const candidates = useMemo(() => designVertices(props.design, props.editingDefinitionId), [props.design, props.editingDefinitionId]);
   const [hover, setHover] = useState<VertexTarget>();
   const [gesture, setGesture] = useState<Gesture>();
@@ -28,15 +30,6 @@ export function VertexDrawing(props: Props) {
   const gestureRef = useRef(gesture);
   const selected = candidates.find(v => v.objectId === props.selectedElement?.objectId && v.id === props.selectedElement.id);
   const marker = hover ?? selected;
-  const markerRef = useRef<import('three').Mesh>(null);
-  useFrame(() => {
-    if (!markerRef.current || !marker) return;
-    const point = new Vector3(...marker.point);
-    const projected = point.clone().project(camera);
-    const adjacent = new Vector3(projected.x + 14 / size.width, projected.y, projected.z).unproject(camera);
-    markerRef.current.scale.setScalar(point.distanceTo(adjacent));
-    markerRef.current.quaternion.copy(camera.quaternion);
-  });
   const result = (g: Gesture, p: Props) => {
     const fields = p.toolMeasurement?.id === g.id ? p.toolMeasurement.fields : [];
     const values = ['width', 'depth'].map(id => {
@@ -64,16 +57,7 @@ export function VertexDrawing(props: Props) {
   useEffect(() => {
     const canvas = gl.domElement;
     const pick = (event: PointerEvent, eligible: (target: VertexTarget) => boolean = () => true) => {
-      const rect = canvas.getBoundingClientRect();
-      let best: VertexTarget | undefined; let distance = 12;
-      for (const target of candidates) {
-        if (!eligible(target)) continue;
-        const projected = new Vector3(...target.point).project(camera);
-        if (projected.z < -1 || projected.z > 1) continue;
-        const d = Math.hypot(rect.left + (projected.x + 1) * rect.width / 2 - event.clientX, rect.top + (1 - projected.y) * rect.height / 2 - event.clientY);
-        if (d < distance) { distance = d; best = target; }
-      }
-      return best;
+      return pickVertexTarget(candidates, camera, canvas.getBoundingClientRect(), event.clientX, event.clientY, eligible);
     };
     const point = (event: PointerEvent): [number, number, number] | undefined => {
       const p = current.current, g = gestureRef.current;
@@ -158,7 +142,7 @@ export function VertexDrawing(props: Props) {
     {guideStart && guidePoints.map((point, index) => <group key={index}>
       <Line points={[guideStart, point]} color={rectanglePlaneAxes(props.axis)[index] === 'X' ? '#b33b35' : rectanglePlaneAxes(props.axis)[index] === 'Y' ? '#267346' : '#245aab'} lineWidth={2} dashed raycast={() => null} />
     </group>)}
-    {marker && <mesh ref={markerRef} position={marker.point} renderOrder={10} raycast={() => null}><planeGeometry args={[1, 1]} /><meshBasicMaterial color={hover ? '#173b56' : '#e6a94e'} depthTest={false} depthWrite={false} /></mesh>}
+    {marker && <VertexMarker point={marker.point} state={hover ? 'hover' : 'selected'} />}
     {object && <group position={object.pose.positionUm.map(n => n / 1_000_000) as [number, number, number]} quaternion={object.pose.rotation as [number, number, number, number]}><mesh position={[previewWidth / 2_000_000, previewHeight / 2_000_000, 0]} raycast={() => null}><planeGeometry args={[previewWidth / 1_000_000, previewHeight / 1_000_000]} /><meshBasicMaterial color="#e6a94e" side={DoubleSide} transparent opacity={0.3} depthWrite={false} /></mesh><Line points={[...object.geometry.vertices, object.geometry.vertices[0]].map(v => v.positionUm.map(n => n / 1_000_000) as [number, number, number])} color="#173b56" lineWidth={2} raycast={() => null} /></group>}
   </>;
 }

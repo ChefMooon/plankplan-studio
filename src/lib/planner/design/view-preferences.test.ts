@@ -20,5 +20,16 @@ describe('design view preferences', () => {
     storage.setItem('plankplan-studio.design-view.v1.p', '{');
     expect(readDesignViewPreferences('p', storage)).toEqual(DEFAULT_DESIGN_VIEW_PREFERENCES);
     expect(validateDesignViewPreferences({ ...DEFAULT_DESIGN_VIEW_PREFERENCES, snap: 'yes' })).toBe(false);
+    expect(validateDesignViewPreferences({ ...DEFAULT_DESIGN_VIEW_PREFERENCES, annotations: 'no' })).toBe(false);
+  });
+
+  it('adds the annotations default to older stored preferences and persists false', () => {
+    const storage = memoryStorage();
+    storage.setItem('plankplan-studio.design-view.v1.old', JSON.stringify({ projection: 'orthographic', preset: 'front', grid: false, axes: true, snap: false }));
+    expect(readDesignViewPreferences('old', storage)).toEqual({ ...DEFAULT_DESIGN_VIEW_PREFERENCES, projection: 'orthographic', preset: 'front', grid: false, axes: true, snap: false, annotations: true });
+
+    const hidden = { ...DEFAULT_DESIGN_VIEW_PREFERENCES, annotations: false };
+    expect(writeDesignViewPreferences('new', hidden, storage)).toBe(true);
+    expect(readDesignViewPreferences('new', storage)).toEqual(hidden);
   });
 });

@@ -1,5 +1,7 @@
 import type { Part } from '../model';
 import { scaleDimensionUm, transformLocalPoint, validateGeometryTopology } from './geometry';
+import type { Annotation } from './annotations';
+import { validateAnnotations } from './annotations';
 
 export type Issue = { code: string; path: string; severity: 'error' | 'warning' };
 export type Vec3Um = [number, number, number];
@@ -14,7 +16,7 @@ export type LinkReason = 'source-deleted' | 'definition-edited' | 'instance-scal
 export type ActiveLink = { state: 'active'; cutlistId?: string; current: Sources; lastApplied: ProjectionSnapshot };
 export type PendingLink = { state: 'pending-removal' | 'pending-reconcile' | 'pending-part-deletion'; cutlistId?: string; reasons: LinkReason[]; current?: Sources; lastApplied: ProjectionSnapshot };
 export type DesignGroup = { id: string; name: string; instanceIds: string[] };
-export type DesignDocumentV1 = { schemaVersion: 1; definitions: Definition[]; instances: Instance[]; looseObjects: LooseObject[]; partLinks: Record<string, ActiveLink | PendingLink>; groups?: DesignGroup[] };
+export type DesignDocumentV1 = { schemaVersion: 1; definitions: Definition[]; instances: Instance[]; looseObjects: LooseObject[]; partLinks: Record<string, ActiveLink | PendingLink>; groups?: DesignGroup[]; annotations?: Annotation[] };
 export type Definition = { id: string; name: string; geometry: Geometry; cutSpec?: CutSpec; materialId?: string; appearance: Appearance };
 export type Instance = { id: string; definitionId: string; name?: string; pose: Pose; scalePpm: ScalePpm; hidden: boolean; locked: boolean; projectionExcluded?: true; projectionCutlistIds?: string[]; projectionExcludedCutlistIds?: string[]; materialId?: string; appearance?: Appearance };
 export type LooseObject = { id: string; name: string; geometry: Geometry; pose: Pose; scalePpm: ScalePpm; appearance: Appearance; hidden: boolean; locked: boolean };
@@ -27,7 +29,7 @@ export function validateDesignDocument(value: unknown, projectParts: Part[], mat
   const issues: Issue[] = [];
   const issue = (code: string, path: string) => issues.push({ code, path, severity: 'error' });
   if (!record(value)) return [{ code: 'invalid-record', path: basePath, severity: 'error' }];
-  keys(value, ['schemaVersion', 'definitions', 'instances', 'looseObjects', 'partLinks', 'groups'], basePath, issues);
+  keys(value, ['schemaVersion', 'definitions', 'instances', 'looseObjects', 'partLinks', 'groups', 'annotations'], basePath, issues);
   if (value.schemaVersion !== 1) issue('unsupported-design-version', `${basePath}.schemaVersion`);
   for (const field of ['definitions', 'instances', 'looseObjects'] as const) if (!Array.isArray(value[field])) issue('invalid-array', `${basePath}.${field}`);
   const defs = Array.isArray(value.definitions) ? value.definitions : [];
@@ -102,6 +104,7 @@ export function validateDesignDocument(value: unknown, projectParts: Part[], mat
   loose.forEach((v, i) => { const p = `${basePath}.looseObjects[${i}]`; if (!record(v)) { issue('invalid-loose-object', p); return; } keys(v, ['id', 'name', 'geometry', 'pose', 'scalePpm', 'appearance', 'hidden', 'locked'], p, issues); validateGeometry(v.geometry, `${p}.geometry`); validateTransform(v, p);if(typeof v.name!=='string'||!v.name.trim()||v.name.length>256)issue('invalid-name',`${p}.name`);if(!record(v.appearance)||Object.keys(v.appearance).some(k=>!['color','opacity'].includes(k))||typeof v.appearance.color!=='string'||!/^#[0-9a-fA-F]{6}$/.test(v.appearance.color)||v.appearance.opacity!==undefined&&(typeof v.appearance.opacity!=='number'||!Number.isFinite(v.appearance.opacity)||v.appearance.opacity<0||v.appearance.opacity>1))issue('invalid-appearance',`${p}.appearance`); if (typeof v.hidden !== 'boolean' || typeof v.locked !== 'boolean') issue('invalid-loose-state', p); });
   if(totalVertices>20_000||totalEdges>40_000||totalFaces>10_000||totalExtrusions>2_000)issue('geometry-count-limit',basePath);
   const definitionById=new Map(defs.filter(record).map(def=>[String(def.id),def]));
+  if (value.annotations !== undefined) issues.push(...validateAnnotations(value.annotations, new Set(instances.filter(record).map(i => String(i.id))), new Set(loose.filter(record).map(i => String(i.id))), `${basePath}.annotations`));
   const checkEffective=(geometry:unknown,pose:unknown,scale:unknown,path:string,cutSpec?:unknown)=>{
     if(!record(geometry)||!Array.isArray(geometry.vertices)||!record(pose)||!Array.isArray(pose.positionUm)||!Array.isArray(pose.rotation)||!Array.isArray(scale)||!geometry.vertices.every(v=>record(v)&&Array.isArray(v.positionUm)&&v.positionUm.length===3&&v.positionUm.every(n=>integer(n,-1_000_000_000,1_000_000_000))))return;
     try { for(const vertex of geometry.vertices)transformLocalPoint(vertex.positionUm as Vec3Um,{positionUm:pose.positionUm as Vec3Um,rotation:pose.rotation as Pose['rotation']},scale as ScalePpm); }

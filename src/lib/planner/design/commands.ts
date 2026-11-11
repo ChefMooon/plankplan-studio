@@ -2,6 +2,7 @@ import { normalizeProjectDocument, type Part, type Project } from '../model';
 import type { CutSpec, Definition, DesignDocumentV1, Geometry, LinkReason, LooseObject, Pose, ScalePpm } from './schema';
 import { IDENTITY_POSE, IDENTITY_SCALE, normalizeQuaternion, rectangleGeometry, roundSignedUm, transformLocalPoint, validateGeometryTopology } from './geometry';
 import { appendProfileSegment } from './profile-segment';
+import { addAnnotation, deleteAnnotation, pruneAnnotations, retargetAnnotationsForComponent, updateAnnotation, type Annotation } from './annotations';
 
 export type DesignCommand =
   | {type:'create-board'|'create-panel';id:string;definitionId:string;name:string;materialId?:string;lengthUm:number;widthUm:number;thicknessUm:number;grainAxis?:CutSpec['grainAxis'];pose?:Pose}
@@ -32,7 +33,10 @@ export type DesignCommand =
   | {type:'assign-instances-to-cutlist';instanceIds?:string[];all?:boolean;cutlistId:string;mode:'copy'|'move'|'skip';modeByInstance?:Record<string,'copy'|'move'|'skip'>}
   | {type:'detach-part';partId:string}
   | {type:'delete-part';partId:string}
-  | {type:'edit-part';part:Part};
+  | {type:'edit-part';part:Part}
+  | {type:'add-annotation';annotation:Annotation}
+  | {type:'update-annotation';annotation:Annotation}
+  | {type:'delete-annotation';annotationId:string};
 
 export type CommandResult = {ok:true;project:Project;label:string}|{ok:false;project:Project;code:string;message:string};
 const clone=(<T>(v:T):T=>structuredClone(v));
@@ -125,7 +129,7 @@ export function applyDesignCommand(project:Project,command:DesignCommand):Comman
         const geometry:Geometry={vertices,edges,faces,extrusions};
         const def:Definition={id:command.definitionId,name:command.name.trim(),geometry,appearance:clone(sources[0].appearance),...(command.cutSpec?{cutSpec:clone(command.cutSpec)}:{})};
         if(!def.name)throw Error('empty-name');
-        d={...d,definitions:[...d.definitions,def],looseObjects:d.looseObjects.filter(x=>!objectIds.includes(x.id)),instances:[...d.instances,{id:command.instanceId,definitionId:def.id,pose:clone(IDENTITY_POSE),scalePpm:[...IDENTITY_SCALE],hidden:sources[0].hidden,locked:sources[0].locked,projectionCutlistIds:[]}]};label='Make component';break;
+        d={...d,definitions:[...d.definitions,def],looseObjects:d.looseObjects.filter(x=>!objectIds.includes(x.id)),instances:[...d.instances,{id:command.instanceId,definitionId:def.id,pose:clone(IDENTITY_POSE),scalePpm:[...IDENTITY_SCALE],hidden:sources[0].hidden,locked:sources[0].locked,projectionCutlistIds:[]}]};d=retargetAnnotationsForComponent(d,sources,command.instanceId);label='Make component';break;
       }
       case 'set-geometry': {
         const def=d.definitions.find(x=>x.id===command.definitionId);if(!def)throw Error('definition-not-found');
@@ -205,6 +209,9 @@ export function applyDesignCommand(project:Project,command:DesignCommand):Comman
       case 'delete-instance': {const inst=d.instances.find(x=>x.id===command.instanceId);if(!inst)throw Error('instance-not-found');d={...d,instances:d.instances.filter(x=>x.id!==inst.id),...(d.groups?{groups:d.groups.map(group=>({...group,instanceIds:group.instanceIds.filter(id=>id!==inst.id)}))}:{})};d=markLinks(d,inst.definitionId,'source-deleted');label='Delete component';break;}
       case 'delete-loose': {if(!d.looseObjects.some(x=>x.id===command.objectId))throw Error('loose-object-not-found');d={...d,looseObjects:d.looseObjects.filter(x=>x.id!==command.objectId)};label='Erase geometry';break;}
       case 'delete-definition': {const def=d.definitions.find(x=>x.id===command.definitionId);if(!def)throw Error('definition-not-found');const removed=new Set(d.instances.filter(x=>x.definitionId===def.id).map(x=>x.id));d={...d,definitions:d.definitions.filter(x=>x.id!==def.id),instances:d.instances.filter(x=>x.definitionId!==def.id),...(d.groups?{groups:d.groups.map(group=>({...group,instanceIds:group.instanceIds.filter(id=>!removed.has(id))}))}:{})};d=markLinks(d,def.id,'source-deleted',new Set());label='Delete definition';break;}
+      case 'add-annotation': {d=addAnnotation(d,command.annotation);label='Add annotation';break;}
+      case 'update-annotation': {d=updateAnnotation(d,command.annotation);label='Edit annotation';break;}
+      case 'delete-annotation': {d=deleteAnnotation(d,command.annotationId);label='Delete annotation';break;}
       case 'create-design-group': {
         const name=command.name.trim();
         if(!name||name.length>256)throw Error('invalid-name');
@@ -242,7 +249,7 @@ export function applyDesignCommand(project:Project,command:DesignCommand):Comman
       case 'delete-part': {const link=d.partLinks[command.partId];if(link){const reasons:LinkReason[]=[...new Set<LinkReason>([...(link.state==='active'?[]:link.reasons),'part-deleted'])];const cutlistId=link.cutlistId??next.parts.find(p=>p.id===command.partId)?.cutlistId;d={...d,partLinks:{...d.partLinks,[command.partId]:{state:'pending-part-deletion',...(cutlistId?{cutlistId}:{}),reasons,lastApplied:link.lastApplied}}};}next.parts=next.parts.filter(p=>p.id!==command.partId);label='Delete cutlist row';break;}
       case 'edit-part': {if(!next.parts.some(p=>p.id===command.part.id))throw Error('part-not-found');next.parts=next.parts.map(p=>p.id===command.part.id?clone(command.part):p);label='Edit cutlist row';break;}
     }
-    next.design=d; const invalid=validateNext(next);if(invalid)throw Error(invalid);
+    next.design=pruneAnnotations(d); const invalid=validateNext(next);if(invalid)throw Error(invalid);
     const normalized=normalizeProjectDocument(next);
     return {ok:true,project:normalized,label};
   } catch(error) {return {ok:false,project,code:error instanceof Error?error.message:'command-rejected',message:error instanceof Error?error.message:'Command rejected'};}

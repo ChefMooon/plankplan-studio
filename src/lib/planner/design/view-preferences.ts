@@ -4,10 +4,11 @@ export type DesignViewPreferences = {
   grid: boolean;
   axes: boolean;
   snap: boolean;
+  annotations: boolean;
 };
 
 export const DEFAULT_DESIGN_VIEW_PREFERENCES: DesignViewPreferences = {
-  projection: 'perspective', preset: 'iso', grid: true, axes: true, snap: true,
+  projection: 'perspective', preset: 'iso', grid: true, axes: true, snap: true, annotations: true,
 };
 
 const keyFor = (projectId: string) => `plankplan-studio.design-view.v1.${projectId}`;
@@ -17,13 +18,22 @@ export function validateDesignViewPreferences(value: unknown): value is DesignVi
   const v = value as Partial<DesignViewPreferences>;
   return (v.projection === 'perspective' || v.projection === 'orthographic')
     && ['iso', 'top', 'front', 'right'].includes(String(v.preset))
-    && typeof v.grid === 'boolean' && typeof v.axes === 'boolean' && typeof v.snap === 'boolean';
+    && typeof v.grid === 'boolean' && typeof v.axes === 'boolean' && typeof v.snap === 'boolean'
+    && typeof v.annotations === 'boolean';
+}
+
+export function normalizeDesignViewPreferences(value: unknown): DesignViewPreferences | undefined {
+  if (value && typeof value === 'object' && !Array.isArray(value) && !Object.prototype.hasOwnProperty.call(value, 'annotations')) {
+    const normalized = { ...value, annotations: true };
+    return validateDesignViewPreferences(normalized) ? normalized : undefined;
+  }
+  return validateDesignViewPreferences(value) ? value : undefined;
 }
 
 export function readDesignViewPreferences(projectId: string, storage: Pick<Storage, 'getItem'> = window.localStorage): DesignViewPreferences {
   try {
     const value: unknown = JSON.parse(storage.getItem(keyFor(projectId)) ?? 'null');
-    return validateDesignViewPreferences(value) ? value : { ...DEFAULT_DESIGN_VIEW_PREFERENCES };
+    return normalizeDesignViewPreferences(value) ?? { ...DEFAULT_DESIGN_VIEW_PREFERENCES };
   } catch { return { ...DEFAULT_DESIGN_VIEW_PREFERENCES }; }
 }
 

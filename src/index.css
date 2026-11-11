@@ -610,6 +610,11 @@ button,a,input,select { outline-offset:3px; }
   .dark .warning { background: #fff !important; color: #49350f !important; }
 }
 
+.design-annotation-label { pointer-events:none; padding:2px 6px; font:12px/1.3 var(--pp-font, inherit); color:#16384a; white-space:pre-wrap; max-width:240px; background:transparent; text-shadow:0 0 3px #fff,0 0 3px #fff,0 0 2px #fff; user-select:none; }
+.design-annotation-dimension-label { background:#fffffff0; border:1px solid #24506a; border-radius:4px; text-shadow:none; white-space:nowrap; }
+.design-annotation-label.is-selected { outline:2px solid #e6a94e; outline-offset:1px; }
+.design-annotation-dot { display:block; width:7px; height:7px; border-radius:50%; background:#24506a; border:1px solid #fff; pointer-events:none; }
+
 .pp-select-trigger {
   display: flex; align-items: center; justify-content: space-between; gap: 10px;
   width: 100%; min-width: 0; height: 36px; padding: 6px 9px;
@@ -1189,3 +1194,10 @@ button,a,input,select { outline-offset:3px; }
   .cut-plan-part-enter,.cut-plan-part-exit,.cut-plan-diagram-crossfade,.cut-plan-stock-enter,.cut-plan-stock-exit,.cut-plan-stock-enter .cut-diagram > g:first-of-type,.cut-plan-stock-enter .sheet-diagram > g:first-of-type { animation: none !important; transform: none !important; }
   .cut-plan-part-exit,.cut-plan-exit-layer { display: none !important; }
 }
+.design-tool-rail-divider { flex: 0 0 1px; width: 20px; height: 1px; margin: 2px 0; background: var(--pp-border); }
+.design-annotation-label.is-interactive { pointer-events: auto; cursor: pointer; }
+.design-annotation-label { background: transparent; }
+.design-annotation-label.design-annotation-dimension-label { background:#fffffff0; border:1px solid #24506a; border-radius:4px; text-shadow:none; white-space:nowrap; }
+.design-annotation-editor { background:#fff; color:#16384a; caret-color:#16384a; border:1px solid #24506a; border-radius:4px; font:12px/1.3 inherit; min-width:140px; max-width:240px; resize:none; padding:2px 6px; pointer-events:auto; }
+.design-annotation-dot,.design-annotation-hover { display:block; width:7px; height:7px; border-radius:50%; background:#e6a94e; box-shadow:0 0 0 1px #fff; }
+.design-annotation-hover { width:9px; height:9px; }
