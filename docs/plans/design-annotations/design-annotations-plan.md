@@ -2,7 +2,7 @@
 title: "Design Annotations (Text + Dimensions) - Implementation Plan"
 plan_profile: FULL
 status: COMPLETED
-verification_status: PARTIAL
+verification_status: PASSED
 current_phase: 9 / 9
 created: 2026-11-11
 last_updated: 2026-11-11
@@ -11,7 +11,7 @@ last_updated: 2026-11-11
 # Overall Plan Completion Status
 
 * **Total Phases Completed:** 9 / 9
-* **Summary of Outcome:** Phases 1–9 implemented and automated mandatory checks pass. Browser attestation remains pending, so verification is PARTIAL.
+* **Summary of Outcome:** Phases 1–9 are complete; automated mandatory checks passed and the user attested completion of the remaining browser validation on 2026-11-11.
 
 # Specification & Overview
 
@@ -385,7 +385,7 @@ export type AnnotationSceneProps = {
 | Display toggle persists and old prefs load | Mandatory | `npm run test -- src/components/design/DesignWorkspace.test.tsx` | PASS: focused overlay/workspace 34 tests and scene directory 38 tests. |
 | Existing scene tests unaffected | Mandatory | `npm run test -- src/components/design/scene` | PASS: focused overlay/workspace 34 tests and scene directory 38 tests. |
 | Whole suite, lint and build pass | Mandatory | `npm run test`, `npm run lint`, `npm run build` | PASS: final exact suite 66 files / 363 tests, lint and build. Initial run had five workflow timing failures. |
-| **Manual Validation:** with a project that contains annotations (create via a test fixture or later phases), labels stay readable while orbiting/panning/zooming and stay on top of parts; the Display toggle shows and hides them | Optional | **Manual Validation:** user attestation in browser (`npm run dev`); owner: user; may be deferred to Phase 8 | PENDING: deferred to user / Phase 8. |
+| **Manual Validation:** with a project that contains annotations (create via a test fixture or later phases), labels stay readable while orbiting/panning/zooming and stay on top of parts; the Display toggle shows and hides them | Optional | **Manual Validation:** user attestation in browser (`npm run dev`); owner: user; may be deferred to Phase 8 | PASS: user attested completion of remaining browser validation on 2026-11-11. |
 
 ### Scope & Diff Guardrails
 - `DesignScene.tsx`, `DesignViewport.tsx`, `DesignWorkspace.tsx` and `index.css` receive only the additions listed; no existing line is reflowed.
@@ -499,7 +499,7 @@ export type AnnotationSceneProps = {
 | Typing does not trigger shortcuts and key events do not escape the textarea | Mandatory | Same file, case 10, plus Phase 5 case 4 | PASS: AnnotationPlacement focused tests, 10 tests. |
 | Emitted commands are valid against the schema | Mandatory | Same file, case 11 | PASS: AnnotationPlacement focused tests, 10 tests. |
 | Whole suite, lint and build pass | Mandatory | `npm run test`, `npm run lint`, `npm run build` | PASS: final exact suite 67 files / 376 tests, lint and build. Earlier full runs had workflow/drag timeouts and a workflow pointer failure. |
-| **Manual Validation:** in the browser, with the Text tool, hover highlights a corner/edge/face, the leader follows the cursor, the second click opens the textarea, text shows beside the line after commit, Ctrl+Z removes the note in one step, and double-click re-edits | Optional | **Manual Validation:** user attestation in browser (`npm run dev`); owner: user; may be deferred to Phase 8 | PENDING: deferred to user / Phase 8. |
+| **Manual Validation:** in the browser, with the Text tool, hover highlights a corner/edge/face, the leader follows the cursor, the second click opens the textarea, text shows beside the line after commit, Ctrl+Z removes the note in one step, and double-click re-edits | Optional | **Manual Validation:** user attestation in browser (`npm run dev`); owner: user; may be deferred to Phase 8 | PASS: user attested completion of remaining browser validation on 2026-11-11. |
 
 ### Scope & Diff Guardrails
 - `DesignScene.tsx` and `DesignWorkspace.tsx` receive no new edits in this phase (all logic lives in the new files). `git diff --stat` must show those two files unchanged relative to Phase 5.
@@ -549,7 +549,7 @@ export type AnnotationSceneProps = {
 | Dimensions tool drags existing dimensions as one undoable update; text labels are inert in this tool | Mandatory | Same file, case 7 | PASS: AnnotationPlacement focused tests, 15 tests. |
 | Dimension value updates when the part is resized | Mandatory | Same file, case 8 | PASS: AnnotationPlacement focused tests, 15 tests. |
 | Whole suite, lint and build pass | Mandatory | `npm run test`, `npm run lint`, `npm run build` | PASS: exact suite retry 67 files / 381 tests; lint and build passed. Initial suite had six workflow timing failures. |
-| **Manual Validation:** in the browser, create a dimension on a board across its length, drag along the axis (axis length shown), drag perpendicular (straight-line distance shown), resize the board via Entity Info and confirm the value updates; toggle imperial/metric units in the project and confirm the unit changes | Optional | **Manual Validation:** user attestation in browser; owner: user; may be deferred to Phase 8 | PENDING: deferred to user / Phase 8. |
+| **Manual Validation:** in the browser, create a dimension on a board across its length, drag along the axis (axis length shown), drag perpendicular (straight-line distance shown), resize the board via Entity Info and confirm the value updates; toggle imperial/metric units in the project and confirm the unit changes | Optional | **Manual Validation:** user attestation in browser; owner: user; may be deferred to Phase 8 | PASS: user attested completion of remaining browser validation on 2026-11-11. |
 
 ### Scope & Diff Guardrails
 - No edits to `DesignScene.tsx` or `DesignWorkspace.tsx` in this phase.
@@ -599,7 +599,7 @@ export type AnnotationSceneProps = {
 | Build passes | Mandatory | `npm run build` | PASS: independent final run, TypeScript and Vite build succeeded. Vite reported the non-failing `three.module` chunk size advisory (582.35 kB). |
 | Forbidden files untouched | Mandatory | Review tracked and untracked changes against `src/routeTree.gen.ts`, `src/lib/planner/design/projection.ts`, `src/components/design/scene/model-snapshot.ts`, `docs/plans/3d-workspace/`; `git diff --check` | PASS: no forbidden paths modified or untracked; `git diff --check` emitted no whitespace errors. |
 | Cutlist projection and thumbnails unchanged | Mandatory | `npm run test -- src/components/design/scene/snapshot-fingerprint.test.ts src/components/design/scene/snapshot-cache.test.ts src/components/design/DesignProjectionReview.test.tsx` | PASS: independent focused regression, 3 files / 4 tests passed (2.62s). |
-| **Manual Validation:** in the browser (`npm run dev`) walk through the whole flow. (1) Rail shows the separator, Text and Dimensions with `N`/`D` tooltips. (2) Create a note on a corner, edge and face; type, commit, double-click to retype, drag to move. (3) Create a dimension (axis and straight-line by drag direction) and resize the part to see it update. (4) Move, rotate, scale, push-pull and Make Component the parts and check the annotations follow. (5) Delete a part and check its annotations vanish, then undo. (6) Select tool click and Delete; Eraser click; Move/Rotate click through labels. (7) Toggle Show annotations in the Display drawer. (8) Save, reload and reopen the project; open an older project. (9) Check the project thumbnail and cutlist look unchanged | Optional | **Manual Validation:** user attestation required; owner: user; not marked passed without the user's confirmation | PENDING: user browser attestation not provided. |
+| **Manual Validation:** in the browser (`npm run dev`) walk through the whole flow. (1) Rail shows the separator, Text and Dimensions with `N`/`D` tooltips. (2) Create a note on a corner, edge and face; type, commit, double-click to retype, drag to move. (3) Create a dimension (axis and straight-line by drag direction) and resize the part to see it update. (4) Move, rotate, scale, push-pull and Make Component the parts and check the annotations follow. (5) Delete a part and check its annotations vanish, then undo. (6) Select tool click and Delete; Eraser click; Move/Rotate click through labels. (7) Toggle Show annotations in the Display drawer. (8) Save, reload and reopen the project; open an older project. (9) Check the project thumbnail and cutlist look unchanged | Optional | **Manual Validation:** user attestation required; owner: user; not marked passed without the user's confirmation | PASS: user attested completion of remaining browser validation on 2026-11-11. |
 
 ### Scope & Diff Guardrails
 - Do not edit `src/routeTree.gen.ts`, cutlist projection files (`src/lib/planner/design/projection.ts`), `model-snapshot.ts`, or `docs/plans/3d-workspace/` (including `3d-workspace-plan.md`, `phase-7-evidence.md`, `phase-1-contract.md`).
@@ -637,25 +637,25 @@ export type AnnotationSceneProps = {
 | F2: focused editor accepts typing, commits once, handles blur and resets state | Mandatory | Focused placement/workspace tests with real textarea | PASS: 2 files / 56 tests; focused lint clean. Browser reproduction unavailable to worker; cause remains hypothesis. |
 | F3: preview and committed dimension values render, with correct CSS | Mandatory | Real Html value tests and CSS cascade guard | PASS: 3 files / 25 tests; real drei portal transitions in both units and CSS source guard. Not browser-verified. |
 | F4: hover and selected markers render for each state without intercepting events | Mandatory | Placement marker and VertexDrawing tests | PASS: 2 files / 38 tests; added anchored-hover case after review. Browser check pending user. |
-| **Manual Validation:** Hover and click vertices to confirm hover and chosen markers remain visible. | Optional | **Manual Validation:** browser walkthrough; owner: user; attestation required | PENDING |
+| **Manual Validation:** Hover and click vertices to confirm hover and chosen markers remain visible. | Optional | **Manual Validation:** browser walkthrough; owner: user; attestation required | PASS: user attested completion on 2026-11-11. |
 | F5: drag guard, listener cleanup, shared editable helper and loss notice | Mandatory | Focused placement, overlay, workspace and annotations tests | PASS: 5 files / 76 tests; final independent build also passed (see full-gates row). |
 | Full suite, lint and build | Mandatory | `npm run test`, `npm run lint`, `npm run build` (independent sequential final run) | PASS: `npm run test` exited 0, 71 files / 403 tests passed (80.74s). `npm run lint` exited 0 with no diagnostics. `npm run build` exited 0; TypeScript and Vite build succeeded. Vite emitted the non-failing `three.module` chunk advisory (582.35 kB). |
 | Independent Phase 9 implementation review | Mandatory | Inspect F1–F5 source, focused tests, event cleanup, pointercancel, state reset, marker states, Make Component loss notice, and phase guardrails | PASS: reviewed AnnotationHtml and connected Html tests; editor focus/blur/commit/reset paths; dimension preview and CSS regression guard; hover/selected VertexMarker and VertexDrawing tests; click-versus-drag handling, pointercancel and effect cleanup, shared editable-target helper, and Make Component loss notice with workspace test. No implementation defect identified. Browser behavior remains covered only by automated/component tests here. |
 | Diff guardrails and whitespace | Mandatory | `git status --short`, tracked and untracked path review, `git diff --check`; inspect DesignScene/DesignWorkspace/DesignViewport changes | PASS: no changes (tracked or untracked) in `src/routeTree.gen.ts`, `src/lib/planner/design/projection.ts`, `src/components/design/scene/model-snapshot.ts`, or `docs/plans/3d-workspace/`. `git diff --check` emitted no errors. Scene/workspace/viewport edits are wiring and the Phase 9 editable-helper/loss-notice additions; no file split or unrelated reflow observed. |
-| **Manual Validation:** (1) Dimensions: create one, see the live length while moving and the final length label, in both unit systems; (2) Text: click a corner, click to place, a text box appears focused, type, Enter commits and the text shows, Ctrl+Z removes it in one step; typing n/d/e never switches tools; (3) hovering vertices shows a marker and the chosen vertex stays marked; (4) no flicker when hovering near vertices; orbit/pan still work. | Optional | **Manual Validation:** browser walkthrough, owner: user; attestation required | PENDING |
+| **Manual Validation:** (1) Dimensions: create one, see the live length while moving and the final length label, in both unit systems; (2) Text: click a corner, click to place, a text box appears focused, type, Enter commits and the text shows, Ctrl+Z removes it in one step; typing n/d/e never switches tools; (3) hovering vertices shows a marker and the chosen vertex stays marked; (4) no flicker when hovering near vertices; orbit/pan still work. | Optional | **Manual Validation:** browser walkthrough, owner: user; attestation required | PASS: user attested completion on 2026-11-11. |
 
 ### Scope & Diff Guardrails
 - F1–F5 are strictly sequential; preserve all earlier phase evidence. No commits or worktrees. Do not edit `docs/plans/3d-workspace/`; shared scene/workspace edits remain minimal.
-- Preserve `verification_status: PARTIAL` until user attests the browser rows, per user instruction.
+- The user attested the remaining browser rows on 2026-11-11; verification is PASSED.
 
 ### UI Validation
 - **Viewport(s):** desktop and mobile as prior phases.
 - **Interactions/states:** user browser walkthrough above; focus, live labels, vertex hover and selected markers, orbit/pan.
 - **Requested measurements:** 14 px markers; drag threshold >4 px.
-- **Preview limitations/fallbacks:** real browser reproduction is recorded separately from DOM tests; user attestation remains pending.
+- **Preview limitations/fallbacks:** Real browser reproduction is recorded separately from DOM tests; remaining browser validation was attested by the user on 2026-11-11.
 
 ### Phase Record
 - **Artifacts created/modified:** AnnotationHtml, DimensionHtml tests, VertexMarker, annotation placement/overlay/layer and tests, VertexDrawing and tests, shared editable helper, workspace and tests, CSS.
 - **Decisions/deviations:** User follow-up, 2026-11-11: adds Phase 9 and requires PARTIAL verification pending browser attestation; prior validation is historical for affected behavior.
 
-- **Follow-up browser diagnosis (2026-11-11):** Real browser showed dimension label DOM inside canvas fallback content with zero bounds. AnnotationHtml now explicitly portals to the canvas parent. Browser confirmed existing dimension, live dimension preview, focused editor and committed note; temporary note was undone and preview cancelled. Full suite: 71 files / 404 tests passed; lint and build passed. Remaining manual walkthrough remains pending.
+- **Follow-up browser diagnosis (2026-11-11):** Real browser showed dimension label DOM inside canvas fallback content with zero bounds. AnnotationHtml now explicitly portals to the canvas parent. Browser confirmed existing dimension, live dimension preview, focused editor and committed note; temporary note was undone and preview cancelled. Full suite: 71 files / 404 tests passed; lint and build passed. The user attested completing the remaining manual walkthrough on 2026-11-11.
