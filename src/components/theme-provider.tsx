@@ -6,18 +6,14 @@ import {
   type ResolvedTheme,
   type Theme,
 } from '@/components/theme-context'
+import { readTheme } from '@/components/theme-storage'
 
 function getStoredTheme(): Theme {
   try {
-    const storedTheme = window.localStorage.getItem(THEME_STORAGE_KEY)
-    if (storedTheme === 'light' || storedTheme === 'dark' || storedTheme === 'system') {
-      return storedTheme
-    }
+    return readTheme(window.localStorage)
   } catch {
-    // Storage is optional; system preference remains the fallback.
+    return 'system'
   }
-
-  return 'system'
 }
 
 function getSystemTheme(): ResolvedTheme {

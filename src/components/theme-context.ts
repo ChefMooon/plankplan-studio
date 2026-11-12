@@ -3,7 +3,8 @@ import { createContext, useContext } from 'react'
 export type Theme = 'system' | 'light' | 'dark'
 export type ResolvedTheme = 'light' | 'dark'
 
-export const THEME_STORAGE_KEY = 'web-static-template-theme'
+export const THEME_STORAGE_KEY = 'plankplan-studio-theme'
+export const LEGACY_THEME_STORAGE_KEY = 'web-static-template-theme'
 
 export const ThemeContext = createContext<{
   theme: Theme
