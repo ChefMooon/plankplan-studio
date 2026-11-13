@@ -1,10 +1,19 @@
 import { Tooltip as RadixTooltip } from 'radix-ui';
-import type { ReactNode } from 'react';
+import { useState, type ReactNode } from 'react';
 
-export function Tooltip({ children, content, side = 'right' }: { children: ReactNode; content: string; side?: 'top' | 'right' | 'bottom' | 'left' }) {
+interface TooltipProps {
+  children: ReactNode;
+  content: string;
+  side?: 'top' | 'right' | 'bottom' | 'left';
+  /** Suppresses the tooltip without changing the trigger's place in the tree. */
+  disabled?: boolean;
+}
+
+export function Tooltip({ children, content, side = 'right', disabled = false }: TooltipProps) {
+  const [open, setOpen] = useState(false);
   return (
     <RadixTooltip.Provider delayDuration={350} skipDelayDuration={150}>
-      <RadixTooltip.Root>
+      <RadixTooltip.Root open={open && !disabled} onOpenChange={setOpen}>
         <RadixTooltip.Trigger asChild>{children}</RadixTooltip.Trigger>
         <RadixTooltip.Portal>
           <RadixTooltip.Content className="pp-tooltip" side={side} sideOffset={7} collisionPadding={8}>

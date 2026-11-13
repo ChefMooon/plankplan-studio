@@ -1123,7 +1123,7 @@ button,a,input,select { outline-offset:3px; }
 .settings-panel-layout > .units-row[aria-hidden="true"] { visibility: hidden; }
 
 /* Keep canvas geometry stable while tool and measurement controls change. */
-.design-canvas-panel { grid-template-rows: auto minmax(0, 1fr) 44px; }
+.design-canvas-panel { grid-template-rows: auto minmax(0, 1fr) auto; }
 .design-floating-tool-controls { position: absolute; z-index: 6; bottom: 12px; left: 78px; right: 68px; width: max-content; max-width: calc(100% - 146px); margin-inline: auto; box-sizing: border-box; overflow-x: auto; overflow-y: hidden; padding: 8px; border: 1px solid var(--pp-border); border-radius: 9px; background: var(--pp-surface); box-shadow: 0 4px 14px #102a3b20; scrollbar-width: thin; opacity: 0; visibility: hidden; pointer-events: none; transform: translateY(6px); transition: opacity 180ms ease, transform 180ms ease, visibility 0s linear 180ms; }
 .design-floating-tool-controls.is-visible { opacity: 1; visibility: visible; pointer-events: auto; transform: translateY(0); transition-delay: 0s; }
 @media (prefers-reduced-motion: reduce) { .design-floating-tool-controls { transition: none; } }
@@ -1133,11 +1133,14 @@ button,a,input,select { outline-offset:3px; }
 .design-rotation-pivot-controls > .design-rotation-pivot-hint { font-size: 10px; font-weight: 500; }
 .design-floating-tool-controls .segmented-control-option { min-height: 30px; padding: 5px 9px; white-space: nowrap; }
 @media (max-width: 650px) { .design-floating-tool-controls { left: 62px; right: 12px; max-width: calc(100% - 74px); margin-inline: 0; } }
-.design-status { flex-wrap: nowrap; min-width: 0; height: 44px; min-height: 44px; overflow-x: auto; overflow-y: hidden; white-space: nowrap; scrollbar-width: thin; }
-.design-status-selection,.design-status-message,.design-status-save,.design-status > .design-measurement-box { flex: 0 0 auto; }
-.design-status-message { min-width: 0; }
-.design-status-message { display: block; }
-.design-status-save { margin-left: auto; }
+.design-status { flex-wrap: nowrap; gap: 12px; min-width: 0; height: 32px; min-height: 32px; padding: 0 10px; overflow: hidden; white-space: nowrap; }
+.design-status-selection { flex: 0 1 auto; min-width: 0; max-width: 40%; overflow: hidden; color: var(--pp-text); font-weight: 600; text-overflow: ellipsis; }
+.design-status-message { display: block; flex: 1 1 0; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.design-status-save { display: inline-flex; flex: 0 0 auto; align-items: center; gap: 6px; margin-left: auto; }
+.design-status-save button { min-height: 24px; padding: 2px 8px; border: 1px solid var(--pp-border); border-radius: 5px; background: var(--pp-surface); color: var(--pp-text); font: inherit; cursor: pointer; }
+.design-status-dot { width: 7px; height: 7px; border-radius: 999px; background: #3f8f5f; }
+.design-status-save[data-dirty="true"] .design-status-dot { background: #c98a1b; }
+.design-status > .design-measurement-box { flex: 0 0 auto; }
 @media (max-width: 650px) {
   .design-status-message { display: block; }
   .design-view-controls { flex-wrap: wrap; min-width: 0; }
