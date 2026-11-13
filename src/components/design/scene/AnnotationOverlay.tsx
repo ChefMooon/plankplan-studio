@@ -27,7 +27,7 @@ export function TextNoteGraphic({ anchorWorldM, labelWorldM, text, selected = fa
   return <group>
     <Line points={[anchorWorldM, labelWorldM]} {...lineProps} color={selected ? '#e6a94e' : lineProps.color} />
     <AnnotationHtml position={anchorWorldM}><span className="design-annotation-dot" /></AnnotationHtml>
-    <AnnotationHtml position={labelWorldM} interactive={interactive}><div className={`design-annotation-label${selected ? ' is-selected' : ''}${interactive ? ' is-interactive' : ''}`} onPointerDown={onPointerDown} onDoubleClick={onDoubleClick} onClick={onClick}>{text}</div></AnnotationHtml>
+    <AnnotationHtml position={labelWorldM} interactive={interactive} kind="text"><div className={`design-annotation-label${selected ? ' is-selected' : ''}${interactive ? ' is-interactive' : ''}`} onPointerDown={onPointerDown} onDoubleClick={onDoubleClick} onClick={onClick}>{text}</div></AnnotationHtml>
   </group>;
 }
 
@@ -40,7 +40,7 @@ export function DimensionGraphic({ startWorldM, endWorldM, measure, offsetUm, va
     <Line points={layout.extensionA.map(meters)} {...lineProps} color={color} />
     <Line points={layout.extensionB.map(meters)} {...lineProps} color={color} />
     <Line points={[start, end]} {...lineProps} color={color} />
-    <AnnotationHtml position={labelPoint} interactive={interactive} portal={portal}><div className={`design-annotation-label design-annotation-dimension-label${selected ? ' is-selected' : ''}${interactive ? ' is-interactive' : ''}`} onPointerDown={onPointerDown} onClick={onClick}>{formatDesignLength(unitSystem, valueUm)}</div></AnnotationHtml>
+    <AnnotationHtml position={labelPoint} interactive={interactive} portal={portal} kind="dimension"><div className={`design-annotation-label design-annotation-dimension-label${selected ? ' is-selected' : ''}${interactive ? ' is-interactive' : ''}`} onPointerDown={onPointerDown} onClick={onClick}>{formatDesignLength(unitSystem, valueUm)}</div></AnnotationHtml>
   </group>;
 }
 

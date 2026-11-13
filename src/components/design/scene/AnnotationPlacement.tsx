@@ -37,7 +37,7 @@ type Point = [number, number, number];
 const toMeters = (point: readonly number[]): Point => point.map(umToMeters) as Point;
 
 export function DimensionPreviewGraphic({ startWorldM, endWorldM, valueUm, unitSystem, portal }: { startWorldM: Point; endWorldM: Point; valueUm: number; unitSystem: UnitSystem; portal?: RefObject<HTMLElement | null> }) {
-  return <group><Line points={[startWorldM, endWorldM]} color="#24506a" lineWidth={1.5} depthTest={false} renderOrder={999} /><AnnotationHtml position={endWorldM.map((v, i) => (v + startWorldM[i]) / 2) as Point} portal={portal}><span className="design-annotation-label design-annotation-dimension-label">{formatDesignLength(unitSystem, valueUm)}</span></AnnotationHtml></group>;
+  return <group><Line points={[startWorldM, endWorldM]} color="#24506a" lineWidth={1.5} depthTest={false} renderOrder={999} /><AnnotationHtml position={endWorldM.map((v, i) => (v + startWorldM[i]) / 2) as Point} portal={portal} kind="dimension"><span className="design-annotation-label design-annotation-dimension-label">{formatDesignLength(unitSystem, valueUm)}</span></AnnotationHtml></group>;
 }
 
 export function AnnotationHoverGraphic({ highlight }: { highlight: AnchorHighlight }) {

@@ -8,7 +8,7 @@ import { annotationInteractive } from './AnnotationOverlay';
 
 const htmlContent = vi.hoisted(() => ({ children: [] as unknown[] }));
 const three = vi.hoisted(() => ({ canvas: null as unknown as HTMLCanvasElement }));
-vi.mock('@react-three/fiber', () => ({ useThree: () => ({ gl: { domElement: three.canvas }, camera: {} }) }));
+vi.mock('@react-three/fiber', () => ({ useFrame: () => undefined, useThree: () => ({ gl: { domElement: three.canvas }, camera: {} }) }));
 vi.mock('@react-three/drei', async importOriginal => ({
   ...await importOriginal<typeof import('@react-three/drei')>(),
   Html: ({ children }: { children: ReactNode }) => { htmlContent.children.push(children); return null; },
