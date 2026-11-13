@@ -473,7 +473,8 @@ describe('DesignWorkspace', () => {
     const tape = within(rail).getByRole('button', { name: 'Tape Measure (T)' });
     const text = within(rail).getByRole('button', { name: 'Text (N)' });
     const dimensions = within(rail).getByRole('button', { name: 'Dimensions (D)' });
-    const separator = within(rail).getByRole('separator');
+    const separators = within(rail).getAllByRole('separator');
+    const separator = separators[separators.length - 1];
     expect(tape.compareDocumentPosition(separator) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     expect(separator.compareDocumentPosition(text) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     expect(text.compareDocumentPosition(dimensions) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
