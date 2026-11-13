@@ -1,11 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import { rectangleGeometry, transformLocalPoint } from '@/lib/planner/design/geometry';
 import { previewRotate } from './tool-measurements';
-import { geometryCenter, keepGeometryCenter, keepLocalPoint, localizeDelta, resolveRotationPivotLocal, rotateAroundAxis, rotateAroundWorkspaceAxis, rotationGizmoRadiusPixels } from './transform-pivot';
+import { geometryBounds, geometryMaxCorner, geometryCenter, keepGeometryCenter, keepLocalPoint, localizeDelta, resolveRotationPivotLocal, rotateAroundAxis, rotateAroundWorkspaceAxis, rotationGizmoRadiusPixels } from './transform-pivot';
+
+const uniqueIds=()=>{let n=0;return (prefix:string)=>`${prefix}${n++}`;};
 
 describe('transform pivot and local axis helpers', () => {
   it('finds the geometry center and preserves it when scaling around center', () => {
-    const geometry = rectangleGeometry(100, 60, p => p, 20);
+    const geometry = rectangleGeometry(100, 60, uniqueIds(), 20);
     const center = geometryCenter(geometry);
     expect(center).toEqual([50, 30, 10]);
     const oldPose = { positionUm: [10, 20, 30] as [number, number, number], rotation: [0, 0, 0, 1] as [number, number, number, number] };
@@ -41,14 +43,14 @@ describe('transform pivot and local axis helpers', () => {
   });
 
   it('keeps the geometry center fixed during workspace-axis rotation with nonuniform scale', () => {
-    const geometry=rectangleGeometry(100,60,p=>p,20);const center=geometryCenter(geometry);
+    const geometry=rectangleGeometry(100,60,uniqueIds(),20);const center=geometryCenter(geometry);
     const pose={positionUm:[12,34,56] as [number,number,number],rotation:[0,0,0,1] as [number,number,number,number]};
     const scale:[number,number,number]=[2_000_000,750_000,1_250_000];
     const rotated=previewRotate(pose,scale,center,37,'x','center');
     expect(transformLocalPoint(center,rotated.pose,scale)).toEqual(transformLocalPoint(center,pose,scale));
   });
   it('resolves center, origin, and picked-vertex pivots with a safe center fallback', () => {
-    const geometry=rectangleGeometry(100,60,p=>p,20);
+    const geometry=rectangleGeometry(100,60,uniqueIds(),20);
     expect(resolveRotationPivotLocal(geometry,'center')).toEqual([50,30,10]);
     expect(resolveRotationPivotLocal(geometry,'center',undefined,[0,0,0])).toEqual([0,0,0]);
     expect(resolveRotationPivotLocal(geometry,'origin')).toEqual([0,0,0]);
@@ -62,7 +64,7 @@ describe('transform pivot and local axis helpers', () => {
     expect(rotationGizmoRadiusPixels('origin',10)).toBe(34);
   });
   it('keeps an arbitrary picked corner fixed through preview and commit poses with nonuniform object scale', () => {
-    const geometry=rectangleGeometry(100_000,60_000,p=>p,20_000);
+    const geometry=rectangleGeometry(100_000,60_000,uniqueIds(),20_000);
     const corner:[number,number,number]=[100_000,60_000,20_000];
     const pose={positionUm:[240_000,-35_000,18_000] as [number,number,number],rotation:[0,0,Math.SQRT1_2,Math.SQRT1_2] as [number,number,number,number]};
     const scale:[number,number,number]=[2_000_000,750_000,1_250_000];
@@ -70,5 +72,18 @@ describe('transform pivot and local axis helpers', () => {
     const preview=previewRotate(pose,scale,geometryCenter(geometry),123,'y',corner);
     expect(transformLocalPoint(corner,preview.pose,scale)).toEqual(before);
     expect(keepLocalPoint(corner,pose,scale,preview.pose,scale).positionUm).toEqual(preview.pose.positionUm);
+  });
+});
+
+describe('geometry bounds with off-axis extrusions', () => {
+  it('extrudes along the face normal and exposes the outer max corner', () => {
+    // Face in the XZ plane (normal -Y by winding below is +Y here): extrusion must not be assumed along Z.
+    const geometry = {
+      vertices: [{ id: 'a', positionUm: [0, 0, 0] }, { id: 'b', positionUm: [100, 0, 0] }, { id: 'c', positionUm: [100, 0, 10] }, { id: 'd', positionUm: [0, 0, 10] }],
+      edges: [], faces: [{ id: 'f', vertexIds: ['a', 'b', 'c', 'd'] }], extrusions: [{ id: 'x', faceId: 'f', distanceUm: 20 }],
+    } as unknown as Parameters<typeof geometryBounds>[0];
+    // (b-a)x(c-a) = (100,0,0)x(100,0,10) = (0,-1000,0): normal is -Y, so the solid spans y in [-20, 0].
+    expect(geometryBounds(geometry)).toEqual({ min: [0, -20, 0], max: [100, 0, 10] });
+    expect(geometryMaxCorner(geometry)).toEqual([100, 0, 10]);
   });
 });

@@ -9,19 +9,35 @@ export function rotationGizmoRadiusPixels(mode:RotationPivotMode,furthestCornerP
   return mode==='origin'?Math.max(34,furthestCornerPixels+12):34;
 }
 
-export function geometryCenter(geometry: Geometry): [number, number, number] {
-  if (!geometry.vertices.length) return [0, 0, 0];
-  const mins: [number, number, number] = [Infinity, Infinity, Infinity];
-  const maxs: [number, number, number] = [-Infinity, -Infinity, -Infinity];
-  for (const { positionUm } of geometry.vertices) for (let i = 0; i < 3; i += 1) {
-    mins[i] = Math.min(mins[i], positionUm[i]);
-    maxs[i] = Math.max(maxs[i], positionUm[i]);
+/** Local-space bounds including extruded copies; extrusions run along the face normal, as the mesh builder does. */
+export function geometryBounds(geometry: Geometry): { min: [number, number, number]; max: [number, number, number] } {
+  const min: [number, number, number] = [Infinity, Infinity, Infinity];
+  const max: [number, number, number] = [-Infinity, -Infinity, -Infinity];
+  const include = (p: readonly number[]) => { for (let i = 0; i < 3; i += 1) { min[i] = Math.min(min[i], p[i]); max[i] = Math.max(max[i], p[i]); } };
+  const byId = new Map(geometry.vertices.map(v => [v.id, v.positionUm]));
+  for (const { positionUm } of geometry.vertices) include(positionUm);
+  for (const extrusion of geometry.extrusions) {
+    const face = geometry.faces.find(item => item.id === extrusion.faceId);
+    const points = face?.vertexIds.map(id => byId.get(id)).filter((p): p is [number, number, number] => !!p) ?? [];
+    if (points.length < 3) continue;
+    const [a, b, c] = points;
+    const u = [b[0]-a[0], b[1]-a[1], b[2]-a[2]], v = [c[0]-a[0], c[1]-a[1], c[2]-a[2]];
+    const n = [u[1]*v[2]-u[2]*v[1], u[2]*v[0]-u[0]*v[2], u[0]*v[1]-u[1]*v[0]];
+    const length = Math.hypot(n[0], n[1], n[2]);
+    if (!length) continue;
+    for (const p of points) include([p[0]+n[0]/length*extrusion.distanceUm, p[1]+n[1]/length*extrusion.distanceUm, p[2]+n[2]/length*extrusion.distanceUm]);
   }
-  return [
-    (mins[0] + maxs[0]) / 2,
-    (mins[1] + maxs[1]) / 2,
-    (mins[2] + maxs[2] + (geometry.extrusions[0]?.distanceUm ?? 0)) / 2,
-  ];
+  return min[0] === Infinity ? { min: [0, 0, 0], max: [0, 0, 0] } : { min, max };
+}
+
+export function geometryCenter(geometry: Geometry): [number, number, number] {
+  const { min, max } = geometryBounds(geometry);
+  return [(min[0]+max[0])/2, (min[1]+max[1])/2, (min[2]+max[2])/2];
+}
+
+/** Local-space +X/+Y/+Z bounding-box corner, so positive axis arrows point away from the shape. */
+export function geometryMaxCorner(geometry: Geometry): [number, number, number] {
+  return geometryBounds(geometry).max;
 }
 
 export function resolveRotationPivotLocal(geometry: Geometry, mode: RotationPivotMode, vertexLocal?: readonly [number,number,number], centerOverride?: readonly [number,number,number]): [number,number,number] {

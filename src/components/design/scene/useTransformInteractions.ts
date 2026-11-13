@@ -4,7 +4,7 @@ import * as THREE from 'three';
 import type { Geometry, Instance, LooseObject } from '@/lib/planner/design/schema';
 import { umToMeters, transformLocalPoint } from '@/lib/planner/design/geometry';
 import { designVertices } from '../rectangle-plane';
-import { geometryCenter, resolveRotationPivotLocal, rotationGizmoRadiusPixels, type RotationAxis } from '../transform-pivot';
+import { geometryCenter, geometryMaxCorner, resolveRotationPivotLocal, rotationGizmoRadiusPixels, type RotationAxis } from '../transform-pivot';
 import { moveAxisDirection, rayAtClientPoint, rayAxisCoordinate, resolveMoveConstraint, type MoveAxis } from '../move-gesture';
 import { useMovePointer } from './useMovePointer';
 import { useTransformPreview } from './useTransformPreview';
@@ -33,9 +33,12 @@ export function useTransformInteractions({activeTool,snap,unitSystem,pivotMode,r
   const moveTarget=activeTool==='move'&&selectedTransformTarget&&!selectedTransformTarget.locked?selectedTransformTarget:undefined;
   const moveGeometry=moveTarget?selectedTransformGeometry:undefined;
   const movePivotFor=useCallback((target:Instance|LooseObject,geometry:Geometry)=>{
-    const local=pivotMode==='center'?geometryCenter(geometry):[0,0,0] as [number,number,number];
+    // Translation is pivot-independent, so anchor the gizmo on the outer corner where it stays visible and grabbable.
+    // Confirmed cut-spec boards render as a box centered on the origin, not from their stored vertices.
+    const cutSpec='definitionId'in target?design?.definitions.find(definition=>definition.id===target.definitionId)?.cutSpec:undefined;
+    const local:[number,number,number]=cutSpec?.confirmation==='confirmed'?[Math.round(cutSpec.lengthUm/2),Math.round(cutSpec.widthUm/2),Math.round(cutSpec.thicknessUm/2)]:geometryMaxCorner(geometry);
     return transformLocalPoint(local,target.pose,target.scalePpm).map(umToMeters) as [number,number,number];
-  },[pivotMode]);
+  },[design]);
   const movePivot=moveTarget&&moveGeometry?movePivotFor(moveTarget,moveGeometry):undefined;
   const rotationPivotFor=useCallback((target:Instance|LooseObject,geometry:Geometry):[number,number,number]=>{
     const vertex=selectedElement?.objectId===target.id&&selectedElement.type==='vertex'?selectedElement:undefined;
