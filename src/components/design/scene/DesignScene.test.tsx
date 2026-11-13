@@ -379,6 +379,20 @@ describe('DesignScene rotation rendering', () => {
     await renderer.unmount();
   });
 
+  it('cancels a handle gesture when its selected target changes before release', async () => {
+    const props=createProps();
+    const camera=new THREE.PerspectiveCamera(45,4/3,.1,100);
+    camera.position.set(6,5,7);camera.lookAt(0,0,0);camera.updateProjectionMatrix();camera.updateMatrixWorld();
+    const renderer=await ReactThreeTestRenderer.create(<DesignScene {...props} selectedId="instance-1" activeTool="move"/>,{width:800,height:600,camera,beforeReturn:fixedBounds});
+    await renderer.fireEvent(moveHandle(renderer,'x'),'onPointerDown',{button:0,pointerId:89,nativeEvent:{clientX:400,clientY:300,button:0,pointerId:89,preventDefault:vi.fn()}});
+    await act(async()=>{window.dispatchEvent(Object.assign(new Event('pointermove'),{clientX:520,clientY:260,pointerId:89}));});
+    await renderer.update(<DesignScene {...props} activeTool="move"/>);
+    await act(async()=>{window.dispatchEvent(Object.assign(new Event('pointerup'),{clientX:520,clientY:260,pointerId:89}));});
+    expect(props.onCommand).not.toHaveBeenCalled();
+    expect(props.onToolMeasurementChange).toHaveBeenLastCalledWith(undefined);
+    await renderer.unmount();
+  });
+
   it('reprojects an active handle drag and updates its non-exact measurement when the axis changes', async () => {
     const props=createProps();
     const camera=new THREE.PerspectiveCamera(45,4/3,.1,100);
