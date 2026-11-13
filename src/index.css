@@ -882,21 +882,24 @@ button,a,input,select { outline-offset:3px; }
 /* Compact panel rail and canvas overlay drawer. */
 .design-workspace { position: relative; display: block; flex: 1 1 auto; min-height: 0; padding-top: 8px; }
 .design-canvas-panel { width: 100%; height: 100%; }
-.design-info-rail { --design-drawer-width: min(247.5px, calc(75vw - 82.5px)); --design-drawer-motion: 220ms cubic-bezier(.2,.7,.2,1); position: absolute; z-index: 12; top: 0; right: 0; bottom: 0; display: block; width: min(372px, calc(100vw - 30px)); padding: 0; overflow: visible; border: 0; background: transparent; pointer-events: none; transform: translateX(var(--design-drawer-width)); transition: transform var(--design-drawer-motion); }
+.design-info-rail { --design-drawer-width: min(280px, calc(75vw - 82.5px)); --design-drawer-motion-duration: 220ms; --design-drawer-motion: var(--design-drawer-motion-duration) cubic-bezier(.2,.7,.2,1); position: absolute; z-index: 12; top: 0; right: 0; bottom: 0; display: block; width: min(372px, calc(100vw - 30px)); padding: 0; overflow: visible; border: 0; background: transparent; pointer-events: none; transform: translateX(var(--design-drawer-width)); transition: transform var(--design-drawer-motion); }
 .design-info-rail.is-open { transform: translateX(0); }
-.design-drawer-tabs { position: absolute; z-index: 2; top: 50%; right: var(--design-drawer-width); display: flex; flex-direction: column; gap: 4px; box-sizing: border-box; width: 42px; padding: 4px; border: 1px solid var(--pp-border); border-radius: 9px; background: color-mix(in srgb, var(--pp-surface) 96%, transparent); box-shadow: 0 4px 14px #102a3b20; pointer-events: auto; transform: translateY(-50%); }
+.design-drawer-tabs { position: absolute; z-index: 2; top: 12px; right: var(--design-drawer-width); display: flex; flex-direction: column; gap: 4px; box-sizing: border-box; width: 42px; padding: 4px; border: 1px solid var(--pp-border); border-right: 0; border-radius: 9px 0 0 9px; background: var(--pp-surface); box-shadow: -4px 4px 14px #102a3b20; pointer-events: auto; }
+/* Overlap the drawer's left border by 1px so the strip and panel read as one object. */
+.design-info-rail.is-open .design-drawer-tabs { right: calc(var(--design-drawer-width) - 1px); }
+.design-info-rail:not(.is-open) .design-drawer-tabs button[aria-selected="true"] { border-color: transparent; background: transparent; color: var(--pp-navy); }
 .design-drawer-tabs button { display: grid; flex: 0 0 32px; place-items: center; box-sizing: border-box; width: 32px; min-width: 32px; height: 32px; min-height: 32px; padding: 5px; border: 1px solid transparent; border-radius: 6px; background: transparent; color: var(--pp-muted); cursor: pointer; }
 .design-drawer-tabs button svg { width: 20px; height: 20px; }
 .design-drawer-tabs button[aria-selected="true"] { border-color: var(--pp-border); background: var(--pp-raised); color: var(--pp-navy); }
-.design-drawer-content { box-sizing: border-box; position: absolute; top: 0; right: 0; display: flex; flex-direction: column; width: var(--design-drawer-width); max-height: min(680px, calc(100% - 10px)); overflow: hidden; padding: 0; border: 1px solid var(--pp-border); border-radius: 10px 0 0 10px; background: var(--pp-surface); box-shadow: 0 10px 32px #102a3b30; pointer-events: auto; opacity: 0; visibility: hidden; transition: opacity 160ms ease, visibility 0s 220ms; }
-.design-info-rail.is-open .design-drawer-content { opacity: 1; visibility: visible; transition-delay: 0s; }
+.design-drawer-content { box-sizing: border-box; position: absolute; top: 0; right: 0; bottom: 0; display: flex; flex-direction: column; width: var(--design-drawer-width); overflow: hidden; padding: 0; border: 0; border-left: 1px solid var(--pp-border); border-radius: 0; background: var(--pp-surface); box-shadow: -8px 0 24px #102a3b28; pointer-events: auto; visibility: hidden; transition: visibility 0s var(--design-drawer-motion-duration); }
+.design-info-rail.is-open .design-drawer-content { visibility: visible; transition-delay: 0s; }
 /* The rail and card share one moving parent so their edges stay joined. */
 .design-drawer-scroll { box-sizing: border-box; flex: 1 1 auto; min-width: 0; min-height: 0; overflow: auto; overscroll-behavior: contain; padding: 14px; }
 .design-drawer-scroll > * { flex: 0 0 auto; min-width: 0; }
-.design-info-title { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.design-info-title { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding-right: 30px; }
 .design-info-title h2 { margin: 0 0 10px; color: var(--pp-navy); font-size: 16px; }
 .design-info-title .eyebrow { margin-bottom: 4px; }
-.design-drawer-collapse { position: absolute; z-index: 3; top: calc(50% - 131px); right: calc(var(--design-drawer-width) + 4px); display: grid; place-items: center; box-sizing: border-box; width: 34px; height: 34px; padding: 7px; border: 1px solid var(--pp-border); border-radius: 8px; background: color-mix(in srgb, var(--pp-surface) 96%, transparent); color: var(--pp-muted); box-shadow: 0 4px 14px #102a3b20; cursor: pointer; pointer-events: auto; }
+.design-drawer-collapse { position: absolute; z-index: 3; top: 10px; right: 10px; display: grid; place-items: center; box-sizing: border-box; width: 28px; height: 28px; padding: 5px; border: 0; border-radius: 6px; background: transparent; color: var(--pp-muted); cursor: pointer; pointer-events: auto; }
 .design-drawer-collapse svg { display: block; width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-linecap: round; stroke-linejoin: round; stroke-width: 1.8; }
 .design-drawer-collapse:focus-visible { outline: 2px solid var(--pp-blue); outline-offset: 2px; }
 @media (hover: hover) { .design-drawer-collapse:hover { background: var(--pp-raised); color: var(--pp-navy); } }
@@ -920,8 +923,8 @@ button,a,input,select { outline-offset:3px; }
 .design-object-list button,.design-selection-list li button { align-items: start; }
 .design-object-list button > span { min-width: 0; overflow-wrap: anywhere; }
 .design-object-list small,.design-selection-list li span { max-width: 60%; text-align: right; overflow-wrap: anywhere; }
-@media(max-width:650px) { .design-info-rail { --design-drawer-width: min(225px, calc(75vw - 48px)); top: 0; right: 0; bottom: 0; width: calc(100vw - 16px); } .design-drawer-content { max-height: calc(100% - 4px); } }
-@media (prefers-reduced-motion: reduce) { .design-info-rail { transition: none; } .design-drawer-content { transition: opacity 100ms ease, visibility 0s 100ms; } .design-info-rail.is-open .design-drawer-content { transition-delay: 0s; } }
+@media(max-width:650px) { .design-info-rail { --design-drawer-width: min(225px, calc(75vw - 48px)); top: 0; right: 0; bottom: 0; width: calc(100vw - 16px); } }
+@media (prefers-reduced-motion: reduce) { .design-info-rail { transition: none; } .design-info-rail { --design-drawer-motion-duration: 0s; } .design-drawer-content { transition: visibility 0s; } .design-info-rail.is-open .design-drawer-content { transition-delay: 0s; } }
 .page-skeleton { min-height: 0; flex: 1; display: grid; gap: 1rem; padding: 1rem; overflow: hidden; }
 .design-page .page-skeleton { flex: 1 1 auto; min-height: 0; padding: 0; grid-template-rows: minmax(0,1fr); }
 .design-page .skeleton-canvas { min-height: 0; }
