@@ -754,6 +754,8 @@ button,a,input,select { outline-offset:3px; }
 .design-control-separator { width: 1px; height: 20px; margin: 0 2px; background: var(--pp-border); }
 .design-viewport { position: relative; display: block; width: 100%; height: 100%; min-height: 0; overflow: hidden; border: 0; border-radius: 0; background: #edf3f5; }
 .design-viewport-canvas,.design-canvas { position: absolute!important; inset: 0; width: 100%!important; height: 100%!important; }
+/* drei's Html labels carry z-indexes up to ~16.7M. Containing them in the canvas wrapper keeps every toolbar, drawer and status overlay above them. */
+.design-canvas { isolation: isolate; }
 .design-measurement-box { position:static; display:flex; align-items:center; gap:8px; margin-left:auto; padding:0; border:0; background:transparent; color:var(--pp-text); box-shadow:none; }
 .segmented-control.design-rotation-axis { min-height:25px; }
 .design-rotation-axis button { min-width:25px; height:25px; min-height:25px; padding:2px 5px; border:1px solid var(--pp-border); border-radius:0; background:var(--pp-surface); color:var(--pp-muted); font:inherit; font-size:10px; font-weight:700; cursor:pointer; }
