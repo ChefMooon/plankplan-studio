@@ -737,7 +737,18 @@ button,a,input,select { outline-offset:3px; }
 .design-canvas-panel { display: grid; grid-template-rows: auto minmax(0,1fr) auto; width: 100%; height: 100%; min-width: 0; min-height: 0; overflow: hidden; border: 1px solid var(--pp-border); border-radius: 10px; background: var(--pp-surface); }
 .design-view-controls { display: flex; flex-wrap: wrap; align-items: center; gap: 5px; padding: 8px; border-bottom: 1px solid var(--pp-border); }
 .design-view-controls > button { min-height: 30px; padding: 5px 8px; border: 1px solid var(--pp-border); border-radius: 6px; background: var(--pp-surface); color: var(--pp-text); font: inherit; font-size: 10px; cursor: pointer; }
+.design-view-controls { gap: 6px; padding: 6px 8px; }
+.design-view-controls .segmented-control { min-height: 30px; }
+.design-view-controls .segmented-control-option { min-height: 28px; padding: 4px 9px; font-size: 11px; }
+.design-view-controls .segmented-control-icon-only button { width: 34px; height: 28px; padding: 4px; }
+.design-view-controls .segmented-control-icon-only svg { width: 18px; height: 18px; }
 .design-view-controls > .design-view-controls-end { margin-left: auto; }
+.design-view-icon-group { display: inline-flex; gap: 4px; }
+.design-view-icon-wrap { display: inline-flex; }
+.design-view-icon-button { display: grid; place-items: center; width: 30px; height: 30px; padding: 0; border: 1px solid var(--pp-border); border-radius: 6px; background: var(--pp-surface); color: var(--pp-muted); cursor: pointer; }
+.design-view-icon-button svg { width: 18px; height: 18px; }
+.design-view-icon-button:hover:not(:disabled) { background: var(--pp-raised); color: var(--pp-navy); }
+.design-view-icon-button:disabled { opacity: .5; cursor: not-allowed; pointer-events: none; }
 .design-view-controls > button[aria-pressed="true"] { border-color: var(--pp-blue); background: var(--pp-raised); color: var(--pp-navy); }
 .design-view-controls > button:focus-visible,.design-tool:focus-visible,.design-info-rail button:focus-visible { outline: 2px solid var(--pp-blue); outline-offset: 2px; }
 .design-control-separator { width: 1px; height: 20px; margin: 0 2px; background: var(--pp-border); }
@@ -1129,8 +1140,7 @@ button,a,input,select { outline-offset:3px; }
 .design-status-save { margin-left: auto; }
 @media (max-width: 650px) {
   .design-status-message { display: block; }
-  .design-view-controls { flex-wrap: nowrap; min-width: 0; overflow-x: auto; overflow-y: hidden; white-space: nowrap; scrollbar-width: thin; }
-  .design-view-controls > * { flex: 0 0 auto; }
+  .design-view-controls { flex-wrap: wrap; min-width: 0; }
   .design-measurement-box { flex-wrap: nowrap; }
   .design-measurement-input-wrap input { width: 74px; }
 }

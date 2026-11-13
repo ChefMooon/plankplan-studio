@@ -430,13 +430,17 @@ describe('DesignWorkspace', () => {
   it('creates a board through a domain command and exposes undo/redo', () => {
     const onCommit = vi.fn();
     render(<DesignWorkspace project={{ ...project, design: undefined }} onCommit={onCommit} />);
-    fireEvent.click(screen.getByRole('button', { name: 'Create board' }));
+    fireEvent.click(screen.getByRole('tab', { name: 'Components' }));
+    const addBoard = screen.getByRole('button', { name: 'Add board' });
+    fireEvent.click(addBoard);
     expect(onCommit).toHaveBeenCalledOnce();
     expect(onCommit.mock.calls[0][0].design?.instances).toHaveLength(1);
-    screen.getByRole('button',{name:'Create board'}).focus();
-    fireEvent.keyDown(screen.getByRole('button',{name:'Create board'}),{key:'z',ctrlKey:true});
+    // The drawer swallows keystrokes, so undo/redo shortcuts are exercised from the camera controls.
+    const frameModel = screen.getByRole('button', { name: 'Frame model' });
+    frameModel.focus();
+    fireEvent.keyDown(frameModel,{key:'z',ctrlKey:true});
     expect(onCommit.mock.calls[1][0].design?.instances).toHaveLength(0);
-    fireEvent.keyDown(screen.getByRole('button',{name:'Create board'}),{key:'z',ctrlKey:true,shiftKey:true});
+    fireEvent.keyDown(frameModel,{key:'z',ctrlKey:true,shiftKey:true});
     expect(onCommit.mock.calls[2][0].design?.instances).toHaveLength(1);
     fireEvent.click(screen.getByRole('tab', { name: 'Model Info' }));
     expect(within(screen.getByRole('tabpanel')).getByText('Components').parentElement).toHaveTextContent('1');
